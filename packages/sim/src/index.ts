@@ -18,7 +18,15 @@ export * from './types.js';
 export { Hasher, hashValue } from './hash.js';
 export { createPrng, clonePrng, nextU32, nextInt, chancePermille, type PrngState } from './prng.js';
 export { idiv, imod, pct, clamp } from './math.js';
-export { emptyMap, sampleInput } from './fixtures.js';
+export {
+  emptyMap,
+  sampleInput,
+  latticeMap,
+  denseInput,
+  cardInput,
+  CARD_MAP,
+  PHASE1_CARDS,
+} from './fixtures.js';
 export { placementError, segmentTiles } from './placements.js';
 export {
   createSimWorkerHandler,
@@ -39,6 +47,10 @@ export {
   tileIndex,
   SIDES,
   TileKind,
+  Turn,
+  type LaneKind,
+  type LaneOverride,
+  closedLinkMask,
   MapError,
   type World,
   type Link,
@@ -48,3 +60,23 @@ export {
   type Route,
   type NodeRef,
 } from './world.js';
+export {
+  VEHICLE_SPECS,
+  BUS_DWELL_TICKS,
+  BIKE_SHARED_VMAX,
+  MAX_VEHICLE_LENGTH,
+  VEHICLE_TYPE_COUNT,
+  type VehicleSpec,
+} from './vehicles.js';
+export { TAXI_LOAD_COST } from './traffic.js';
+export { controllerSnapshot, roundWorld } from './sim.js';
+export { resolvePlacements, unsupportedEffect, type PlacementResolution } from './effects.js';
+export {
+  ControllerCode,
+  PocketMode,
+  SIGNAL_GREEN_TICKS,
+  ADAPTIVE_MIN_GREEN_TICKS,
+  ADAPTIVE_MAX_GREEN_TICKS,
+  UNCONTROLLED_RESOLVE_TICKS,
+  ROUNDABOUT_CAPACITY,
+} from './controllers.js';

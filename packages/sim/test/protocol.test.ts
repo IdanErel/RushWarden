@@ -3,7 +3,10 @@ import {
   MAX_TICKS_PER_STEP,
   ROUND_TICKS,
   Sim,
+  buildWorld,
+  controllerSnapshot,
   createSimWorkerHandler,
+  denseInput,
   sampleInput,
   type FromSimWorker,
 } from '../src/index.js';
@@ -29,13 +32,35 @@ describe('sim worker protocol', () => {
     expect(done[0]!.msg).toEqual({ type: 'done', roundId: 1, result: expected });
   });
 
-  it('transfers each frame buffer', () => {
+  it('transfers each frame and controller buffer', () => {
     const { out, handle } = harness();
     handle({ type: 'start', roundId: 2, input: sampleInput(1) });
     handle({ type: 'step', roundId: 2, ticks: 3 });
     const first = out[0]!;
     expect(first.msg.type).toBe('frames');
-    expect(first.transfer).toHaveLength(3);
+    expect(first.transfer).toHaveLength(6);
+  });
+
+  it('sends controllerSnapshot per frame, equal to stepping headless (ADR-020)', () => {
+    const input = denseInput(5);
+    const { out, handle } = harness();
+    handle({ type: 'start', roundId: 4, input });
+    handle({ type: 'finish', roundId: 4 });
+    const msgs = out.flatMap((o) => (o.msg.type === 'frames' ? [o.msg] : []));
+    const controllers = msgs.flatMap((m) => m.controllers ?? []);
+    expect(msgs.every((m) => m.controllers?.length === m.frames.length)).toBe(true);
+    expect(controllers).toHaveLength(ROUND_TICKS);
+    let s = Sim.init(input);
+    const expected: Uint8Array[] = [];
+    while (!s.done) {
+      s = Sim.step(s);
+      expected.push(controllerSnapshot(s));
+    }
+    expect(controllers).toEqual(expected);
+    // Every intersection is uncontrolled until P1-SIM-05 wires the cards; box counts still move.
+    expect(controllers[0]!.length).toBe(buildWorld(input.map).intersections.length * 3);
+    expect(controllers.every((c) => c.every((v, k) => k % 3 === 2 || v === 0))).toBe(true);
+    expect(controllers.some((c) => c.some((v, k) => k % 3 === 2 && v > 0))).toBe(true);
   });
 
   it('caps ticks per step, ignores stale rounds, supports finish and abort', () => {
