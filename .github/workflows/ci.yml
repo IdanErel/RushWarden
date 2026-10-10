@@ -66,6 +66,8 @@ jobs:
         run: pnpm --filter @rushwarden/platform-web run e2e
       - name: Renderer dev-page check (scene, worker playback, readability effects)
         run: pnpm --filter @rushwarden/render run e2e
+      - name: Run screen e2e (hooks H2, H3, H5; phone and desktop)
+        run: pnpm --filter @rushwarden/ui run e2e
 
   pr-title:
     name: Conventional commit title

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Run screen flow on the dev page (stub run controller + fake traffic), phone and desktop.
+// Run screen flow on the dev page (real run controller, dev stand-in cards, fake traffic),
+// phone and desktop.
 const executablePath = process.env['PW_CHROMIUM_PATH'];
 const launch = executablePath ? { launchOptions: { executablePath } } : {};
 
