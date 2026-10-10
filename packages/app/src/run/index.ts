@@ -16,6 +16,8 @@ export {
   costOf,
   deckOf,
   resolveTier,
+  runEffectError,
+  sameTarget,
 } from './controller.js';
 export { RunController, type RunAnalytics } from './run-controller.js';
 export {

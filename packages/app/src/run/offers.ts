@@ -8,7 +8,7 @@ export const RARITY_WEIGHTS: readonly [Rarity, number][] = [
   ['rare', 10],
 ];
 export const OFFER_SIZE = 3;
-/** GDD §2: the pity rule applies to offers after round 3. */
+/** GDD §2: the pity rule applies from the offer made after passing round 3 (`round >= 3`). */
 export const PITY_AFTER_ROUND = 3;
 
 /** The tag most cards in the deck carry; ties go to the earlier tag in TAG_ORDER. */
@@ -63,7 +63,8 @@ export function buildOffer(
     const from = ofRarity.length > 0 ? ofRarity : left;
     offer.push(from[nextInt(prng, from.length)] as RunCard);
   }
-  if (round > PITY_AFTER_ROUND && offer.length > 0) {
+  // ADR-018 point 6: from the offer made after passing round 3.
+  if (round >= PITY_AFTER_ROUND && offer.length > 0) {
     const tag = dominantTag(deck, byId);
     if (tag && !offer.some((c) => c.tags.includes(tag))) {
       const withTag = eligible.filter((c) => c.tags.includes(tag) && !offer.includes(c));
