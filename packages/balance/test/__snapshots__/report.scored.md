@@ -41,18 +41,18 @@ All bots together, over the runs that reached the round. Ratio = throughput ÷ q
 
 | Round | Rounds played | Quota | Median throughput | Median ratio | p10 ratio | p90 ratio | Pass rate |
 | ----- | ------------- | ----- | ----------------- | ------------ | --------- | --------- | --------- |
-| 1     | 84            | 26    | 37                | 142.3%       | 92.3%     | 157.7%    | 88.1%     |
-| 2     | 84            | 29    | 42                | 144.8%       | 120.7%    | 158.6%    | 94.0%     |
-| 3     | 84            | 32    | 46                | 143.8%       | 112.5%    | 156.3%    | 95.2%     |
-| 4     | 84            | 55    | 76                | 138.2%       | 109.1%    | 150.9%    | 92.9%     |
-| 5     | 80            | 37    | 50                | 135.1%       | 113.5%    | 156.8%    | 93.8%     |
-| 6     | 77            | 40    | 53                | 132.5%       | 115.0%    | 147.5%    | 97.4%     |
-| 7     | 75            | 43    | 58                | 134.9%       | 120.9%    | 153.5%    | 97.3%     |
-| 8     | 74            | 74    | 104               | 140.5%       | 118.9%    | 155.4%    | 98.6%     |
-| 9     | 73            | 49    | 70                | 142.9%       | 122.4%    | 157.1%    | 98.6%     |
-| 10    | 73            | 52    | 76                | 146.2%       | 123.1%    | 163.5%    | 100.0%    |
-| 11    | 73            | 55    | 78                | 141.8%       | 121.8%    | 156.4%    | 100.0%    |
-| 12    | 73            | 92    | 133               | 144.6%       | 125.0%    | 159.8%    | 98.6%     |
+| 1     | 84            | 26    | 39                | 150.0%       | 92.3%     | 157.7%    | 89.3%     |
+| 2     | 84            | 29    | 44                | 151.7%       | 124.1%    | 158.6%    | 95.2%     |
+| 3     | 84            | 32    | 47                | 146.9%       | 109.4%    | 159.4%    | 94.0%     |
+| 4     | 84            | 55    | 79                | 143.6%       | 121.8%    | 160.0%    | 94.0%     |
+| 5     | 81            | 37    | 53                | 143.2%       | 118.9%    | 162.2%    | 93.8%     |
+| 6     | 78            | 40    | 57                | 142.5%       | 125.0%    | 157.5%    | 97.4%     |
+| 7     | 76            | 43    | 60                | 139.5%       | 125.6%    | 158.1%    | 97.4%     |
+| 8     | 75            | 74    | 104               | 140.5%       | 114.9%    | 158.1%    | 97.3%     |
+| 9     | 74            | 49    | 72                | 146.9%       | 120.4%    | 159.2%    | 97.3%     |
+| 10    | 73            | 52    | 78                | 150.0%       | 134.6%    | 165.4%    | 100.0%    |
+| 11    | 73            | 55    | 82                | 149.1%       | 125.5%    | 158.2%    | 100.0%    |
+| 12    | 73            | 92    | 135               | 146.7%       | 129.3%    | 163.0%    | 98.6%     |
 
 ## Cards: drafted win-rate delta and pick rate
 
@@ -60,26 +60,26 @@ Baseline win rate over all runs: 85.7%. Delta = win rate of runs that drafted th
 
 | Card            | Tags  | Offered | Picked | Pick rate | Runs drafting | Win rate drafted | Delta (pts) | Within limits |
 | --------------- | ----- | ------- | ------ | --------- | ------------- | ---------------- | ----------- | ------------- |
-| bus-lane        | MASS  | 158     | 29     | 18.4%     | 17            | 94.1%            | +8.4        | yes           |
-| bus-priority    | MASS  | 92      | 14     | 15.2%     | 7             | 100.0%           | +14.3       | no            |
-| delivery-window | TOLL  | 82      | 20     | 24.4%     | 15            | 93.3%            | +7.6        | yes           |
-| detour          | TOLL  | 83      | 18     | 21.7%     | 13            | 92.3%            | +6.6        | yes           |
-| express-stop    | MASS  | 74      | 0      | 0.0%      | 0             | n/a              | n/a         | n/a           |
-| fare-holiday    | MASS  | 101     | 18     | 17.8%     | 10            | 100.0%           | +14.3       | no            |
-| no-heavy        | CHAOS | 65      | 25     | 38.5%     | 16            | 93.8%            | +8.1        | yes           |
-| one-way         | FLOW  | 191     | 4      | 2.1%      | 3             | 0.0%             | −85.7       | no            |
-| overtime        | TEMPO | 83      | 24     | 28.9%     | 13            | 92.3%            | +6.6        | yes           |
+| bus-lane        | MASS  | 159     | 25     | 15.7%     | 13            | 92.3%            | +6.6        | yes           |
+| bus-priority    | MASS  | 91      | 14     | 15.4%     | 7             | 100.0%           | +14.3       | no            |
+| delivery-window | TOLL  | 84      | 15     | 17.9%     | 11            | 90.9%            | +5.2        | yes           |
+| detour          | TOLL  | 80      | 14     | 17.5%     | 11            | 90.9%            | +5.2        | yes           |
+| express-stop    | MASS  | 71      | 0      | 0.0%      | 0             | n/a              | n/a         | n/a           |
+| fare-holiday    | MASS  | 105     | 18     | 17.1%     | 10            | 90.0%            | +4.3        | yes           |
+| no-heavy        | CHAOS | 67      | 23     | 34.3%     | 16            | 93.8%            | +8.1        | yes           |
+| one-way         | FLOW  | 198     | 73     | 36.9%     | 27            | 85.2%            | −0.5        | yes           |
+| overtime        | TEMPO | 84      | 23     | 27.4%     | 12            | 91.7%            | +6.0        | yes           |
 | pilot-program   | TEMPO | 107     | 21     | 19.6%     | 10            | 80.0%            | −5.7        | yes           |
-| recount         | TEMPO | 114     | 28     | 24.6%     | 15            | 80.0%            | −5.7        | yes           |
-| remove-signal   | CHAOS | 93      | 13     | 14.0%     | 10            | 100.0%           | +14.3       | no            |
-| roundabout      | CHAOS | 108     | 17     | 15.7%     | 11            | 81.8%            | −3.9        | yes           |
-| second-shift    | TEMPO | 139     | 28     | 20.1%     | 13            | 100.0%           | +14.3       | no            |
-| smart-signal    | FLOW  | 185     | 48     | 25.9%     | 23            | 95.7%            | +10.0       | yes           |
-| speed-limit-up  | FLOW  | 166     | 46     | 27.7%     | 21            | 95.2%            | +9.5        | yes           |
-| staggered-hours | TOLL  | 171     | 19     | 11.1%     | 13            | 92.3%            | +6.6        | yes           |
-| toll-booth      | TOLL  | 85      | 19     | 22.4%     | 15            | 73.3%            | −12.4       | no            |
-| turn-lane       | FLOW  | 212     | 68     | 32.1%     | 23            | 100.0%           | +14.3       | no            |
-| yield-culture   | CHAOS | 166     | 54     | 32.5%     | 24            | 87.5%            | +1.8        | yes           |
+| recount         | TEMPO | 112     | 27     | 24.1%     | 14            | 78.6%            | −7.1        | yes           |
+| remove-signal   | CHAOS | 98      | 12     | 12.2%     | 9             | 100.0%           | +14.3       | no            |
+| roundabout      | CHAOS | 104     | 18     | 17.3%     | 11            | 72.7%            | −13.0       | no            |
+| second-shift    | TEMPO | 143     | 26     | 18.2%     | 11            | 100.0%           | +14.3       | no            |
+| smart-signal    | FLOW  | 183     | 45     | 24.6%     | 23            | 95.7%            | +10.0       | yes           |
+| speed-limit-up  | FLOW  | 168     | 46     | 27.4%     | 20            | 95.0%            | +9.3        | yes           |
+| staggered-hours | TOLL  | 168     | 19     | 11.3%     | 13            | 84.6%            | −1.1        | yes           |
+| toll-booth      | TOLL  | 87      | 17     | 19.5%     | 14            | 71.4%            | −14.3       | no            |
+| turn-lane       | FLOW  | 208     | 62     | 29.8%     | 23            | 100.0%           | +14.3       | no            |
+| yield-culture   | CHAOS | 173     | 47     | 27.2%     | 22            | 90.9%            | +5.2        | yes           |
 
 ## Archetype purity vs win rate
 
@@ -87,9 +87,9 @@ Purity = share of final-deck cards carrying the deck's most common tag.
 
 | Purity | Runs | Win rate |
 | ------ | ---- | -------- |
-| < 40%  | 17   | 94.1%    |
-| 40–59% | 52   | 78.8%    |
-| 60–79% | 15   | 100.0%   |
+| < 40%  | 16   | 93.8%    |
+| 40–59% | 47   | 76.6%    |
+| 60–79% | 21   | 100.0%   |
 | ≥ 80%  | 0    | n/a      |
 
 ## Round-of-death histogram (lost runs)
@@ -99,12 +99,12 @@ Purity = share of final-deck cards carrying the deck's most common tag.
 | 1     | 0      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 2     | 0      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 3     | 0      | 0                 | 0               | 0               | 0               | 0                | 0                |
-| 4     | 4      | 0                 | 0               | 0               | 0               | 0                | 0                |
+| 4     | 3      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 5     | 3      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 6     | 2      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 7     | 1      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 8     | 1      | 0                 | 0               | 0               | 0               | 0                | 0                |
-| 9     | 0      | 0                 | 0               | 0               | 0               | 0                | 0                |
+| 9     | 1      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 10    | 0      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 11    | 0      | 0                 | 0               | 0               | 0               | 0                | 0                |
 | 12    | 1      | 0                 | 0               | 0               | 0               | 0                | 0                |
@@ -113,35 +113,35 @@ Purity = share of final-deck cards carrying the deck's most common tag.
 
 | Bot               | Rounds played | Gridlocked rounds | Rate  |
 | ----------------- | ------------- | ----------------- | ----- |
-| random            | 70            | 6                 | 8.6%  |
+| random            | 75            | 6                 | 8.0%  |
 | greedy-throughput | 144           | 14                | 9.7%  |
-| archetype(FLOW)   | 144           | 10                | 6.9%  |
+| archetype(FLOW)   | 144           | 12                | 8.3%  |
 | archetype(MASS)   | 144           | 8                 | 5.6%  |
 | archetype(TOLL)   | 144           | 16                | 11.1% |
-| archetype(CHAOS)  | 144           | 17                | 11.8% |
+| archetype(CHAOS)  | 144           | 18                | 12.5% |
 | archetype(TEMPO)  | 144           | 13                | 9.0%  |
 
 ## Top 20 decks (by wins)
 
-| #   | Deck                                                                                                                                                                                                                                       | Runs | Wins | Share of runs |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ---- | ------------- |
-| 1   | 1× bus-lane, 4× bus-priority, 1× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                                                            | 2    | 2    | 2.4%          |
-| 2   | 1× bus-priority, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× toll-booth, 1× turn-lane                                                                          | 2    | 2    | 2.4%          |
-| 3   | 1× bus-lane, 1× bus-priority, 1× delivery-window, 1× detour, 2× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 4× smart-signal, 2× speed-limit-up, 1× staggered-hours, 2× toll-booth, 2× turn-lane        | 1    | 1    | 1.2%          |
-| 4   | 1× bus-lane, 1× bus-priority, 1× delivery-window, 3× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 4× smart-signal, 3× speed-limit-up, 2× turn-lane, 1× yield-culture                         | 1    | 1    | 1.2%          |
-| 5   | 1× bus-lane, 1× bus-priority, 1× detour, 1× fare-holiday, 2× no-heavy, 2× one-way, 2× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 6× turn-lane, 1× yield-culture                            | 1    | 1    | 1.2%          |
-| 6   | 1× bus-lane, 1× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                                           | 1    | 1    | 1.2%          |
-| 7   | 1× bus-lane, 1× bus-priority, 1× detour, 2× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                                           | 1    | 1    | 1.2%          |
-| 8   | 1× bus-lane, 1× bus-priority, 2× delivery-window, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 3× smart-signal, 4× speed-limit-up, 2× turn-lane, 2× yield-culture                                      | 1    | 1    | 1.2%          |
-| 9   | 1× bus-lane, 1× bus-priority, 3× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 2× roundabout, 3× smart-signal, 4× speed-limit-up, 4× turn-lane                                                                            | 1    | 1    | 1.2%          |
-| 10  | 1× bus-lane, 2× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                                           | 1    | 1    | 1.2%          |
-| 11  | 1× bus-lane, 3× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                                           | 1    | 1    | 1.2%          |
-| 12  | 1× bus-lane, 3× bus-priority, 1× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                                                            | 1    | 1    | 1.2%          |
-| 13  | 1× bus-priority, 1× delivery-window, 1× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 3× smart-signal, 2× speed-limit-up, 4× turn-lane, 4× yield-culture                                      | 1    | 1    | 1.2%          |
-| 14  | 1× bus-priority, 1× delivery-window, 1× detour, 2× no-heavy, 2× one-way, 2× overtime, 1× pilot-program, 2× recount, 1× roundabout, 1× second-shift, 3× smart-signal, 1× speed-limit-up, 1× staggered-hours, 2× turn-lane, 2× yield-culture | 1    | 1    | 1.2%          |
-| 15  | 1× bus-priority, 1× delivery-window, 1× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 5× smart-signal, 6× speed-limit-up, 1× toll-booth, 1× turn-lane, 1× yield-culture                                    | 1    | 1    | 1.2%          |
-| 16  | 1× bus-priority, 1× delivery-window, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× staggered-hours, 1× turn-lane                                                 | 1    | 1    | 1.2%          |
-| 17  | 1× bus-priority, 1× delivery-window, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 2× staggered-hours, 1× toll-booth, 1× turn-lane                                  | 1    | 1    | 1.2%          |
-| 18  | 1× bus-priority, 1× delivery-window, 3× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 4× staggered-hours, 1× turn-lane                                                 | 1    | 1    | 1.2%          |
-| 19  | 1× bus-priority, 1× delivery-window, 4× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 2× staggered-hours, 2× toll-booth, 1× turn-lane                                  | 1    | 1    | 1.2%          |
-| 20  | 1× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 4× smart-signal, 2× speed-limit-up, 3× turn-lane, 5× yield-culture                                                      | 1    | 1    | 1.2%          |
+| #   | Deck                                                                                                                                                                                                      | Runs | Wins | Share of runs |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- | ------------- |
+| 1   | 1× bus-priority, 1× detour, 5× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 5× smart-signal, 3× speed-limit-up, 4× turn-lane                                                        | 3    | 3    | 3.6%          |
+| 2   | 1× bus-lane, 4× bus-priority, 1× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                           | 2    | 2    | 2.4%          |
+| 3   | 1× bus-priority, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× toll-booth, 1× turn-lane                                         | 2    | 2    | 2.4%          |
+| 4   | 1× bus-lane, 1× bus-priority, 1× delivery-window, 1× detour, 4× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 3× smart-signal, 4× speed-limit-up, 2× turn-lane, 2× yield-culture     | 1    | 1    | 1.2%          |
+| 5   | 1× bus-lane, 1× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                          | 1    | 1    | 1.2%          |
+| 6   | 1× bus-lane, 1× bus-priority, 1× detour, 2× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                          | 1    | 1    | 1.2%          |
+| 7   | 1× bus-lane, 2× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                          | 1    | 1    | 1.2%          |
+| 8   | 1× bus-lane, 3× bus-priority, 1× detour, 1× fare-holiday, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                          | 1    | 1    | 1.2%          |
+| 9   | 1× bus-lane, 3× bus-priority, 1× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                           | 1    | 1    | 1.2%          |
+| 10  | 1× bus-priority, 1× delivery-window, 1× detour, 3× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 5× smart-signal, 6× speed-limit-up, 1× turn-lane, 1× yield-culture                  | 1    | 1    | 1.2%          |
+| 11  | 1× bus-priority, 1× delivery-window, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× staggered-hours, 1× turn-lane                | 1    | 1    | 1.2%          |
+| 12  | 1× bus-priority, 1× delivery-window, 2× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 2× staggered-hours, 1× toll-booth, 1× turn-lane | 1    | 1    | 1.2%          |
+| 13  | 1× bus-priority, 1× delivery-window, 3× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 4× staggered-hours, 1× turn-lane                | 1    | 1    | 1.2%          |
+| 14  | 1× bus-priority, 1× delivery-window, 4× detour, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 2× staggered-hours, 2× toll-booth, 1× turn-lane | 1    | 1    | 1.2%          |
+| 15  | 1× bus-priority, 1× detour, 1× fare-holiday, 2× no-heavy, 5× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 6× turn-lane                          | 1    | 1    | 1.2%          |
+| 16  | 1× bus-priority, 1× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× remove-signal, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane, 2× yield-culture       | 1    | 1    | 1.2%          |
+| 17  | 1× bus-priority, 1× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× remove-signal, 2× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane, 1× yield-culture       | 1    | 1    | 1.2%          |
+| 18  | 1× bus-priority, 1× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× remove-signal, 2× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane, 2× yield-culture       | 1    | 1    | 1.2%          |
+| 19  | 1× bus-priority, 1× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 1× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane                                           | 1    | 1    | 1.2%          |
+| 20  | 1× bus-priority, 1× detour, 1× no-heavy, 2× one-way, 1× overtime, 1× pilot-program, 1× recount, 4× roundabout, 2× smart-signal, 1× speed-limit-up, 1× turn-lane, 6× yield-culture                         | 1    | 1    | 1.2%          |
