@@ -23,8 +23,9 @@ page explains, in plain language, what the game sends to us and what it does not
 ## The short version
 
 - You do not need an account. Your progress stays on your device.
-- The game sends a few anonymous gameplay events to our own server so we can see how long
-  sessions last and whether rounds are too hard. That is all we use them for.
+- The game sends a few gameplay events to our own server, tagged with a random install ID (not
+  your name or any account), so we can see how long sessions last and whether rounds are too
+  hard. That is all we use them for.
 - We never collect your name, email, contacts, location, photos, or advertising IDs. The game
   has no ads and no third-party tracking or analytics tools.
 - We do not sell or share this data with anyone.
@@ -33,19 +34,21 @@ page explains, in plain language, what the game sends to us and what it does not
 
 When analytics is switched on, the game sends these four events, and nothing else.
 
-| Event       | When it is sent  | What it contains                                                                                                                         |
-| ----------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `app_open`  | The game starts  | Nothing beyond the details every event carries (below)                                                                                   |
-| `run_start` | You start a run  | Which mayor and which district you chose, and whether it is the daily run                                                                |
-| `round_end` | A round finishes | The round number, whether you passed, how many vehicles got through (throughput), the round's target (quota), and which cards you played |
-| `run_end`   | A run finishes   | How many rounds you played, the result (win or loss), and the card types (tags) in your deck                                             |
+| Event       | When it is sent  | What it contains                                                                                                                                                                              |
+| ----------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app_open`  | The game starts  | Nothing beyond the details every event carries (below)                                                                                                                                        |
+| `run_start` | You start a run  | Which mayor and which district you chose, and whether it is the daily run                                                                                                                     |
+| `round_end` | A round finishes | The round number, whether you passed, your throughput (the round's score: points for each vehicle that gets through, by vehicle type), the round's target (quota), and which cards you played |
+| `run_end`   | A run finishes   | How many rounds you played, the result (win or loss), and the card types (tags) in your deck                                                                                                  |
 
 Every event also carries:
 
-- **A random install ID.** The game makes up a random number the first time it runs and keeps it
-  on your device. It is not tied to your name, account, device serial, or advertising ID, and we
-  cannot work out who you are from it. It only lets us tell that two events came from the same
-  install, for example to measure how long a session lasted.
+- **A random install ID.** The game makes up a random value the first time it runs and keeps it
+  in your browser. It is not made from your name, account, hardware serial or advertising ID. It
+  lets us tell that two events came from the same install, for example to measure how long a
+  session lasted. Because it stays the same across your sessions, data protection law (such as
+  the GDPR) treats the install ID and the events linked to it as **pseudonymous personal data**,
+  and we handle them that way.
 - **Platform**, for example "itch" or "web".
 - **Game version**, for example "0.1.0".
 - **Language setting** of the game or browser, for example "en-US".
@@ -61,7 +64,8 @@ We do not collect free text, and we do not collect anything you type.
 
 - No name, email, phone number, or account of any kind.
 - No precise or approximate location.
-- No advertising ID, device ID, or fingerprinting.
+- No advertising ID, no hardware identifiers (such as a serial number or IMEI), and no
+  fingerprinting. The random install ID above is the only identifier.
 - No contacts, photos, microphone, or camera.
 - No data from other apps or websites.
 - No cookies for tracking. The install ID and your saved progress are kept in your browser's
@@ -76,10 +80,12 @@ about you.
 ## Where it goes and who sees it
 
 Events go to a small server we run on Cloudflare Workers, which stores them in a Cloudflare
-database. Only the Rushwarden developer can read them. We do not sell, rent or share the data.
+database. Cloudflare, Inc. hosts the server and the database as our **processor**: it handles the
+data only on our instructions, to run the service. Only the Rushwarden developer can read the
+events. We do not sell, rent or share the data.
 
-Like any web host, Cloudflare processes your IP address to deliver the request and may keep it
-in its own short-lived logs. We do not store your IP address with the events. See
+Like any web host, Cloudflare sees your IP address to deliver the request and may keep it in its
+own short-lived logs. We never store your IP address. See
 [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/).
 
 The site you play on has its own privacy policy for its own pages. On itch.io, see
@@ -98,7 +104,12 @@ contain no install ID (for example "median session length on itch in October") f
   button.
 - **Reset:** the install ID is a random value stored only in your browser. Clearing this site's
   data in your browser deletes it (and your saved progress), and the game makes a new random one
-  next time. Because the ID is not linked to you, we cannot look up your events by name or email.
+  next time.
+- **Deleting your events:** we can only find events by install ID, never by name or email. [The
+  install ID is shown in: place to be confirmed, see the open questions.] Send us that ID at
+  [contact email] and we will delete every event stored with it. After you reset the ID, the
+  events stored under the old one can no longer be found, and they are deleted when the retention
+  period below ends.
 - You can contact us about this data at any time at [contact email].
 
 If you are in the EU, UK or a similar jurisdiction, you have the right to access, correct, delete
@@ -108,8 +119,10 @@ authority. [Legal basis: to be confirmed by Idan, see the open questions.]
 ## Children
 
 Rushwarden is made for everyone. It has no chat, no accounts and no way for players to share
-personal information, and the data above contains nothing that identifies a person. We do not
-knowingly collect personal information from children.
+personal information. Children's play sends the same events as everyone else's, tagged with the
+same kind of random install ID, which is pseudonymous personal data as described above. We never
+ask for or collect a name, contact details or location from anyone, and we do not knowingly
+collect any other personal information from children.
 
 ## Changes to this policy
 
@@ -132,10 +145,14 @@ These are legal or policy calls (GDD §13), so the draft does not decide them.
    legitimate interest for pseudonymous analytics after legal advice. This draft does not choose.
    The answer also fills the "Legal basis" placeholder.
 2. **Retention period.** Proposal: raw events 90 days, then only totals without install IDs.
-3. **Identity, contact and URL.** Developer name, contact email, whether a postal address is
+3. **Where the toy shows the install ID.** Deletion requests only work if players can see their
+   ID. The toy has no settings screen, so it needs a small place to show it (for example a line
+   on the run-end screen or an "About and privacy" link). That is a UI Engineer change; until it
+   lands, the bracketed sentence in "Your choices" must be resolved before publishing.
+4. **Identity, contact and URL.** Developer name, contact email, whether a postal address is
    required where you live, and the public URL (planned: `rushwarden.com/privacy`, GDD §10 and
    §12), linked from the itch page.
 
 Settled by the Lead (2026-10-10): Idan approved collecting once this is published; the event time
-is the server's receipt time with unbatched events (ADR-009); the toy has no opt-out yet, as stated
-above.
+is the server's receipt time with unbatched events (ADR-009, on main); the toy has no opt-out yet,
+as stated above; IP addresses are never stored (P1-BE-01 acceptance criteria).
