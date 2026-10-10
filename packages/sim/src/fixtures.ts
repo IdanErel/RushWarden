@@ -5,6 +5,9 @@ import {
   ROUND_TICKS,
   VehicleType,
   type DemandEvent,
+  type Effect,
+  type Placement,
+  type Target,
   type GridMap,
   type MapEdge,
   type MapTile,
@@ -146,4 +149,207 @@ export function denseInput(seed: number): RoundInput {
     demandProfile,
     districtRules: { ...base.districtRules, pSlowPermille },
   };
+}
+
+const ix = (x: number, y: number): Target => ({ kind: 'intersection', tile: { x, y } });
+const seg = (x1: number, y1: number, x2: number, y2: number): Target => ({
+  kind: 'segment',
+  from: { x: x1, y: y1 },
+  to: { x: x2, y: y2 },
+});
+const edge = (e: number): Target => ({ kind: 'edge', edge: e });
+const district: Target = { kind: 'district' };
+const { Car, Taxi, Bus, Truck, Bike } = VehicleType;
+
+/**
+ * The 20 Phase 1 cards (docs/tasks/phase-1.md) at tier 1 and tier 2 as the sim sees them, each
+ * with a valid target on `latticeMap('...', [1, 5], [2, 6])`. Mirrors packages/content/cards;
+ * used by tests and the golden suite (Detour tier 2 picks edge 6).
+ */
+export const PHASE1_CARDS: readonly (readonly [
+  string,
+  Target,
+  readonly Effect[],
+  readonly Effect[],
+])[] = [
+  [
+    'smart-signal',
+    ix(1, 2),
+    [
+      { kind: 'setController', controller: 'signal' },
+      { kind: 'setSignalPhase', mode: 'adaptive' },
+    ],
+    [
+      { kind: 'setController', controller: 'signal' },
+      { kind: 'setSignalPhase', mode: 'adaptive', switchTicksDelta: -2 },
+    ],
+  ],
+  [
+    'one-way',
+    seg(5, 3, 5, 5),
+    [{ kind: 'setOneWay', doubleLanes: true }],
+    [{ kind: 'setOneWay', doubleLanes: true }],
+  ],
+  [
+    'turn-lane',
+    ix(5, 2),
+    [{ kind: 'addTurnLane', turns: 'left' }],
+    [{ kind: 'addTurnLane', turns: 'both' }],
+  ],
+  [
+    'speed-limit-up',
+    seg(2, 6, 4, 6),
+    [{ kind: 'setSpeedLimit', delta: 1, types: [Car, Taxi, Bus, VehicleType.Emergency, Bike] }],
+    [{ kind: 'setSpeedLimit', delta: 1 }],
+  ],
+  [
+    'bus-priority',
+    ix(1, 6),
+    [{ kind: 'preferType', vehicleType: Bus }],
+    [{ kind: 'preferType', vehicleType: Bus, alsoTypes: [Taxi] }],
+  ],
+  [
+    'express-stop',
+    seg(1, 3, 1, 5),
+    [{ kind: 'setBusStopDwell', dwellTicks: 2 }],
+    [{ kind: 'setBusStopDwell', dwellTicks: 1 }],
+  ],
+  [
+    'bus-lane',
+    seg(2, 2, 4, 2),
+    [{ kind: 'reserveLane', vehicleTypes: [Bus, Bike] }],
+    [
+      { kind: 'reserveLane', vehicleTypes: [Bus, Bike] },
+      { kind: 'setSpeedLimit', delta: 1, max: 2, types: [Bike] },
+    ],
+  ],
+  [
+    'fare-holiday',
+    district,
+    [
+      { kind: 'spawnModifier', vehicleType: Bus, percent: 40 },
+      { kind: 'spawnModifier', vehicleType: Bike, percent: 40 },
+      { kind: 'spawnModifier', vehicleType: Car, percent: -20 },
+    ],
+    [
+      { kind: 'spawnModifier', vehicleType: Bus, percent: 60 },
+      { kind: 'spawnModifier', vehicleType: Bike, percent: 60 },
+      { kind: 'spawnModifier', vehicleType: Car, percent: -30 },
+    ],
+  ],
+  [
+    'detour',
+    edge(4),
+    [{ kind: 'reroute', percent: 50, to: 'adjacent' }],
+    [{ kind: 'reroute', percent: 50, to: 'secondary' }],
+  ],
+  [
+    'toll-booth',
+    seg(5, 7, 5, 7),
+    [
+      { kind: 'setSpeedLimit', delta: 0, max: 1, cells: 2 },
+      { kind: 'fundsModifier', delta: 1, per: 4 },
+    ],
+    [{ kind: 'fundsModifier', delta: 1, per: 4 }],
+  ],
+  [
+    'staggered-hours',
+    district,
+    [{ kind: 'smoothDemand', peakPermille: 300 }],
+    [{ kind: 'smoothDemand', peakPermille: 400 }],
+  ],
+  [
+    'delivery-window',
+    district,
+    [{ kind: 'spawnWindow', vehicleType: Truck, fromTick: 0, toTick: 100 }],
+    [
+      { kind: 'spawnWindow', vehicleType: Truck, fromTick: 0, toTick: 100 },
+      { kind: 'scoreModifier', vehicleType: Truck, delta: 1 },
+    ],
+  ],
+  [
+    'roundabout',
+    ix(5, 6),
+    [{ kind: 'setController', controller: 'roundabout', capacity: 4 }],
+    [{ kind: 'setController', controller: 'roundabout', capacity: 6 }],
+  ],
+  [
+    'yield-culture',
+    district,
+    [{ kind: 'yieldRule', fasterTicks: 1 }],
+    [{ kind: 'yieldRule', fasterTicks: 2 }],
+  ],
+  [
+    'no-heavy',
+    seg(5, 3, 5, 5),
+    [{ kind: 'banType', vehicleType: Truck }],
+    [{ kind: 'banType', vehicleType: Truck, scope: 'target-class' }],
+  ],
+  [
+    'remove-signal',
+    ix(5, 2),
+    [
+      { kind: 'setController', controller: 'uncontrolled' },
+      { kind: 'energyModifier', delta: 1, when: 'now', condition: 'replaced-signal' },
+    ],
+    [
+      { kind: 'setController', controller: 'uncontrolled' },
+      { kind: 'energyModifier', delta: 2, when: 'now', condition: 'replaced-signal' },
+    ],
+  ],
+  [
+    'overtime',
+    district,
+    [{ kind: 'energyModifier', delta: 1, when: 'next-round' }],
+    [{ kind: 'energyModifier', delta: 2, when: 'next-round' }],
+  ],
+  [
+    'second-shift',
+    district,
+    [{ kind: 'drawModifier', delta: 2 }],
+    [
+      { kind: 'drawModifier', delta: 2 },
+      { kind: 'energyModifier', delta: 1, when: 'next-round' },
+    ],
+  ],
+  [
+    'pilot-program',
+    district,
+    [{ kind: 'costModifier', cards: 'all', next: 1, cost: 0 }],
+    [{ kind: 'costModifier', cards: 'all', next: 2, cost: 0 }],
+  ],
+  ['recount', district, [{ kind: 'redraw', keep: 0 }], [{ kind: 'redraw', keep: 1 }]],
+];
+
+/** The map `PHASE1_CARDS` targets: 4 intersections at (1,2), (5,2), (1,6), (5,6), 8 edges. */
+export const CARD_MAP = latticeMap('cards-4x', [1, 5], [2, 6]);
+
+/**
+ * A dense round on `CARD_MAP` with 1–4 Phase 1 cards (either tier) placed, derived from `seed`,
+ * so the golden suite covers card effects, every controller kind and topology changes.
+ */
+export function cardInput(seed: number): RoundInput {
+  const base = denseInput(seed);
+  const p = createPrng(seed ^ 0x5eed);
+  const demandProfile = base.demandProfile
+    .map((d) => {
+      const edge = d.edge % 8;
+      return { ...d, edge, destinationEdge: (edge + 1 + nextInt(p, 7)) % 8 };
+    })
+    .sort((a, b) => a.tick - b.tick || a.edge - b.edge);
+  const count = 1 + nextInt(p, 4);
+  const placements: Placement[] = [];
+  for (let k = 0; k < count; k++) {
+    const [cardId, target, t1, t2] = PHASE1_CARDS[nextInt(p, PHASE1_CARDS.length)]!;
+    const tier = nextInt(p, 2) === 0 ? 1 : 2;
+    placements.push({
+      cardId,
+      tier,
+      target,
+      effects: tier === 1 ? t1 : t2,
+      order: k,
+      ...(cardId === 'detour' ? { secondaryTarget: edge(6) } : {}),
+    });
+  }
+  return { ...base, map: CARD_MAP, mapId: CARD_MAP.id, demandProfile, placements };
 }

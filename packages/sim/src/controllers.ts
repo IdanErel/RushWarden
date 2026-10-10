@@ -162,6 +162,17 @@ function majorTrafficNear(t: Traffic, ix: number): boolean {
   return false;
 }
 
+/**
+ * Emergency vehicles everywhere, and `preferType` types (Bus Priority) at their intersection:
+ * they enter on red and win grants without the resolve wait (ADR-023).
+ */
+function priorityVehicle(t: Traffic, i: number, ix: number): boolean {
+  const vt = t.type[i]!;
+  return (
+    vt === VehicleType.Emergency || (t.preferMask !== null && (t.preferMask[ix]! & (1 << vt)) !== 0)
+  );
+}
+
 // Grant candidates (module scratch).
 const candVehicle = new Int32Array(16);
 const candSide = new Int8Array(16);
@@ -183,7 +194,7 @@ function grant(t: Traffic, ix: number): number {
     const s = t.lineSide[e]!;
     if (kind === ControllerCode.Priority && (s & 1) === t.ctrlAxis[ix]) continue; // major road
     {
-      const isEmergency = t.type[j] === VehicleType.Emergency;
+      const isEmergency = priorityVehicle(t, j, ix);
       if (!isEmergency) {
         if (emergency) continue;
         if (kind === ControllerCode.Uncontrolled && tick - t.atLine[j]! < t.resolveTicks[ix]!)
@@ -240,8 +251,7 @@ export function updateControllers(t: Traffic): void {
 export function mayEnter(t: Traffic, i: number, ix: number, inSide: number, box: number): boolean {
   if (t.truckTurning[ix]! > 0) return false;
   const kind = t.ctrlKind[ix]!;
-  if (kind === ControllerCode.Signal)
-    return green(t, ix, inSide) || t.type[i] === VehicleType.Emergency;
+  if (kind === ControllerCode.Signal) return green(t, ix, inSide) || priorityVehicle(t, i, ix);
   if (kind === ControllerCode.Roundabout) {
     if (t.boxCount[ix]! >= t.ctrlCapacity[ix]!) return false;
     // Inside has priority: the quarter circulating traffic enters our entry quarter from must be free.

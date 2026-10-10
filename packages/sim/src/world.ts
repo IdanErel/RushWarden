@@ -204,7 +204,18 @@ function onBoundary(x: number, y: number, dir: number): boolean {
  * Builds and validates the world for a map. Pure. Throws `MapError` (a `RangeError`) naming the
  * first broken rule, so content can use it to validate its templates.
  */
-export function buildWorld(map: GridMap): World {
+/**
+ * A per-round change to a link's lane count, from a topology card (`setOneWay`, `setLaneCount`,
+ * P1-SIM-05, ADR-023). It applies to every link that holds `tile` and travels in direction `dir`
+ * there (entering or leaving it). `lanes` is 0..4; 0 closes that direction (one-way).
+ */
+export interface LaneOverride {
+  readonly tile: number;
+  readonly dir: number;
+  readonly lanes: number;
+}
+
+export function buildWorld(map: GridMap, laneOverrides: readonly LaneOverride[] = []): World {
   if (map.tiles.length !== TILE_COUNT) {
     throw new MapError(`map "${map.id}" has ${map.tiles.length} tiles, expected ${TILE_COUNT}`);
   }
@@ -401,7 +412,16 @@ export function buildWorld(map: GridMap): World {
     const first = l.tiles[0]!;
     const reverse = exitLink[first * 4 + opposite(l.entryDirs[0]!)]!;
     const ids: number[] = [];
-    for (let k = 0; k < lanesPerDir[first]!; k++) {
+    let laneCount: number = lanesPerDir[first]!;
+    for (const o of laneOverrides) {
+      for (let k = 0; k < l.tiles.length; k++) {
+        if (l.tiles[k] === o.tile && (l.entryDirs[k] === o.dir || l.exitDirs[k] === o.dir)) {
+          laneCount = o.lanes;
+          break;
+        }
+      }
+    }
+    for (let k = 0; k < laneCount; k++) {
       ids.push(lanes.length);
       lanes.push({
         id: lanes.length,

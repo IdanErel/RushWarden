@@ -23,6 +23,7 @@ import {
   BUS_DWELL_TICKS,
   MAX_VEHICLE_LENGTH,
   VEHICLE_SPECS,
+  VEHICLE_TYPE_COUNT,
 } from './vehicles.js';
 import {
   enterBox,
@@ -40,7 +41,7 @@ import { VehicleType, type DemandProfile } from './types.js';
 
 const NONE = -1;
 /** Hot-loop copies of the vehicle table; bikes move at BIKE_SHARED_VMAX without bike lanes. */
-const VMAX = Uint8Array.from(VEHICLE_SPECS, (s, type) =>
+export const VMAX = Uint8Array.from(VEHICLE_SPECS, (s, type) =>
   type === VehicleType.Bike ? BIKE_SHARED_VMAX : s.vmax,
 );
 const VEHICLE_LENGTH = Uint8Array.from(VEHICLE_SPECS, (s) => s.length);
@@ -153,6 +154,27 @@ export interface Traffic {
    */
   closed: Uint8Array | null;
   readonly closedRoutes: Map<number, Route | null>;
+  // Card effects (P1-SIM-05, effects.ts, ADR-023). Null when no card needs them, so a round
+  // without those cards pays nothing.
+  /**
+   * Links each vehicle type may not use (`[type]`): closures plus `banType` and the reserved lane
+   * of a 1-lane link. Null entries fall back to `closed`.
+   */
+  readonly routeMask: (Uint8Array | null)[];
+  /** Effective vmax per flat lane cell and type: `[flat * VEHICLE_TYPE_COUNT + type]`. */
+  speedCap: Uint8Array | null;
+  /** Bus dwell per flat lane cell (stop cells only). */
+  dwellAt: Uint8Array | null;
+  /** Per lane: bitmask of vehicle types allowed (`1 << type`); 0 = every type. */
+  laneAllowed: Uint8Array | null;
+  /** Per intersection: bitmask of preferred vehicle types (`preferType`, Bus Priority). */
+  preferMask: Uint8Array | null;
+  /** Score change per vehicle type on exit (`scoreModifier`). */
+  readonly scoreDelta: Int32Array;
+  /** Per link: toll index (`fundsModifier` with `per` on a segment), or -1. */
+  tollOf: Int16Array | null;
+  /** Vehicles that entered each toll's links. */
+  tollCount: Int32Array | null;
 }
 
 export function createTraffic(world: World, demand: DemandProfile): Traffic {
@@ -247,7 +269,37 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
     prng: null,
     closed: null,
     closedRoutes: new Map(),
+    routeMask: new Array<Uint8Array | null>(VEHICLE_TYPE_COUNT).fill(null),
+    speedCap: null,
+    dwellAt: null,
+    laneAllowed: null,
+    preferMask: null,
+    scoreDelta: new Int32Array(VEHICLE_TYPE_COUNT),
+    tollOf: null,
+    tollCount: null,
   };
+}
+
+/** True when vehicle type `vt` may drive in `lane` (reserved lanes, `reserveLane`). */
+function laneOk(t: Traffic, lane: number, vt: number): boolean {
+  const a = t.laneAllowed ? t.laneAllowed[lane]! : 0;
+  return a === 0 || (a & (1 << vt)) !== 0;
+}
+
+/** Lane index on `lanes` closest to `idx` that type `vt` may use (searching outward), or -1. */
+function allowedIndex(t: Traffic, lanes: readonly number[], idx: number, vt: number): number {
+  if (laneOk(t, lanes[idx]!, vt)) return idx;
+  for (let d = 1; d < lanes.length; d++) {
+    if (idx + d < lanes.length && laneOk(t, lanes[idx + d]!, vt)) return idx + d;
+    if (idx - d >= 0 && laneOk(t, lanes[idx - d]!, vt)) return idx - d;
+  }
+  return NONE;
+}
+
+/** Counts a vehicle entering link `link` for its toll, if any. */
+function countToll(t: Traffic, link: number): void {
+  const k = t.tollOf![link]!;
+  if (k !== NONE) t.tollCount![k]!++;
 }
 
 // Walk cursor (module scratch; the sim is single-threaded and never re-enters a walk).
@@ -271,7 +323,9 @@ function walk(t: Traffic, i: number, rt: readonly number[]): number {
     const next = w.links[rt[wStep + 1]!]!;
     const n = next.lanes.length;
     const turn = t.laneTurn[wLane]!;
-    const idx = turn === Turn.Right ? 0 : turn === Turn.Left ? n - 1 : wIdx < n ? wIdx : n - 1;
+    let idx = turn === Turn.Right ? 0 : turn === Turn.Left ? n - 1 : wIdx < n ? wIdx : n - 1;
+    // Routes avoid links this type cannot use at all, so an allowed lane exists.
+    if (t.laneAllowed) idx = allowedIndex(t, next.lanes, idx, t.type[i]!);
     wLane = next.lanes[idx]!;
     wCell = 0;
     wStep++;
@@ -309,20 +363,22 @@ function setCursor(t: Traffic, i: number): void {
   wIdx = t.laneIdx[i]!;
 }
 
-// The path `gapAhead` walked, replayed by `move` (module scratch, at most vmax <= 4 cells):
+// The path `gapAhead` walked, replayed by `move` (module scratch; speed caps keep vmax <= 15):
 // cursor state after each step, and the step at which the vehicle reaches the sink (or 0).
-const pLane = new Int32Array(8);
-const pCell = new Int32Array(8);
-const pStep = new Int32Array(8);
-const pIdx = new Int32Array(8);
-const pPhys = new Int32Array(8);
+const pLane = new Int32Array(16);
+const pCell = new Int32Array(16);
+const pStep = new Int32Array(16);
+const pIdx = new Int32Array(16);
+const pPhys = new Int32Array(16);
 let pExitAt = 0;
 
 /** Rule 2: free cells ahead of vehicle `i`, up to `v`; records the path for `move`. */
 function gapAhead(t: Traffic, i: number, v: number): number {
   const w = t.world;
   const rt = t.routes[i]!;
-  const isBus = t.type[i] === VehicleType.Bus;
+  const vt = t.type[i]!;
+  const isBus = vt === VehicleType.Bus;
+  const cap = t.speedCap;
   setCursor(t, i);
   pExitAt = 0;
   for (let k = 1; k <= v; k++) {
@@ -335,6 +391,9 @@ function gapAhead(t: Traffic, i: number, v: number): number {
     const flat = w.laneCellBase[wLane]! + wCell;
     const phys = w.cellPhys[flat]!;
     if (t.occ[phys] !== 0) return k - 1;
+    // Speed limits: a vehicle never enters a cell whose limit for its type is below the number of
+    // cells it has moved this tick, so it crosses a limited zone at that speed (ADR-023).
+    if (cap && cap[flat * VEHICLE_TYPE_COUNT + vt]! < k) return k - 1;
     pLane[k] = wLane;
     pCell[k] = wCell;
     pStep[k] = wStep;
@@ -374,7 +433,7 @@ function taxiRoute(t: Traffic, i: number, linkId: number): readonly number[] | n
     opposite(link.exitDirs[link.exitDirs.length - 1]!),
     t.dest[i]!,
     (l) => w.links[l]!.cells + TAXI_LOAD_COST * t.linkLoad[l]!,
-    t.closed,
+    maskFor(t, VehicleType.Taxi),
   );
   return rest ? [linkId, ...rest] : null;
 }
@@ -395,6 +454,8 @@ function move(t: Traffic, i: number, v: number): boolean {
     if (next !== lane) {
       if (t.laneKind[lane] === BOX) leaveBox(t, i, lane);
       if (t.laneKind[next] === BOX) enterBox(t, i, next);
+      else if (t.tollOf && t.laneKind[next] === ROAD && t.laneLink[next] !== t.laneLink[lane])
+        countToll(t, t.laneLink[next]!);
       lane = next;
     }
     occupy(t, i, pPhys[k]!);
@@ -420,7 +481,7 @@ function move(t: Traffic, i: number, v: number): boolean {
   if (t.type[i] === VehicleType.Bus) {
     if (w.stopCell[flat] === 1 && t.served[i] !== flat) {
       t.served[i] = flat;
-      t.dwell[i] = BUS_DWELL_TICKS;
+      t.dwell[i] = t.dwellAt ? t.dwellAt[flat]! : BUS_DWELL_TICKS;
     }
   }
   return true;
@@ -435,21 +496,31 @@ function exit(t: Traffic, i: number): void {
   }
   t.lane[i] = NONE;
   t.exited++;
-  t.throughput += VEHICLE_SPECS[t.type[i]!]!.score;
+  const vt = t.type[i]!;
+  const score = VEHICLE_SPECS[vt]!.score + t.scoreDelta[vt]!;
+  t.throughput += score > 0 ? score : 0;
 }
 
-/** Spawns the head of each edge's queue while its spawn link has a free entry cell. */
-/** BFS route for a new trip, avoiding this round's closed links. */
-function routeFor(t: Traffic, origin: number, destination: number): Route | null {
-  if (!t.closed) return route(t.world, origin, destination);
-  const key = origin * t.world.edges.length + destination;
+/** Links vehicle type `vt` may not use this round, or null. */
+function maskFor(t: Traffic, vt: number): Uint8Array | null {
+  return t.routeMask[vt] ?? t.closed;
+}
+
+/** BFS route for a new trip of type `vt`, avoiding this round's closed and banned links. */
+function routeFor(t: Traffic, vt: number, origin: number, destination: number): Route | null {
+  const mask = maskFor(t, vt);
+  if (!mask) return route(t.world, origin, destination);
+  const e = t.world.edges.length;
+  const key = (vt * e + origin) * e + destination;
   let r = t.closedRoutes.get(key);
   if (r === undefined) {
-    r = route(t.world, origin, destination, t.closed);
+    r = route(t.world, origin, destination, mask);
     t.closedRoutes.set(key, r);
   }
   return r;
 }
+
+/** Spawns the head of each edge's queue while its spawn link has a free entry cell. */
 
 function spawn(t: Traffic, tick: number): void {
   const w = t.world;
@@ -462,20 +533,24 @@ function spawn(t: Traffic, tick: number): void {
     const queue = t.pending[edge]!;
     const spawnLink = w.links[w.edges[edge]!.spawnLink]!;
     while (t.pendingHead[edge]! < queue.length) {
+      const e = t.demand[queue[t.pendingHead[edge]!]!]!;
+      const dest = w.edgeIndexById.get(e.destinationEdge)!;
+      const r = routeFor(t, e.vehicleType, edge, dest);
+      // Unreachable (a one-way, a closed segment or a ban): the trip never starts.
+      if (!r) {
+        t.pendingHead[edge]!++;
+        continue;
+      }
       let laneIdx = NONE;
       for (let k = 0; k < spawnLink.lanes.length; k++) {
-        if (t.occ[w.cellPhys[w.laneCellBase[spawnLink.lanes[k]!]!]!] === 0) {
+        const l = spawnLink.lanes[k]!;
+        if (t.occ[w.cellPhys[w.laneCellBase[l]!]!] === 0 && laneOk(t, l, e.vehicleType)) {
           laneIdx = k;
           break;
         }
       }
       if (laneIdx === NONE) break;
-      const e = t.demand[queue[t.pendingHead[edge]!]!]!;
       t.pendingHead[edge]!++;
-      const dest = w.edgeIndexById.get(e.destinationEdge)!;
-      const r = routeFor(t, edge, dest);
-      // Unreachable (a one-way from P1-SIM-05, or a closed segment): the trip never starts.
-      if (!r) continue;
       const i = t.count++;
       t.type[i] = e.vehicleType;
       t.dest[i] = dest;
@@ -490,6 +565,7 @@ function spawn(t: Traffic, tick: number): void {
       t.cell[i] = 0;
       t.speed[i] = 0;
       occupy(t, i, w.cellPhys[w.laneCellBase[t.lane[i]!]!]!);
+      if (t.tollOf) countToll(t, spawnLink.id);
       t.order[t.orderLen++] = i;
       t.spawned++;
     }
@@ -544,7 +620,9 @@ export function moveAll(t: Traffic): void {
       continue;
     }
     const vt = type[i]!;
-    const vmax = VMAX[vt]!;
+    const vmax = t.speedCap
+      ? t.speedCap[(t.world.laneCellBase[t.lane[i]!]! + t.cell[i]!) * VEHICLE_TYPE_COUNT + vt]!
+      : VMAX[vt]!;
     let v = speed[i]! + 1;
     if (v > vmax) v = vmax;
     v = gapAhead(t, i, v);
