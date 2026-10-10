@@ -7,5 +7,7 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     build: { target: 'es2022', sourcemap: false },
+    // The sim worker (`spawnSimWorker`) is an ES module worker.
+    worker: { format: 'es' },
   };
 });

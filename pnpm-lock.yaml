@@ -108,9 +108,18 @@ importers:
       '@rushwarden/app':
         specifier: workspace:*
         version: link:../app
+      '@rushwarden/content':
+        specifier: workspace:*
+        version: link:../content
+      '@rushwarden/render':
+        specifier: workspace:*
+        version: link:../render
       '@rushwarden/sim':
         specifier: workspace:*
         version: link:../sim
+      '@rushwarden/ui':
+        specifier: workspace:*
+        version: link:../ui
     devDependencies:
       '@playwright/test':
         specifier: 1.56.1
