@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "recount",
+  "name": "Recount",
+  "cost": 1,
+  "target": "district",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["TEMPO"],
+  "effects": [
+    {
+      "kind": "redraw",
+      "keep": 0
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "redraw",
+        "keep": 1
+      }
+    ]
+  },
+  "flavor": "Let's see those numbers again."
+}

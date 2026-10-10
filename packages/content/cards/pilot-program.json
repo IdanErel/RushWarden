@@ -1,0 +1,29 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "pilot-program",
+  "name": "Pilot Program",
+  "cost": 1,
+  "target": "district",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["TEMPO"],
+  "effects": [
+    {
+      "kind": "costModifier",
+      "cards": "all",
+      "next": 1,
+      "cost": 0
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "costModifier",
+        "cards": "all",
+        "next": 2,
+        "cost": 0
+      }
+    ]
+  },
+  "flavor": "Call it a trial. Nobody has to approve a trial."
+}

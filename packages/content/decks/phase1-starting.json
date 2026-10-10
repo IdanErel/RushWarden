@@ -1,0 +1,17 @@
+{
+  "$schema": "../schema/deck.schema.json",
+  "id": "phase1-starting",
+  "label": "Phase 1 starting deck: GDD §4 default with Grant replaced by Pilot Program (ADR-007)",
+  "cards": [
+    { "card": "smart-signal", "count": 2 },
+    { "card": "one-way", "count": 2 },
+    { "card": "roundabout", "count": 1 },
+    { "card": "bus-priority", "count": 1 },
+    { "card": "detour", "count": 1 },
+    { "card": "overtime", "count": 1 },
+    { "card": "pilot-program", "count": 1 },
+    { "card": "turn-lane", "count": 1 },
+    { "card": "speed-limit-up", "count": 1 },
+    { "card": "recount", "count": 1 }
+  ]
+}

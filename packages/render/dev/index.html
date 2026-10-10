@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Render dev</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        --ground: #efe6d8;
+        --ink: #1e1a17;
+        --muted: #6b5e55;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 430px;
+        margin: 0 auto;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 16px;
+        font-variant-numeric: tabular-nums;
+      }
+      #scene,
+      #legend {
+        display: flex;
+        justify-content: center;
+      }
+      footer {
+        padding: 4px 16px 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <strong>Rushwarden · render dev</strong>
+        <output id="state" aria-live="off">starting…</output>
+      </header>
+      <div id="scene"></div>
+      <div id="legend"></div>
+      <footer>
+        Fake traffic in a Web Worker until the sim spawns vehicles. Query: seed, speed, ctrl (signal
+        | roundabout | stop-all | priority | uncontrolled), source (fake | sim).
+      </footer>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

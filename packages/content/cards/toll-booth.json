@@ -1,0 +1,33 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "toll-booth",
+  "name": "Toll Booth",
+  "cost": 1,
+  "target": "segment",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["TOLL"],
+  "effects": [
+    {
+      "kind": "setSpeedLimit",
+      "delta": 0,
+      "max": 1,
+      "cells": 2
+    },
+    {
+      "kind": "fundsModifier",
+      "delta": 1,
+      "per": 4
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "fundsModifier",
+        "delta": 1,
+        "per": 4
+      }
+    ]
+  },
+  "flavor": "Exact change only. Do not argue with the barrier."
+}
