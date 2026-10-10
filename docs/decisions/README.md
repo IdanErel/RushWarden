@@ -29,3 +29,5 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 021 | Round demand model, seed salts and District 1 bosses    | Accepted        |
 | 022 | p_slow, the gridlock detector and closed segments       | Proposed        |
 | 023 | Card effects, stacking and controller conflicts         | Proposed        |
+| 024 | Portal monetisation: Poki and CrazyGames                | Accepted        |
+| 025 | Privacy defaults: consent, retention, requests          | Accepted        |
