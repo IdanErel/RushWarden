@@ -9,8 +9,10 @@ things:
 2. The device and browser matrix for Phase 1.
 3. How each of the four gate criteria is measured.
 
-The specs are in `packages/platform-web/e2e/toy/` (the second P1-QA-01 PR). They report fixme until
-P1-WEB-01 mounts the run screen in the platform-web build; a follow-up PR removes the fixmes.
+The specs are in `packages/platform-web/e2e/toy/` (the second P1-QA-01 PR). Since P1-WEB-01 (#50)
+mounts the run screen in the platform-web build, they run against it with no gate: a run screen
+that fails to mount fails every spec. The only fixmes left name their own reason (E2E-14, E2E-17,
+E2E-18).
 
 Sources: GDD §2 (core loop), §8 (screens, input), §9 (portal rules), §11 (test layers, device
 matrix, bug policy), §13 (Phase 1 gate); ADR-006 (Steam gate, accepted); ADR-007 (Phase 1 scope); ADR-008 (name); ADR-009 (event time
@@ -121,7 +123,7 @@ change the expected outcome.
 The same headless runs give E2E-06 its reference hashes, so a wiring difference between the game
 and `toyRunConfig` fails E2E-06 on the first round.
 
-**Proving the specs before P1-WEB-01.** `TOY_E2E_URL` points the specs at another page with the
+**Running the specs on another page.** `TOY_E2E_URL` points the specs at another page with the
 hooks, such as the run screen's dev page in `packages/ui` (#31), with `TOY_E2E_TARGET=ui-dev`. That
 page has stand-in cards and fake traffic, so E2E-06, E2E-09, E2E-10 and E2E-13 (real content or
 the H4 spy) skip there and say why.
@@ -158,7 +160,8 @@ Both projects are in `packages/platform-web/playwright.config.ts` (the specs PR)
   `PW_WEBKIT=1`, so there a missing browser fails instead of being skipped (ADR-029).
 - **Local runs:** with `reuseExistingServer`, Playwright reuses whatever already serves the
   preview ports. On a machine with several checkouts, set `WEB_E2E_PORT` (public build on it,
-  hooks build on it + 1) so the run tests this checkout's build.
+  hooks build on it + 1) and `CI=1`, which turns `reuseExistingServer` off, so the run tests
+  this checkout's build (a port already in use then fails loudly instead of being reused).
 
 ## 3. Device and browser matrix (Phase 1)
 
@@ -300,6 +303,6 @@ shows the data next to the bar so Idan can see how close it was.
 | ------------------------------------------------ | ----------------------------------------------------- | ------------------------- |
 | Test hooks H1–H5 (approved)                      | Built by Render/UI (H2, H3, H5) and Platform (H1, H4) | Most of the specs in §2.2 |
 | 390×844 and WebKit phone projects (approved)     | In the config; CI needs `webkit` installed (Lead)     | `phone-webkit` in CI      |
-| Run screen in the platform-web build (P1-WEB-01) | Platform; then QA removes the fixmes                  | Every toy spec in CI      |
+| Run screen in the platform-web build (P1-WEB-01) | Done (#50); QA removed the gate                       | Every toy spec in CI      |
 | Measurement definitions (ADR-010, accepted)      | Idan may override at the gate review                  | The gate page             |
 | Privacy policy published (enables `/ingest`)     | Idan (ADR-007)                                        | Criterion 1               |
