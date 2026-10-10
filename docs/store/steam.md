@@ -1,8 +1,8 @@
 # Steam "Coming soon" page (Phase 1)
 
-> **DRAFT: pending the GIF (P1-QA-02).** ADR-006 keeps the wishlist criterion, so this page goes
+> **DRAFT.** The GIF and the store images now exist (see [assets.md](assets.md)); still pending: a real share line and the itch link from the live build. ADR-006 keeps the wishlist criterion, so this page goes
 > live in Phase 1. Idan enters the copy in Steamworks and submits the page for Valve's review
-> himself. Capsules (§12 sizes) are generated in code later, in the assets part of P1-QA-03.
+> himself. Capsules (§12 sizes) and screenshots are generated in code; see [assets.md](assets.md).
 
 This copy describes **only what the Phase 1 toy has** (ADR-007), so the page makes no promises the
 team has not built yet. It is rewritten once Phase 2 lands (shop, mayors, tutorial, 40 cards).
@@ -109,4 +109,4 @@ synth is in-repo code (§7), so it should stay true.
 - System requirements: there is no Steam build in Phase 1. Leave them blank until the Electron
   shell exists in Phase 2.
 - Price, release date, early access: Idan's call (§13).
-- Capsules and screenshots: the assets part of P1-QA-03, after the GIF tool.
+- Capsules and screenshots: not copy; see [assets.md](assets.md).

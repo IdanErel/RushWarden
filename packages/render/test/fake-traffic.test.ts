@@ -130,3 +130,11 @@ describe('fake traffic with a demand profile', () => {
     expect(s.exited).toBe(0);
   });
 });
+
+describe('fake throughput', () => {
+  it('sums §3 score values of exited vehicles', () => {
+    let s = FakeTraffic.init(emptyMap(), 8, { demand: fakeDemand(emptyMap(), 8) });
+    while (!s.done) s = FakeTraffic.step(s);
+    expect(s.throughput).toBeGreaterThan(s.exited); // buses, trucks, emergencies count more
+  });
+});

@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { CELLS_PER_TILE, VehicleType, buildWorld, emptyMap } from '@rushwarden/sim';
+import {
+  CELLS_PER_TILE,
+  GRID_HEIGHT,
+  GRID_WIDTH,
+  VehicleType,
+  buildWorld,
+  createSimWorkerHandler,
+  emptyMap,
+  type GridMap,
+  type RoundInput,
+} from '@rushwarden/sim';
+import { setupRound } from '@rushwarden/content';
 import {
   SnapshotBuffer,
   TICK_MS,
@@ -190,4 +201,79 @@ describe('multi-cell vehicles through a turn (body follows the path)', () => {
     b.sample(1000, out);
     expect(out[0]!.heading).toBeCloseTo(head.heading);
   });
+});
+
+/** True when (x, y) in tile units is on asphalt of `map`: a road band or an intersection box. */
+function onAsphalt(map: GridMap, x: number, y: number): boolean {
+  const tx = Math.floor(x);
+  const ty = Math.floor(y);
+  const lanes = lanesAt(map, tx, ty);
+  if (lanes === 0) return false;
+  const half = roadWidth(lanes) / 2 + 0.02;
+  const dx = Math.abs(x - tx - 0.5);
+  const dy = Math.abs(y - ty - 0.5);
+  if (isIntersection(map, tx, ty) && dx <= half && dy <= half) return true;
+  const sides = connections(map, tx, ty);
+  const horizontal = sides.includes('e') || sides.includes('w');
+  const vertical = sides.includes('n') || sides.includes('s');
+  return (horizontal && dy <= half) || (vertical && dx <= half);
+}
+
+describe('buses and trucks in real District 1 rounds', () => {
+  // The plus-map test above moves one vehicle one step at a time. Real rounds also move a long
+  // vehicle 2 cells in a tick out of a box into the exit lane, and between those snapshots a
+  // straight blend of its tail cut across the box corner (up to 0.2 tiles past the asphalt).
+  it('keep every body cell on asphalt at every quarter tick, through every turn', () => {
+    const offRoad: string[] = [];
+    let longPoses = 0;
+    for (let run = 1; run <= 6; run++) {
+      for (let round = 1; round <= 5; round++) {
+        const rush = round === 5;
+        const seed = run * 7919 + round;
+        const s = setupRound({ district: 1, round, rush, boss: rush ? 'market-day' : null, seed });
+        const input: RoundInput = {
+          seed,
+          mapId: s.map.id,
+          map: s.map,
+          demandProfile: s.demandProfile,
+          placements: [],
+          cardState: { runEffects: [] },
+          districtRules: s.districtRules,
+          ...(s.closedSegments.length > 0 ? { closedSegments: s.closedSegments } : {}),
+        };
+        const frames: Uint16Array[] = [];
+        const handle = createSimWorkerHandler((m) => {
+          if (m.type === 'frames') frames.push(...m.frames);
+        });
+        handle({ type: 'start', roundId: 1, input });
+        handle({ type: 'finish', roundId: 1 });
+        const b = new SnapshotBuffer(worldLaneLayout(buildWorld(s.map)));
+        const out: VehiclePose[] = [];
+        frames.forEach((f, i) => {
+          const t0 = i * TICK_MS;
+          b.push(f, t0);
+          for (let q = 0; q < 4; q++) {
+            const n = b.sample(t0 + (q * TICK_MS) / 4, out);
+            for (let k = 0; k < n; k++) {
+              const p = out[k]!;
+              const len = VEHICLE_LENGTH[p.type as VehicleType] ?? 1;
+              if (len < 2) continue;
+              longPoses++;
+              for (let j = 0; j < len; j++) {
+                const x = p.x - (Math.cos(p.heading) * j) / CELLS_PER_TILE;
+                const y = p.y - (Math.sin(p.heading) * j) / CELLS_PER_TILE;
+                // A vehicle entering from an edge still has its tail beyond the map.
+                if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT) continue;
+                if (!onAsphalt(s.map, x, y))
+                  offRoad.push(`${s.map.id} tick ${i} q${q} id ${p.id} type ${p.type} body ${j}`);
+              }
+            }
+          }
+        });
+      }
+    }
+    expect(longPoses).toBeGreaterThan(10_000);
+    expect(offRoad.slice(0, 5)).toEqual([]);
+    // 30 simulated rounds: about 1 s alone, more on a loaded runner.
+  }, 30_000);
 });
