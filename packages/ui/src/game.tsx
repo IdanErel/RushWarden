@@ -519,6 +519,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
       {menu === 'about' && (
         <About
           privacyUrl={config.privacyUrl}
+          openExternalLink={config.openExternalLink}
           installId={props.installId?.() ?? null}
           onClose={() => setMenu('pause')}
         />
@@ -698,6 +699,7 @@ function PauseMenu(p: {
 
 function About(p: {
   privacyUrl: string;
+  openExternalLink: ((url: string) => void) | undefined;
   installId: string | null;
   onClose: () => void;
 }): preact.JSX.Element {
@@ -732,7 +734,18 @@ function About(p: {
         <p class="rw-muted">{t('about.installIdOff')}</p>
       )}
       {p.privacyUrl ? (
-        <a class="rw-btn" href={p.privacyUrl} target="_blank" rel="noopener noreferrer">
+        <a
+          class="rw-btn"
+          href={p.privacyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => {
+            // Through the portal when it requires it (Poki); the anchor is the fallback.
+            if (!p.openExternalLink) return;
+            e.preventDefault();
+            p.openExternalLink(p.privacyUrl);
+          }}
+        >
           {t('about.privacy')}
         </a>
       ) : (

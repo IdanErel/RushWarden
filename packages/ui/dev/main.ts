@@ -25,6 +25,7 @@ const sound: SoundControl & { muted: boolean } = {
 };
 
 /** Stands in for the ingest client's `track()`; e2e reads the calls. */
+const linkCalls: string[] = [];
 const trackCalls: { event: string; props: unknown }[] = [];
 const analytics: RunAnalytics = { track: (event, props) => trackCalls.push({ event, props }) };
 
@@ -37,10 +38,15 @@ mountGame(document.getElementById('app') as HTMLElement, {
   }),
   spawnWorker: sim ? spawnSimWorker : spawnFakeWorker,
   ...(sim ? {} : { layout: tileLaneLayout }),
-  config: { privacyUrl: q.get('privacy') ?? '', shareUrl: '' },
+  config: {
+    privacyUrl: q.get('privacy') ?? '',
+    shareUrl: '',
+    // `extlink=1`: a portal-style link opener (Poki's openExternalLink); e2e reads `linkCalls`.
+    ...(q.get('extlink') === '1' ? { openExternalLink: (url: string) => linkCalls.push(url) } : {}),
+  },
   installId: () => 'test-install-0000',
   sound,
   testHooks: true,
   reducedMotion: q.get('reduced') === '1',
 });
-Object.assign(window, { soundCalls, trackCalls });
+Object.assign(window, { soundCalls, trackCalls, linkCalls });
