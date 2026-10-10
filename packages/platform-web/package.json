@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
+    "@rushwarden/content": "workspace:*",
     "vite": "~7.3.7"
   }
 }
