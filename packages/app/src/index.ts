@@ -7,4 +7,5 @@ export * from './portal.js';
 export * from './entitlement.js';
 export * from './save.js';
 export { flags, type FlagName } from './flags.js';
+export * from './analytics/index.js';
 export * from './run/index.js';

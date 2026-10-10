@@ -1,4 +1,5 @@
 import { Sim, sampleInput } from '@rushwarden/sim';
+import { startAnalytics } from './analytics.js';
 import { DEFAULT_SHARE_URL, createPortalAdapter } from './portal/index.js';
 import { TEST_HOOKS_ENABLED, seedOverride, withPortalSpy } from './test-hooks.js';
 
@@ -17,7 +18,9 @@ async function boot(): Promise<void> {
   await portal.init();
   // H1: `?seed=<u32>` fixes the seed in hooks builds; the run controller will use the same call.
   const seed = (TEST_HOOKS_ENABLED ? seedOverride(location.search) : null) ?? 1;
+  const t0 = performance.now();
   const result = Sim.simulate(sampleInput(seed));
+  const benchmarkMs = performance.now() - t0;
   const el = document.getElementById('app');
   if (el) {
     el.dataset['hash'] = result.finalHash;
@@ -26,6 +29,19 @@ async function boot(): Promise<void> {
     el.textContent = `Rushwarden · sim ok · ${result.ticks} ticks · ${result.finalHash}`;
   }
   portal.loadingFinished();
+  // Off unless the build sets VITE_INGEST_URL (ADR-007: not in public builds before the policy),
+  // and even then nothing is sent until the player says yes (ADR-025; the prompt is UI's).
+  let storage: Storage | null = null;
+  try {
+    storage = localStorage;
+  } catch {
+    // Storage blocked in this frame.
+  }
+  const analytics = startAnalytics(import.meta.env, portal.id, benchmarkMs, {
+    storage,
+    language: navigator.language,
+  });
+  analytics.track('app_open', {});
 }
 
 void boot();

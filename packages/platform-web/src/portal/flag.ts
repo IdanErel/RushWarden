@@ -14,3 +14,6 @@ export function parsePortalFlag(value: string | undefined): PortalFlag {
   if ((PORTAL_FLAGS as readonly string[]).includes(value)) return value as PortalFlag;
   throw new Error(`VITE_PORTAL must be one of ${PORTAL_FLAGS.join(', ')}; got "${value}"`);
 }
+
+/** Portals whose builds collect nothing (ADR-024 point 4, ADR-025 point 3). */
+export const NO_ANALYTICS_PORTALS: readonly PortalFlag[] = ['poki', 'crazygames'];
