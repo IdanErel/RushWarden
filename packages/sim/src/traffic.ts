@@ -7,13 +7,15 @@
  *    its queue onto the first free cell 0 of its spawn link's lanes (kerb lane first).
  * Then every vehicle, sorted by (laneId, cellIndex) descending so downstream moves first:
  * 1. Acceleration: `v = min(v + 1, vmax)`.
- * 2. Gap: `v = min(v, free cells ahead along the route)`; a bus also stops at an unserved bus
- *    stop cell. Stop lines and turn reservations arrive with controllers (P1-SIM-03).
+ * 2. Gap: `v = min(v, free cells ahead along the route)`; the stop line counts as blocked
+ *    when the intersection's controller says stop (rule 5, controllers.ts), and a bus also stops
+ *    at an unserved bus stop cell. Turners use the turn pocket when one is placed.
  * 4. Move: advance `v` cells one at a time along the pre-computed route. At a link's end the
  *    vehicle enters the intersection box lane of its next movement, then the next link.
  * 6. Exit: moving past the end of the route's last link enters the sink; the vehicle is removed
  *    and its score value is added to throughput.
- * Rule 3 (p_slow) arrives in P1-SIM-04; rule 5 (controllers) in P1-SIM-03.
+ * Rule 5 (controllers.ts) runs at the start of the tick: signals advance and grants are picked.
+ * Rule 3 (p_slow) arrives in P1-SIM-04.
  */
 import {
   BIKE_SHARED_VMAX,
@@ -21,10 +23,33 @@ import {
   MAX_VEHICLE_LENGTH,
   VEHICLE_SPECS,
 } from './vehicles.js';
+import {
+  enterBox,
+  leaveBox,
+  mayEnter,
+  PocketMode,
+  ROUNDABOUT_CAPACITY,
+  UNCONTROLLED_RESOLVE_TICKS,
+  updateControllers,
+} from './controllers.js';
 import { opposite, route, Turn, weightedRoute, type World } from './world.js';
+import { DEFAULT_SWITCH_TICKS } from './types.js';
 import { VehicleType, type DemandProfile } from './types.js';
 
 const NONE = -1;
+/** Hot-loop copies of the vehicle table; bikes move at BIKE_SHARED_VMAX without bike lanes. */
+const VMAX = Uint8Array.from(VEHICLE_SPECS, (s, type) =>
+  type === VehicleType.Bike ? BIKE_SHARED_VMAX : s.vmax,
+);
+const VEHICLE_LENGTH = Uint8Array.from(VEHICLE_SPECS, (s) => s.length);
+/** `Traffic.laneKind` codes. */
+const ROAD = 0;
+const BOX = 1;
+const POCKET = 2;
+/** `walk` results. */
+const BLOCKED = 0;
+const MOVED = 1;
+const EXIT = 2;
 /** Sort key: lane * KEY_LANE + cell. Lanes never exceed 4095 cells. */
 const KEY_LANE = 4096;
 /** Taxi route cost per occupied cell on a link, on top of its free-flow length in cells. */
@@ -41,6 +66,46 @@ export interface Traffic {
   readonly laneCells: Int32Array;
   readonly laneLink: Int32Array;
   readonly laneTurn: Int32Array;
+  /** 0 road, 1 box, 2 pocket. */
+  readonly laneKind: Uint8Array;
+  /** Intersection of box and pocket lanes, else -1. */
+  readonly laneIx: Int32Array;
+  /** First physical cell of the box quarters (`world.laneCellBase[roadLanes]`). */
+  readonly boxBase: number;
+  /** Current tick (set by `prepareTick`). */
+  tick: number;
+  /** When set, every box entry appends (vehicle, intersection, tick). For tests and tools. */
+  entryLog: number[] | null;
+  // Per intersection: controller state for the round (controllers.ts).
+  readonly ctrlKind: Uint8Array;
+  readonly ctrlCapacity: Uint8Array;
+  /** Priority axis: 0 = n-s, 1 = e-w. */
+  readonly ctrlAxis: Uint8Array;
+  /** Signal phase: 0 = n-s green, 1 = e-w green. */
+  readonly sigPhase: Uint8Array;
+  readonly sigTimer: Int32Array;
+  /** All-red ticks left before the next phase. */
+  readonly sigClearing: Uint8Array;
+  readonly sigAdaptive: Uint8Array;
+  readonly sigSwitchTicks: Uint8Array;
+  readonly resolveTicks: Uint8Array;
+  /** `PocketMode` per approach: `[intersection * 4 + inSide]`. */
+  readonly pocketMode: Uint8Array;
+  /** This tick's grant (uncontrolled, stop-all, priority minor road), or -1. */
+  readonly granted: Int32Array;
+  /** Vehicles whose head is in the box. */
+  readonly boxCount: Int32Array;
+  /** Trucks whose head is on a turning movement in the box. */
+  readonly truckTurning: Int32Array;
+  /**
+   * Stop-line cells per intersection, for grants: entries `[lineStart[ix], lineStart[ix + 1])`
+   * of `lineLane` (approach lane or pocket), `lineSide` (its in-side) and `linePhys` (its last
+   * cell's physical cell).
+   */
+  readonly lineStart: Int32Array;
+  readonly lineLane: Int32Array;
+  readonly lineSide: Int8Array;
+  readonly linePhys: Int32Array;
   // Per vehicle (index = spawn order).
   readonly type: Uint8Array;
   readonly lane: Int32Array;
@@ -57,6 +122,8 @@ export interface Traffic {
   readonly dwell: Uint8Array;
   /** Flat lane cell of the last bus stop served, or -1. */
   readonly served: Int32Array;
+  /** Tick the head arrived at its current stop-line cell, or -1 when not at a line. */
+  readonly atLine: Int32Array;
   count: number;
   /** Alive vehicles in update order. */
   readonly order: Int32Array;
@@ -79,12 +146,35 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
   const laneCells = new Int32Array(lanes);
   const laneLink = new Int32Array(lanes);
   const laneTurn = new Int32Array(lanes);
+  const laneKind = new Uint8Array(lanes);
+  const laneIx = new Int32Array(lanes);
   for (let i = 0; i < lanes; i++) {
     const l = world.lanes[i]!;
     laneCells[i] = l.cells;
     laneLink[i] = l.link;
     laneTurn[i] = l.turn;
+    laneKind[i] = l.kind === 'road' ? ROAD : l.kind === 'box' ? BOX : POCKET;
+    laneIx[i] = l.intersection;
   }
+  const ixCount = world.intersections.length;
+  const lineStart = new Int32Array(ixCount + 1);
+  const lineLaneList: number[] = [];
+  const lineSideList: number[] = [];
+  for (const node of world.intersections) {
+    for (let s = 0; s < 4; s++) {
+      const inLink = node.inLinks[s]!;
+      if (inLink === NONE) continue;
+      for (const lane of [...world.links[inLink]!.lanes, world.pocketLane[node.index * 4 + s]!]) {
+        lineLaneList.push(lane);
+        lineSideList.push(s);
+      }
+    }
+    lineStart[node.index + 1] = lineLaneList.length;
+  }
+  const lineLane = Int32Array.from(lineLaneList);
+  const linePhys = lineLane.map(
+    (lane) => world.cellPhys[world.laneCellBase[lane]! + laneCells[lane]! - 1]!,
+  );
   return {
     world,
     demand,
@@ -93,6 +183,28 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
     laneCells,
     laneLink,
     laneTurn,
+    laneKind,
+    laneIx,
+    boxBase: world.laneCellBase[world.roadLanes]!,
+    tick: 0,
+    entryLog: null,
+    ctrlKind: new Uint8Array(ixCount),
+    ctrlCapacity: new Uint8Array(ixCount).fill(ROUNDABOUT_CAPACITY),
+    ctrlAxis: new Uint8Array(ixCount),
+    sigPhase: new Uint8Array(ixCount),
+    sigTimer: new Int32Array(ixCount),
+    sigClearing: new Uint8Array(ixCount),
+    sigAdaptive: new Uint8Array(ixCount),
+    sigSwitchTicks: new Uint8Array(ixCount).fill(DEFAULT_SWITCH_TICKS),
+    resolveTicks: new Uint8Array(ixCount).fill(UNCONTROLLED_RESOLVE_TICKS),
+    pocketMode: new Uint8Array(ixCount * 4),
+    granted: new Int32Array(ixCount).fill(NONE),
+    boxCount: new Int32Array(ixCount),
+    truckTurning: new Int32Array(ixCount),
+    lineStart,
+    lineLane,
+    lineSide: Int8Array.from(lineSideList),
+    linePhys,
     type: new Uint8Array(cap),
     lane: new Int32Array(cap),
     cell: new Int32Array(cap),
@@ -104,6 +216,7 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
     tail: new Int32Array(cap * MAX_VEHICLE_LENGTH).fill(NONE),
     dwell: new Uint8Array(cap),
     served: new Int32Array(cap).fill(NONE),
+    atLine: new Int32Array(cap).fill(NONE),
     count: 0,
     order: new Int32Array(cap),
     keys: new Int32Array(cap),
@@ -124,32 +237,50 @@ let wCell = 0;
 let wStep = 0;
 let wIdx = 0;
 
-/** Advances the cursor one cell along `rt`. Returns false when the next cell is the sink. */
-function walk(t: Traffic, rt: readonly number[]): boolean {
+/**
+ * Advances the cursor one cell along vehicle `i`'s route `rt`. Returns MOVED, EXIT (the next cell
+ * is the sink) or BLOCKED (the stop line, and the controller says stop).
+ */
+function walk(t: Traffic, i: number, rt: readonly number[]): number {
   if (wCell + 1 < t.laneCells[wLane]!) {
     wCell++;
-    return true;
+    return MOVED;
   }
   const w = t.world;
-  const linkId = t.laneLink[wLane]!;
-  if (linkId !== NONE) {
-    if (wStep + 1 >= rt.length) return false;
-    const link = w.links[linkId]!;
+  const kind = t.laneKind[wLane]!;
+  if (kind === BOX) {
     const next = w.links[rt[wStep + 1]!]!;
-    const inSide = opposite(link.exitDirs[link.exitDirs.length - 1]!);
-    wLane = w.movementLane[link.to.index * 16 + inSide * 4 + next.entryDirs[0]!]!;
+    const n = next.lanes.length;
+    const turn = t.laneTurn[wLane]!;
+    const idx = turn === Turn.Right ? 0 : turn === Turn.Left ? n - 1 : wIdx < n ? wIdx : n - 1;
+    wLane = next.lanes[idx]!;
     wCell = 0;
-    return true;
+    wStep++;
+    wIdx = idx;
+    return MOVED;
   }
-  const next = w.links[rt[wStep + 1]!]!;
-  const n = next.lanes.length;
-  const turn = t.laneTurn[wLane]!;
-  const idx = turn === Turn.Right ? 0 : turn === Turn.Left ? n - 1 : wIdx < n ? wIdx : n - 1;
-  wLane = next.lanes[idx]!;
+  // At the end of an approach lane or a turn pocket: the stop line.
+  if (kind === ROAD && wStep + 1 >= rt.length) return EXIT;
+  const link = w.links[t.laneLink[wLane]!]!;
+  const ix = link.to.index;
+  const inSide = opposite(link.exitDirs[link.exitDirs.length - 1]!);
+  const box = w.movementLane[ix * 16 + inSide * 4 + w.links[rt[wStep + 1]!]!.entryDirs[0]!]!;
+  if (kind === ROAD) {
+    const mode = t.pocketMode[ix * 4 + inSide]!;
+    const turn = t.laneTurn[box]!;
+    if (
+      mode !== PocketMode.None &&
+      (turn === Turn.Left || (mode === PocketMode.Both && turn === Turn.Right))
+    ) {
+      wLane = w.pocketLane[ix * 4 + inSide]!;
+      wCell = 0;
+      return MOVED;
+    }
+  }
+  if (!mayEnter(t, i, ix, inSide, box)) return BLOCKED;
+  wLane = box;
   wCell = 0;
-  wStep++;
-  wIdx = idx;
-  return true;
+  return MOVED;
 }
 
 function setCursor(t: Traffic, i: number): void {
@@ -159,23 +290,44 @@ function setCursor(t: Traffic, i: number): void {
   wIdx = t.laneIdx[i]!;
 }
 
-/** Rule 2: free cells ahead of vehicle `i`, up to `v`. */
+// The path `gapAhead` walked, replayed by `move` (module scratch, at most vmax <= 4 cells):
+// cursor state after each step, and the step at which the vehicle reaches the sink (or 0).
+const pLane = new Int32Array(8);
+const pCell = new Int32Array(8);
+const pStep = new Int32Array(8);
+const pIdx = new Int32Array(8);
+const pPhys = new Int32Array(8);
+let pExitAt = 0;
+
+/** Rule 2: free cells ahead of vehicle `i`, up to `v`; records the path for `move`. */
 function gapAhead(t: Traffic, i: number, v: number): number {
   const w = t.world;
   const rt = t.routes[i]!;
   const isBus = t.type[i] === VehicleType.Bus;
   setCursor(t, i);
+  pExitAt = 0;
   for (let k = 1; k <= v; k++) {
-    if (!walk(t, rt)) return v;
+    const r = walk(t, i, rt);
+    if (r === EXIT) {
+      pExitAt = k;
+      return k;
+    }
+    if (r === BLOCKED) return k - 1;
     const flat = w.laneCellBase[wLane]! + wCell;
-    if (t.occ[w.cellPhys[flat]!] !== 0) return k - 1;
+    const phys = w.cellPhys[flat]!;
+    if (t.occ[phys] !== 0) return k - 1;
+    pLane[k] = wLane;
+    pCell[k] = wCell;
+    pStep[k] = wStep;
+    pIdx[k] = wIdx;
+    pPhys[k] = phys;
     if (isBus && w.stopCell[flat] === 1 && t.served[i] !== flat) return k;
   }
   return v;
 }
 
 function occupy(t: Traffic, i: number, phys: number): void {
-  const len = VEHICLE_SPECS[t.type[i]!]!.length;
+  const len = VEHICLE_LENGTH[t.type[i]!]!;
   const base = i * MAX_VEHICLE_LENGTH;
   const last = t.tail[base + len - 1]!;
   if (last !== NONE) release(t, last);
@@ -207,34 +359,45 @@ function taxiRoute(t: Traffic, i: number, linkId: number): readonly number[] | n
   return rest ? [linkId, ...rest] : null;
 }
 
-/** Rules 4 and 6: moves vehicle `i` by `v` cells. Returns false if it exited. */
+/** Rules 4 and 6: moves vehicle `i` by `v` cells along the path `gapAhead` recorded. Returns false if it exited. */
 function move(t: Traffic, i: number, v: number): boolean {
   const w = t.world;
-  let rt = t.routes[i]!;
   const isTaxi = t.type[i] === VehicleType.Taxi;
-  setCursor(t, i);
-  for (let k = 0; k < v; k++) {
-    const stepBefore = wStep;
-    if (!walk(t, rt)) {
+  let lane = t.lane[i]!;
+  let step = t.step[i]!;
+  let shift = 0; // a taxi re-route renumbers its route from the current link (index 0)
+  for (let k = 1; k <= v; k++) {
+    if (k === pExitAt) {
       exit(t, i);
       return false;
     }
-    occupy(t, i, w.cellPhys[w.laneCellBase[wLane]! + wCell]!);
-    if (isTaxi && wStep !== stepBefore) {
-      const r = taxiRoute(t, i, rt[wStep]!);
+    const next = pLane[k]!;
+    if (next !== lane) {
+      if (t.laneKind[lane] === BOX) leaveBox(t, i, lane);
+      if (t.laneKind[next] === BOX) enterBox(t, i, next);
+      lane = next;
+    }
+    occupy(t, i, pPhys[k]!);
+    const nextStep = pStep[k]! - shift;
+    if (isTaxi && nextStep !== step) {
+      const r = taxiRoute(t, i, t.routes[i]![nextStep]!);
       if (r) {
-        rt = r;
         t.routes[i] = r;
-        wStep = 0;
+        shift += nextStep;
       }
     }
+    step = pStep[k]! - shift;
   }
-  t.lane[i] = wLane;
-  t.cell[i] = wCell;
-  t.step[i] = wStep;
-  t.laneIdx[i] = wIdx;
+  if (v > 0) {
+    t.lane[i] = lane;
+    t.cell[i] = pCell[v]!;
+    t.step[i] = step;
+    t.laneIdx[i] = pIdx[v]!;
+  }
+  const flat = w.laneCellBase[lane]! + t.cell[i]!;
+  if (w.lineCell[flat] === 0) t.atLine[i] = NONE;
+  else if (v > 0) t.atLine[i] = t.tick;
   if (t.type[i] === VehicleType.Bus) {
-    const flat = w.laneCellBase[wLane]! + wCell;
     if (w.stopCell[flat] === 1 && t.served[i] !== flat) {
       t.served[i] = flat;
       t.dwell[i] = BUS_DWELL_TICKS;
@@ -319,10 +482,12 @@ function sortOrder(t: Traffic): void {
   }
 }
 
-/** Spawns this tick's demand and sorts `order` into the update order (exported for tests). */
+/** Spawns this tick's demand, sorts `order` into the update order and runs rule 5's start-of-tick step. */
 export function prepareTick(t: Traffic, tick: number): void {
+  t.tick = tick;
   spawn(t, tick);
   sortOrder(t);
+  updateControllers(t);
 }
 
 /** Runs tick rules 1, 2, 4 and 6 (and spawning) for one tick. */
@@ -345,7 +510,7 @@ export function moveAll(t: Traffic): void {
       continue;
     }
     const vt = type[i]!;
-    const vmax = vt === VehicleType.Bike ? BIKE_SHARED_VMAX : VEHICLE_SPECS[vt]!.vmax;
+    const vmax = VMAX[vt]!;
     let v = speed[i]! + 1;
     if (v > vmax) v = vmax;
     v = gapAhead(t, i, v);

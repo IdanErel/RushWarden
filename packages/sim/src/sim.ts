@@ -1,6 +1,7 @@
 import { Hasher, hashValue } from './hash.js';
 import { validatePlacements } from './placements.js';
 import { createPrng, type PrngState } from './prng.js';
+import { controllerFrame } from './controllers.js';
 import { createTraffic, tickTraffic, type Traffic } from './traffic.js';
 import { MAX_VEHICLE_LENGTH, VEHICLE_TYPE_COUNT } from './vehicles.js';
 import { buildWorld, edgeIndex, type World } from './world.js';
@@ -189,6 +190,15 @@ export function snapshot(s: SimState): Uint16Array {
   return out;
 }
 
+/**
+ * Controller state for the renderer, per intersection `[kind, greenMask, boxCount]` (see
+ * `controllerFrame`). Not part of the snapshot format yet; the Lead decides how the worker
+ * protocol carries it.
+ */
+export function controllerSnapshot(s: SimState): Uint8Array {
+  return controllerFrame(asState(s).traffic);
+}
+
 /** 64-bit hash of the current state (16 hex characters). */
 export function stateHash(s: SimState): string {
   const st = asState(s);
@@ -208,7 +218,9 @@ export function stateHash(s: SimState): string {
     const i = t.order[k]!;
     h.int(i).int(t.lane[i]!).int(t.cell[i]!).int(t.speed[i]!).int(t.dwell[i]!).int(t.step[i]!);
     for (let j = 0; j < MAX_VEHICLE_LENGTH; j++) h.int(t.tail[i * MAX_VEHICLE_LENGTH + j]!);
+    h.int(t.atLine[i]!);
   }
+  h.ints(t.ctrlKind).ints(t.sigPhase).ints(t.sigTimer).ints(t.sigClearing);
   return h.digest();
 }
 

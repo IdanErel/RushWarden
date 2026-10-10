@@ -122,16 +122,22 @@ describe('vehicle table (GDD section 3)', () => {
 });
 
 describe('tick rules 1, 2, 4 and 6', () => {
-  it('a lone car accelerates 1, 2, 3 and exits after 15 + 2 + 16 + 1 cells', () => {
+  it('a lone car accelerates 1, 2, 3, waits at the uncontrolled line, and exits', () => {
     const r = Sim.simulate({ ...input(emptyMap(), [ev(10, 0, 2)]), recordFrames: true });
     const trace = r.frames!.map((f) => vehicles(f)[0]);
     // Tick 10 spawns at cell 0 and moves 1 (rule 1 from rest), then 2, then 3 per tick.
     expect(trace[10]).toMatchObject({ cell: 1, speed: 1 });
     expect(trace[11]).toMatchObject({ cell: 3, speed: 2 });
     expect(trace[12]).toMatchObject({ cell: 6, speed: 3 });
-    // 34 cells: 1 + 2 + 3 * 11 >= 34, so it leaves during its 13th tick (tick 22).
-    expect(trace[21]).toBeDefined();
-    expect(trace[22]).toBeUndefined();
+    // Reaches the stop line (cell 15) at tick 15 with v = 3: gap 2 lands it exactly there.
+    expect(trace[15]).toMatchObject({ cell: 15, speed: 3 });
+    // Uncontrolled: it may enter UNCONTROLLED_RESOLVE_TICKS (3) ticks after arriving.
+    expect(trace[16]).toMatchObject({ cell: 15, speed: 0 });
+    expect(trace[17]).toMatchObject({ cell: 15, speed: 0 });
+    expect(trace[18]).toMatchObject({ cell: 0, speed: 1 });
+    // Then 2 box cells + 16 + 1: 1 + 2 + 3 * 6 >= 19, so it leaves at tick 25.
+    expect(trace[24]).toBeDefined();
+    expect(trace[25]).toBeUndefined();
     expect(r.exited).toBe(1);
   });
 
@@ -235,9 +241,11 @@ describe('tick rules 1, 2, 4 and 6', () => {
     expect(atStop.length).toBe(1 + BUS_DWELL_TICKS);
     expect(atStop.slice(1).every((v) => v.speed === 0)).toBe(true);
     expect(r.throughput).toBe(3);
-    // A car does not stop there.
+    // A car does not stop there (it stops only at the intersection's line, cell 15).
     const car = Sim.simulate({ ...input(stop, [ev(0, 0, 2)]), recordFrames: true });
-    expect(car.frames!.filter((f) => vehicles(f)[0]?.speed === 0)).toHaveLength(0);
+    const carStops = car.frames!.map((f) => vehicles(f)[0]).filter((v) => v?.speed === 0);
+    expect(carStops.length).toBeGreaterThan(0);
+    expect(carStops.every((v) => v!.cell === 15)).toBe(true);
   });
 });
 
