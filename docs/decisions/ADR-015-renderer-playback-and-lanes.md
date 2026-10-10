@@ -46,6 +46,17 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
   tile (tested).
 - `tileLaneLayout` (per-tile ids) stays only for `FakeTraffic`, which the dev page pairs with it.
 
+## Long vehicles through turns (2026-10-10)
+
+A snapshot carries only a vehicle's head cell. A bus (2 cells) or truck (3 cells) used to be
+drawn back from the head along the head cell's own heading. In a box that heading is diagonal,
+so the body swung out across the corner. Now the body points from the tail cell to the head
+cell. `LaneLayout.backPoint(lane, cell, back)` walks back along the path the vehicle took: within
+its lane, then from a box lane or a pocket into the approach's kerb lane, and straight back past
+the start of a road lane. Both ends are interpolated between snapshots like the head. A test
+drives a truck and a bus through every movement on the plus map and checks that the head,
+middle and tail stay on the road.
+
 ## Readability and shape notes (review of #18)
 
 - **Shape alone (§7 accessibility).** Car and taxi share a body, so the taxi also carries a
@@ -58,6 +69,28 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
 - **Truck "darker".** Read as darker than the other vehicle bodies (box `truckBox` against the
   light `vehicleBody`), not darker than the road: on District 1's dark road a dark truck would
   fall under the 3:1 contrast floor.
+
+## Live controller readouts (REN-03, 2026-10-10)
+
+The sim worker's `frames` carry `controllers` (ADR-020 point 10): `[kind, greenMask, boxCount]`
+per intersection, for the same tick as each snapshot. `SimClient` releases each one with its
+snapshot, and the scene draws:
+
+- **Signal stop bars.** For a signalled intersection, there is one bar per approach, just outside
+  the box and across that approach's inbound lanes. It is green when the approach may enter and red
+  otherwise, so all four are red during the all-red clearance. The bars are drawn from the live
+  mask, not from the glyph, so they show the real phase. Other controller kinds have no bars.
+- **Box occupancy.** The box square gets an amber tint that rises per vehicle inside it, up to
+  alpha 0.5 at 4 vehicles (one per quarter, so the box is full). It sits under the glyph and the
+  vehicles, so it reads as a box filling up without hiding what is in it.
+- **Live glyphs.** A glyph the UI set wins. Otherwise the scene shows the live controller kind
+  from the frame. The sim sets the kind from the round's controller cards (#32). The dev page's
+  fake traffic sends frames in the same layout that honour `setController` placements and
+  alternate signal phases.
+- **Per-round lanes and closures.** `setRound(input)` lays lanes out on `roundWorld(input)`
+  (ADR-023), because topology cards change lane ids. It draws `input.closedSegments` (Parade,
+  ADR-022) through the sim's `closedLinkMask`: every closed link's road is faded, and a barrier
+  crosses the road at each end of each segment.
 
 ## Consequences
 

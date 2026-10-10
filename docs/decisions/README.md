@@ -31,3 +31,5 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 023 | Card effects, stacking and controller conflicts         | Proposed        |
 | 024 | Portal monetisation: Poki and CrazyGames                | Accepted        |
 | 025 | Privacy defaults: consent, retention, requests          | Accepted        |
+| 026 | Phase 1 sim throughput budget                           | Accepted (Lead) |
+| 027 | Nightly balance report is an artifact                   | Accepted (Lead) |

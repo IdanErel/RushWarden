@@ -5,6 +5,7 @@
  * never fails the build. Usage: node bench/summary.mjs <results.json> [summary.md]
  */
 import { appendFileSync, readFileSync } from 'node:fs';
+import { cpus } from 'node:os';
 
 const BUDGET = 2000;
 const [input, output] = process.argv.slice(2);
@@ -33,7 +34,8 @@ for (const file of files) {
 }
 lines.push(
   '',
-  `Node ${process.version}, ${process.platform}/${process.arch}. "cache miss" rows include a map clone.`,
+  `Node ${process.version}, ${process.platform}/${process.arch}, CPU: ${cpus()[0]?.model ?? 'unknown'}.`,
+  'Hosted runners differ in CPU, so compare runs on the same CPU model. "cache miss" rows include a map clone.',
   '',
 );
 const md = lines.join('\n');
