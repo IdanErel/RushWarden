@@ -56,30 +56,30 @@ All bots together, over the runs that reached the round. Ratio = throughput ÷ q
 
 ## Cards: drafted win-rate delta and pick rate
 
-Baseline win rate over all runs: 85.7%. Delta = win rate of runs that drafted the card minus the baseline; §11 limits: +12 / −8 points.
+Win rate over all runs: 85.7%. Delta = for each bot, the win rate of its runs that drafted the card minus that bot's win rate over all its runs (its baseline), averaged over bots weighted by drafting runs; §11 limits: +12 / −8 points.
 
 | Card            | Tags  | Offered | Picked | Pick rate | Runs drafting | Win rate drafted | Delta (pts) | Within limits |
 | --------------- | ----- | ------- | ------ | --------- | ------------- | ---------------- | ----------- | ------------- |
-| bus-lane        | MASS  | 160     | 25     | 15.6%     | 13            | 92.3%            | +6.6        | yes           |
-| bus-priority    | MASS  | 89      | 14     | 15.7%     | 7             | 100.0%           | +14.3       | no            |
-| delivery-window | TOLL  | 84      | 15     | 17.9%     | 11            | 90.9%            | +5.2        | yes           |
-| detour          | TOLL  | 78      | 14     | 17.9%     | 11            | 90.9%            | +5.2        | yes           |
+| bus-lane        | MASS  | 160     | 25     | 15.6%     | 13            | 92.3%            | +0.0        | yes           |
+| bus-priority    | MASS  | 89      | 14     | 15.7%     | 7             | 100.0%           | +0.0        | yes           |
+| delivery-window | TOLL  | 84      | 15     | 17.9%     | 11            | 90.9%            | +0.0        | yes           |
+| detour          | TOLL  | 78      | 14     | 17.9%     | 11            | 90.9%            | +0.0        | yes           |
 | express-stop    | MASS  | 71      | 0      | 0.0%      | 0             | n/a              | n/a         | n/a           |
-| fare-holiday    | MASS  | 103     | 17     | 16.5%     | 9             | 100.0%           | +14.3       | no            |
-| no-heavy        | CHAOS | 67      | 23     | 34.3%     | 16            | 93.8%            | +8.1        | yes           |
-| one-way         | FLOW  | 195     | 71     | 36.4%     | 26            | 88.5%            | +2.8        | yes           |
-| overtime        | TEMPO | 84      | 23     | 27.4%     | 12            | 91.7%            | +6.0        | yes           |
-| pilot-program   | TEMPO | 107     | 21     | 19.6%     | 10            | 80.0%            | −5.7        | yes           |
-| recount         | TEMPO | 111     | 27     | 24.3%     | 14            | 78.6%            | −7.1        | yes           |
-| remove-signal   | CHAOS | 98      | 12     | 12.2%     | 9             | 100.0%           | +14.3       | no            |
-| roundabout      | CHAOS | 102     | 16     | 15.7%     | 9             | 88.9%            | +3.2        | yes           |
-| second-shift    | TEMPO | 140     | 26     | 18.6%     | 11            | 100.0%           | +14.3       | no            |
-| smart-signal    | FLOW  | 181     | 45     | 24.9%     | 23            | 95.7%            | +10.0       | yes           |
-| speed-limit-up  | FLOW  | 168     | 46     | 27.4%     | 20            | 95.0%            | +9.3        | yes           |
-| staggered-hours | TOLL  | 166     | 18     | 10.8%     | 12            | 91.7%            | +6.0        | yes           |
-| toll-booth      | TOLL  | 87      | 17     | 19.5%     | 14            | 71.4%            | −14.3       | no            |
-| turn-lane       | FLOW  | 207     | 62     | 30.0%     | 23            | 100.0%           | +14.3       | no            |
-| yield-culture   | CHAOS | 171     | 48     | 28.1%     | 23            | 87.0%            | +1.3        | yes           |
+| fare-holiday    | MASS  | 103     | 17     | 16.5%     | 9             | 100.0%           | +0.0        | yes           |
+| no-heavy        | CHAOS | 67      | 23     | 34.3%     | 16            | 93.8%            | +0.0        | yes           |
+| one-way         | FLOW  | 195     | 71     | 36.4%     | 26            | 88.5%            | +0.0        | yes           |
+| overtime        | TEMPO | 84      | 23     | 27.4%     | 12            | 91.7%            | +0.0        | yes           |
+| pilot-program   | TEMPO | 107     | 21     | 19.6%     | 10            | 80.0%            | +0.0        | yes           |
+| recount         | TEMPO | 111     | 27     | 24.3%     | 14            | 78.6%            | +0.0        | yes           |
+| remove-signal   | CHAOS | 98      | 12     | 12.2%     | 9             | 100.0%           | +0.0        | yes           |
+| roundabout      | CHAOS | 102     | 16     | 15.7%     | 9             | 88.9%            | +0.0        | yes           |
+| second-shift    | TEMPO | 140     | 26     | 18.6%     | 11            | 100.0%           | +0.0        | yes           |
+| smart-signal    | FLOW  | 181     | 45     | 24.9%     | 23            | 95.7%            | +0.0        | yes           |
+| speed-limit-up  | FLOW  | 168     | 46     | 27.4%     | 20            | 95.0%            | +0.0        | yes           |
+| staggered-hours | TOLL  | 166     | 18     | 10.8%     | 12            | 91.7%            | +0.0        | yes           |
+| toll-booth      | TOLL  | 87      | 17     | 19.5%     | 14            | 71.4%            | +0.0        | yes           |
+| turn-lane       | FLOW  | 207     | 62     | 30.0%     | 23            | 100.0%           | +0.0        | yes           |
+| yield-culture   | CHAOS | 171     | 48     | 28.1%     | 23            | 87.0%            | +0.0        | yes           |
 
 ## Archetype purity vs win rate
 
