@@ -19,3 +19,10 @@ export { Hasher, hashValue } from './hash.js';
 export { createPrng, clonePrng, nextU32, nextInt, chancePermille, type PrngState } from './prng.js';
 export { idiv, imod, pct, clamp } from './math.js';
 export { emptyMap, sampleInput } from './fixtures.js';
+export {
+  createSimWorkerHandler,
+  MAX_TICKS_PER_STEP,
+  type FromSimWorker,
+  type PostFromWorker,
+  type ToSimWorker,
+} from './protocol.js';
