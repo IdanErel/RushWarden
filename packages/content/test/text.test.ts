@@ -40,6 +40,16 @@ const CASES: [Effect, TargetKind, string][] = [
     'Signal is adaptive: the longest queue gets green. Phases switch in 1 tick.',
   ],
   [
+    { kind: 'setSignalPhase', mode: 'adaptive', switchTicksDelta: -2 },
+    'intersection',
+    'Signal is adaptive: the longest queue gets green. Phases switch 2 ticks faster (4 ticks).',
+  ],
+  [
+    { kind: 'setSignalPhase', mode: 'district-cycle', switchTicksDelta: 1 },
+    'district',
+    'All signals share one district-wide cycle. Phases switch 1 tick slower (7 ticks).',
+  ],
+  [
     { kind: 'setSignalPhase', mode: 'wave' },
     'segment',
     'Signals along this segment share a green wave timed to the speed limit.',
@@ -81,6 +91,26 @@ const CASES: [Effect, TargetKind, string][] = [
     'Trucks are banned from this segment and route around it.',
   ],
   [
+    { kind: 'banType', vehicleType: Truck, scope: 'target' },
+    'segment',
+    'Trucks are banned from this segment and route around it.',
+  ],
+  [
+    { kind: 'banType', vehicleType: Truck, scope: { roadClass: 'local' } },
+    'segment',
+    'Trucks are banned from every local (1-lane) road in the district and route around them.',
+  ],
+  [
+    { kind: 'setSpeedLimit', delta: 0, max: 1, cells: 2 },
+    'segment',
+    'Top speed at most 1 on the first 2 cells of this segment for all vehicles.',
+  ],
+  [
+    { kind: 'setSpeedLimit', delta: 1, max: 2, types: [Bike] },
+    'segment',
+    '+1 top speed, up to 2, on this segment for bikes.',
+  ],
+  [
     { kind: 'preferType', vehicleType: Bus },
     'intersection',
     'Buses get green on approach to this intersection.',
@@ -93,7 +123,7 @@ const CASES: [Effect, TargetKind, string][] = [
   [
     { kind: 'addBusStop', dwellTicks: 2 },
     'segment',
-    'Bus stop on this segment: buses dwell 2 ticks.',
+    'Buses dwell 2 ticks at the bus stop on this segment.',
   ],
   [
     { kind: 'addBikeLane', bikeVmax: 3, carVmaxDelta: -1 },
@@ -111,20 +141,63 @@ const CASES: [Effect, TargetKind, string][] = [
     'This segment becomes one-way heading north, with its lanes doubled that way.',
   ],
   [
+    { kind: 'setOneWay', doubleLanes: true },
+    'segment',
+    'This segment becomes one-way in the direction you place it, with its lanes doubled that way.',
+  ],
+  [
     { kind: 'setOneWay', direction: 'e', doubleLanes: false },
     'segment',
     'This segment becomes one-way heading east.',
   ],
   [
-    { kind: 'reroute', percent: 50, toEdge: 3 },
+    { kind: 'reroute', percent: 50, to: 'adjacent' },
     'edge',
-    '50% of spawns from this edge reroute to edge 3.',
+    '50% of spawns from this edge move to the next edge clockwise.',
   ],
   [
-    { kind: 'reroute', percent: 25, vehicleTypes: [Car] },
-    'district',
-    '25% of cars from the district reroute to another route.',
+    { kind: 'reroute', percent: 25, to: 'secondary', vehicleTypes: [Car] },
+    'edge',
+    '25% of cars from this edge move to an edge you choose.',
   ],
+  [
+    { kind: 'addTurnLane', turns: 'left' },
+    'intersection',
+    'Left turns get their own lane and stop blocking through traffic.',
+  ],
+  [
+    { kind: 'addTurnLane', turns: 'both' },
+    'intersection',
+    'Left and right turns get their own lanes and stop blocking through traffic.',
+  ],
+  [
+    { kind: 'reserveLane', vehicleTypes: [Bus, Bike] },
+    'segment',
+    'One lane of this segment is reserved for buses and bikes.',
+  ],
+  [
+    { kind: 'smoothDemand', peakPermille: 300 },
+    'district',
+    'Rush hour spreads out: peak demand 30% lower, spread over the round.',
+  ],
+  [
+    { kind: 'spawnWindow', vehicleType: Truck, fromTick: 0, toTick: 100 },
+    'district',
+    'Trucks spawn only in the first 5 seconds.',
+  ],
+  [
+    { kind: 'spawnWindow', vehicleType: Bus, fromTick: 20, toTick: 45 },
+    'edge',
+    'Buses spawn at this edge only between 1 second and 45 ticks in.',
+  ],
+  [{ kind: 'costModifier', cards: 'all', delta: -1 }, 'district', 'All cards cost \u22121 energy.'],
+  [
+    { kind: 'costModifier', cards: ['one-way', 'detour'], delta: 1 },
+    'district',
+    'one-way and detour cost +1 energy.',
+  ],
+  [{ kind: 'redraw', keep: 0 }, 'district', 'Redraw your hand.'],
+  [{ kind: 'redraw', keep: 1 }, 'district', 'Keep 1 card, then redraw the rest of your hand.'],
   [{ kind: 'spawnModifier', vehicleType: Bus, percent: 40 }, 'district', '+40% bus spawns.'],
   [
     { kind: 'spawnModifier', vehicleType: Car, percent: -30 },
@@ -170,8 +243,22 @@ const CASES: [Effect, TargetKind, string][] = [
   ],
   [{ kind: 'drawModifier', delta: 2 }, 'district', 'Draw 2 extra cards next round.'],
   [{ kind: 'drawModifier', delta: -1 }, 'district', 'Draw 1 fewer card next round.'],
-  [{ kind: 'energyModifier', delta: 1 }, 'district', '+1 energy.'],
-  [{ kind: 'energyModifier', delta: 1, perRound: true }, 'district', '+1 energy every round.'],
+  [{ kind: 'energyModifier', delta: 1, when: 'next-round' }, 'district', '+1 energy next round.'],
+  [
+    { kind: 'energyModifier', delta: 1, when: 'now', condition: 'replaced-signal' },
+    'intersection',
+    '+1 energy this round if it replaced a signal.',
+  ],
+  [
+    { kind: 'energyModifier', delta: 1, when: 'next-round', perRound: true },
+    'district',
+    '+1 energy every round, starting next round.',
+  ],
+  [
+    { kind: 'energyModifier', delta: -1, when: 'now', perRound: true },
+    'district',
+    '\u22121 energy every round, starting this round.',
+  ],
   [{ kind: 'fundsModifier', delta: 5 }, 'district', '+5 funds.'],
   [
     { kind: 'fundsModifier', delta: 1, per: 4 },
