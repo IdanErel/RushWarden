@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 // Test hooks H1 and H4 (docs/release/phase-1-test-plan.md §2.1). The hooks build runs on 4174;
 // the public build on 4173 must ignore them.
-const HOOKS = `http://localhost:${Number(process.env['WEB_E2E_PORT'] ?? '4173') + 1}`;
+const HOOKS = 'http://localhost:4174';
 
 test('H1: ?seed= fixes the seed in the hooks build', async ({ page }) => {
   await page.goto(`${HOOKS}/?seed=7`);

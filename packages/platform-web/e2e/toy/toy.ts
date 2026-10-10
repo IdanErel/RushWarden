@@ -94,7 +94,7 @@ export async function pressGo(page: Page): Promise<void> {
 
 /** Waits for the Go phase to end at 1× (a round is 15 s; gridlock ends it sooner). */
 export async function watchRound(page: Page): Promise<void> {
-  await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 25_000 });
+  await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 60_000 });
 }
 
 /** Holds anywhere on the map for 2× until the round ends (GDD §8 "hold anywhere for 2×"). */
@@ -104,7 +104,7 @@ export async function holdRound(page: Page): Promise<void> {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await expect(state(page)).toHaveAttribute('data-speed', '2');
-  await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 20_000 });
+  await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 45_000 });
   await page.mouse.up();
 }
 

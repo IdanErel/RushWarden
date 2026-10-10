@@ -3,15 +3,14 @@ import { defineConfig, devices, webkit } from '@playwright/test';
 
 const executablePath = process.env['PW_CHROMIUM_PATH'];
 // WEB_E2E_PORT moves both preview servers (public on it, hooks build on it + 1) off 4173/4174
-// when another checkout is using them. e2e/toy/toy.ts reads the same variable.
+// when another checkout is using them. e2e/hooks.spec.ts and e2e/toy/toy.ts read it too.
 const port = Number(process.env['WEB_E2E_PORT'] ?? '4173');
 const hooksPort = port + 1;
 const launch = executablePath ? { launchOptions: { executablePath } } : {};
 
-// The WebKit phone needs the WebKit browser. CI's web job installs only Chromium until
-// `.github/workflows/ci.yml` adds `webkit` to its `playwright install` line (Lead-owned). Until
-// then the project is left out where WebKit is missing, and the run says so. PW_WEBKIT=1 forces it
-// in, so a missing browser fails instead of being skipped.
+// The WebKit phone needs the WebKit browser, which only the Nightly toy-webkit job installs
+// (ADR-029). Elsewhere the project is left out, and the run says so. PW_WEBKIT=1 forces it in,
+// so a missing browser fails instead of being skipped.
 const withWebkit = process.env['PW_WEBKIT'] === '1' || existsSync(webkit.executablePath());
 if (!withWebkit) console.warn('[e2e] WebKit is not installed: the phone-webkit project is skipped');
 

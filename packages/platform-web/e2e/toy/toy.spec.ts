@@ -46,6 +46,8 @@ function need(n: 'pass-round-1' | 'fail' | 'gridlock'): HeadlessRun {
 const passSeed = (): number => need('pass-round-1').seed;
 
 test.describe('toy flow', () => {
+  // A 15 s round takes 17–40 s of wall time in headless software WebGL (CI is the slow end).
+  test.describe.configure({ timeout: 120_000 });
   let runScreen = false;
 
   // Checked once per worker, before the seed scan, so that while the build has no run screen the
