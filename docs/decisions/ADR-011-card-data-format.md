@@ -28,7 +28,7 @@ technology and the shape of `upgrade` open. Decisions:
 6. **Text templates are the contract for what a primitive means.** Each template states only what
    its fields say. Where the sim type leaves meaning open, the template's reading is the one the
    Sim Engineer implements, or the template changes in the same PR. The readings follow ADR-014:
-   `drawModifier` applies to the next round's draw; `addBusStop` (Express Stop) only changes the
+   `drawModifier` applies to the next round's draw; `setBusStopDwell` (Express Stop) only changes the
    dwell of a stop the segment already has, so its text says "Buses dwell N ticks at the bus stop
    on this segment"; `reroute` names "the next edge clockwise" or "an edge you choose", never a
    raw edge id. English templates live in `packages/content` until §8's i18n layer exists.

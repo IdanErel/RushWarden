@@ -145,6 +145,9 @@ const TEMPLATES: Templates = {
     if (e.scope === undefined || e.scope === 'target') {
       return `${who} are banned from ${WHERE[target]} and route around it.`;
     }
+    if (e.scope === 'target-class') {
+      return `${who} are banned from every road in the district of the same class (local or arterial) as ${WHERE[target]} and route around them.`;
+    }
     return `${who} are banned from every ${ROAD_CLASS_NAMES[e.scope.roadClass]} road in the district and route around them.`;
   },
   preferType: (e, target) => {
@@ -153,7 +156,7 @@ const TEMPLATES: Templates = {
     return `${capitalize(who)} get green on approach to ${where}.`;
   },
   // ADR-014: only valid where the segment already has a bus stop; it changes that stop's dwell.
-  addBusStop: (e, target) =>
+  setBusStopDwell: (e, target) =>
     `Buses dwell ${plural1(e.dwellTicks, 'tick')} at the bus stop on ${WHERE[target]}.`,
   addBikeLane: (e, target) => {
     const cars = e.carVmaxDelta === 0 ? '' : `; cars ${signed(e.carVmaxDelta)} top speed`;
@@ -228,8 +231,13 @@ const TEMPLATES: Templates = {
     return `${signed(e.delta)} energy${when}${cond}.`;
   },
   costModifier: (e) => {
+    if (e.next !== undefined) {
+      const which = e.cards === 'all' ? '' : ` of ${list([...e.cards])}`;
+      const n = e.next === 1 ? 'The next card' : `The next ${e.next} cards`;
+      return `${n}${which} you play this round cost${e.next === 1 ? 's' : ''} ${e.cost ?? 0}.`;
+    }
     const which = e.cards === 'all' ? 'All cards' : list([...e.cards]);
-    return `${which} cost ${signed(e.delta)} energy.`;
+    return `${which} cost ${signed(e.delta ?? 0)} energy.`;
   },
   redraw: (e) =>
     e.keep === 0 ? 'Redraw your hand.' : 'Keep 1 card, then redraw the rest of your hand.',

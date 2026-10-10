@@ -156,8 +156,12 @@ export type Effect =
   | {
       readonly kind: 'banType';
       readonly vehicleType: VehicleType;
-      /** `target` (default) bans on the placed target; `{ roadClass }` bans on every segment of that class in the district. */
-      readonly scope?: 'target' | { readonly roadClass: RoadClass };
+      /**
+       * `target` (default) bans on the placed target; `target-class` bans on every segment of the
+       * placed segment's road class across the district; `{ roadClass }` bans on every segment of
+       * that class across the district.
+       */
+      readonly scope?: 'target' | 'target-class' | { readonly roadClass: RoadClass };
     }
   | {
       readonly kind: 'preferType';
@@ -165,7 +169,7 @@ export type Effect =
       readonly alsoTypes?: readonly VehicleType[];
     }
   | {
-      readonly kind: 'addBusStop';
+      readonly kind: 'setBusStopDwell';
       /**
        * Bus dwell at the stop. Changing dwell (Express Stop) is valid only on a segment that already
        * has a bus stop; `Sim.init` rejects it elsewhere and the UI greys such targets out.
@@ -231,7 +235,12 @@ export type Effect =
       /** Changes the energy cost of the named cards (or all cards) (Pilot Program). */
       readonly kind: 'costModifier';
       readonly cards: readonly string[] | 'all';
-      readonly delta: number;
+      /** Relative change to the cost. Set either `delta`, or `next` + `cost`; never both. */
+      readonly delta?: number;
+      /** The next N cards played this round (Pilot Program)... */
+      readonly next?: 1 | 2;
+      /** ...cost exactly this much energy (0..3). */
+      readonly cost?: number;
     }
   | {
       /** Redraws the hand, keeping `keep` cards first (Recount). */
