@@ -14,6 +14,21 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `createPrng`, `nextU32`, `nextInt`, `chancePermille`                                | xoshiro128** owned by the round.                                                         |
 | `idiv`, `imod`, `pct`, `clamp`                                                      | Integer math; `src/math.ts` is the only file allowed to use `/`.                         |
 
+## Worker protocol (P1-LEAD-01)
+
+`createSimWorkerHandler(post)` runs inside the sim worker. The main thread owns timing and pulls
+ticks: `start {roundId, input}` → `step {roundId, ticks}` (≤ 60) → `frames` replies with
+transferable snapshot buffers, then one `done {result}`. `finish` runs the rest at once, `abort`
+drops the round, and bad input yields `error`. Frames equal a headless `recordFrames` run
+(tested over `worker_threads`).
+
+```ts
+// sim.worker.ts
+import { createSimWorkerHandler } from '@rushwarden/sim';
+const handle = createSimWorkerHandler((m, t) => self.postMessage(m, t));
+self.onmessage = (e) => handle(e.data);
+```
+
 ## Example
 
 ```ts
