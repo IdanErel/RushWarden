@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { quotaFor, toyRunConfig } from '@rushwarden/app';
-import { loadCards, roundQuota, startingDeck } from '@rushwarden/content';
+import { startRun, toyRunConfig } from '@rushwarden/app';
+import { loadCards, roundQuota, setupRound, startingDeck } from '@rushwarden/content';
 import { isPortalBuild, uiConfigFor } from './game-config.js';
 
 const POLICY = 'https://rushwarden.com/privacy';
@@ -39,13 +39,10 @@ describe('toy run wiring', () => {
     for (const id of config.startingDeck) expect(ids.has(id)).toBe(true);
   });
 
-  // The run controller computes quotas itself (RunEnv has no quota hook); this pins it to
-  // content's roundQuota for every toy round, so the HUD and content never disagree.
-  it("the controller's quotas equal content's roundQuota for every toy round", () => {
-    const config = toyRunConfig({ seed: 1, cards: loadCards() });
-    for (let round = 1; round <= config.rounds; round++) {
-      const rush = config.rushRounds.some((r) => r.round === round);
-      expect(quotaFor(1, round, rush, config.quotaPermille)).toBe(roundQuota(1, round, rush));
-    }
+  // The run controller takes its quota from content's roundQuota (#29); the toy's run uses it.
+  it("the toy run's round 1 quota is content's roundQuota", () => {
+    const config = toyRunConfig({ seed: 1, cards: loadCards(), startingDeck: startingDeck() });
+    const s = startRun(config, { setupRound }).state;
+    expect(s.quota).toBe(roundQuota(1, 1, false));
   });
 });

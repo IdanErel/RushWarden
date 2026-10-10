@@ -8,12 +8,21 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src test scripts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --coverage",
+    "build": "node scripts/bundle.mjs",
+    "report": "node scripts/bundle.mjs && node dist/cli.mjs"
   },
   "dependencies": {
+    "@rushwarden/app": "workspace:*",
     "@rushwarden/sim": "workspace:*",
     "@rushwarden/content": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "~4.1.11",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.10",
+    "vitest": "~4.1.11"
   }
 }
