@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AudioEngine, GESTURE_EVENTS, type AudioContextLike } from '../src/engine';
-import { FakeAudioContext, FakeTarget } from './fake-audio';
+import { AudioEngine, GESTURE_EVENTS, type AudioContextLike } from '../src/engine.js';
+import { FakeAudioContext, FakeTarget } from './fake-audio.js';
 
 // Compile-time check: the browser's AudioContext satisfies the engine's interface.
 const _real: AudioContextLike = null as unknown as AudioContext;
@@ -53,6 +53,7 @@ describe('AudioEngine: start only after a user gesture', () => {
 
   it('never throws when Web Audio is missing or broken', () => {
     const engine = new AudioEngine({
+      muted: false,
       createContext: () => {
         throw new Error('no audio');
       },
@@ -66,21 +67,60 @@ describe('AudioEngine: start only after a user gesture', () => {
   });
 
   it('the default factory fails safely in Node (no AudioContext global)', () => {
-    expect(new AudioEngine().unlock()).toBe(false);
+    expect(new AudioEngine({ muted: false }).unlock()).toBe(false);
   });
 });
 
 describe('AudioEngine: mixer', () => {
-  it('is muted by default (toy audio is off by default, ADR-007)', () => {
+  it('is muted by default and never creates or resumes a context while muted (ADR-007)', () => {
     const ctx = new FakeAudioContext();
-    const engine = new AudioEngine({ createContext: () => ctx });
-    engine.unlock();
+    const factory = vi.fn(() => ctx);
+    const engine = new AudioEngine({ createContext: factory });
+    const target = new FakeTarget();
+    engine.bindGestureUnlock(target);
+    expect(engine.muted).toBe(true);
+    expect(engine.unlock()).toBe(false);
+    target.dispatch('pointerdown');
+    target.dispatch('keydown');
+    expect(factory).not.toHaveBeenCalled();
+    expect(ctx.resumeCalls).toBe(0);
+    expect(target.count()).toBe(GESTURE_EVENTS.length); // still waiting for a gesture with sound on
+    expect(engine.play('go')).toBe(false);
+  });
+
+  it('setMuted(false) outside a gesture does not start audio; the next gesture does', () => {
+    const ctx = new FakeAudioContext();
+    const factory = vi.fn(() => ctx);
+    const engine = new AudioEngine({ createContext: factory });
+    const target = new FakeTarget();
+    engine.bindGestureUnlock(target);
+    target.dispatch('click'); // muted: ignored
+    engine.setMuted(false); // e.g. restoring saved settings at boot
+    expect(factory).not.toHaveBeenCalled();
+    target.dispatch('touchend');
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(ctx.resumeCalls).toBe(1);
+    expect(ctx.gains[0]!.gain.value).toBe(0.8);
+    expect(target.count()).toBe(0);
+    expect(engine.play('go')).toBe(true);
+  });
+
+  it('setSoundOnFromGesture unlocks in the toggle gesture itself, and turning off mutes', () => {
+    const ctx = new FakeAudioContext();
+    const factory = vi.fn(() => ctx);
+    const engine = new AudioEngine({ createContext: factory });
+    expect(engine.setSoundOnFromGesture(false)).toBe(false);
+    expect(factory).not.toHaveBeenCalled();
+    expect(engine.setSoundOnFromGesture(true)).toBe(true);
+    expect(engine.muted).toBe(false);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(ctx.state).toBe('running');
+    expect(engine.play('go')).toBe(true);
+    expect(engine.setSoundOnFromGesture(false)).toBe(false);
     expect(engine.muted).toBe(true);
     expect(ctx.gains[0]!.gain.value).toBe(0);
+    ctx.currentTime = 1;
     expect(engine.play('go')).toBe(false);
-    engine.setMuted(false);
-    expect(ctx.gains[0]!.gain.value).toBe(0.8);
-    expect(engine.play('go')).toBe(true);
   });
 
   it('applies and clamps master and SFX volume', () => {
@@ -183,6 +223,17 @@ describe('AudioEngine: variants and voice limits', () => {
     expect(engine.play('cardPlace')).toBe(true);
     ctx.currentTime = 0.05;
     expect(engine.play('vehicleExit')).toBe(true);
+  });
+
+  it('does not leak a voice when start() throws', () => {
+    const { engine, ctx } = setup({ maxVoices: 2, minInterval: 0 });
+    engine.unlock();
+    ctx.failStart = true;
+    for (let i = 0; i < 5; i++) expect(engine.play('go')).toBe(false);
+    ctx.failStart = false;
+    expect(engine.play('go')).toBe(true);
+    expect(engine.play('go')).toBe(true);
+    expect(engine.play('go')).toBe(false); // the cap counts only the two real voices
   });
 
   it('caps simultaneous voices and frees them when sounds end', () => {

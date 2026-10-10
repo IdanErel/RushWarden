@@ -2,7 +2,7 @@
  * zzfx-class synthesizer (GDD §7): a sound is a list of parameter objects ("voices") rendered
  * offline into a mono Float32Array. Pure and seeded: the same params and seed give the same samples.
  */
-import { rng, type Rng } from './rng';
+import { rng, type Rng } from './rng.js';
 
 export type Shape = 'sine' | 'triangle' | 'saw' | 'square' | 'noise';
 
