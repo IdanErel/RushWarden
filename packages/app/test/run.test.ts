@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
+import { roundQuota } from '@rushwarden/content';
 import {
   PHASE1_STARTING_DECK,
   RunController,
