@@ -1,15 +1,17 @@
 # ADR-021: Round demand model, seed salts and District 1 bosses
 
-Status: Accepted · Lead (proposed by Content Designer)
+Status: Accepted · Lead (proposed by Content Designer) · values tuned 2026-10-10 (P1-CON-05)
 
 GDD §2, §3 and §5 fix the demand mix, the quota formula, the rush multiplier, the heat-strip and
 the boss names. They leave open how many vehicles a round spawns, when and where they spawn, how
 the seed is split, and what the bosses do in data. `packages/content/src/demand.ts` and
 `src/parade.ts` read them as follows.
 
-**All numbers below are untuned starting values.** The sim did not spawn vehicles when they were
-set, so P1-CON-05 tunes them from the P1-BAL-02 report. Changing a value is a content change with
-a balance report; changing a rule needs a new ADR.
+**District 1's numbers were tuned on 2026-10-10 by P1-CON-05** from the P1-BAL-02 runner on the
+real District 1 maps, demand and cards (10,000 full runs per bot; the report is linked in the
+P1-CON-05 PR). The tuned values are the D1 base quota (item 2), `baseVehicles` (item 3), the
+spawn curve and the edge-weight range (item 5). No rule changed. Changing a value is a content
+change with a balance report; changing a rule needs a new ADR.
 
 1. **Entry point.** `setupRound({ round, seed, rush?, boss?, district? })` returns:
    - the map
@@ -24,22 +26,27 @@ a balance report; changing a rule needs a new ADR.
    and the district's §5 bosses.
 
 2. **Quota.** `roundQuota` is the single source (Lead decision): `base[d] * (1000 + 110*(r-1)) *
-rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5).
+rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5). GDD §2 leaves
+   `base` to the balance sim. District 1's base is 79 (P1-CON-05), about 90% of round 1's demand
+   score, so a round that flows passes with about 10% to spare and a round that jams fails.
+   Districts 2 and 3 keep the GDD's 34 and 42 until they have maps and a report.
 3. **Volume.** A round spawns `baseVehicles * (1 + 0.11*(r-1)) * rush * festival` vehicles,
    rounded half up. It grows with the quota, while the map's capacity stays fixed, so congestion
    rises each round. In District 1:
-   - `baseVehicles` is 28. With the mean score of 1.4 per vehicle, that is about 39 points
-     against a round-1 quota of 26.
-   - Round 12 under rush is 99 vehicles. With Festival it is 158. That is spawns over 15 s, not
+   - `baseVehicles` is 63. With the mean score of 1.4 per vehicle, a round 1 that flows scores
+     about 88 against a quota of 79. The trial value of 28 never jammed a map, so every bot
+     passed every normal round at about 1.5× quota.
+   - Round 12 under rush is 223 vehicles. With Festival it is 356. That is spawns over 15 s, not
      vehicles on screen at once.
 4. **Mix.** Each type gets exact counts from the district's per-mille mix: shares are rounded
    down, and the leftovers go to the largest remainders (ties in `VehicleType` order). The order
    of types is then shuffled. District 1 is 700 car, 150 bus, 100 truck and 50 bike (GDD §5).
 5. **Timing and place.**
    - Each vehicle draws its second from `SECOND_WEIGHTS`, a rush-hour curve over the 15 seconds
-     (2, 4, 6, 8, 9, 10, 10, 9, 8, 7, 5, 4, 3, 2, 1). Its tick is then uniform within that
-     second.
-   - Its spawn edge is drawn from per-round edge weights. Each edge gets a seeded weight of 1–3,
+     (10, 16, 18, 14, 10, 6, 3, 1, 1, 1, 1, 1, 1, 1, 1): a sharp peak in seconds 1–5, then a
+     trickle. Its tick is then uniform within that second. The peak is what jams a map; with the
+     trial's flatter curve the maps took about a third more vehicles before they jammed.
+   - Its spawn edge is drawn from per-round edge weights. Each edge gets a seeded weight of 1–5,
      so the heat-strip shows hot edges to plan around.
    - Its destination is uniform over the other edges. ADR-016 guarantees every pair is routable.
    - (tick, edge) is unique: a taken tick probes forward, wrapping over the round.

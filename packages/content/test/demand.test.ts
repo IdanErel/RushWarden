@@ -51,7 +51,8 @@ function inputFor(s: ReturnType<typeof setupRound>, seed: number): RoundInput {
 
 describe('quota (GDD §2)', () => {
   it('matches base[d] * (1 + 0.11*(r-1)) * rushMult, rounded, for every round and district', () => {
-    const base = { 1: 26, 2: 34, 3: 42 } as const;
+    // D1's base is tuned by P1-CON-05 (ADR-021 item 3); D2 and D3 keep GDD §2's starting values.
+    const base = { 1: 79, 2: 34, 3: 42 } as const;
     for (const d of [1, 2, 3] as const) {
       for (let r = 1; r <= 12; r++) {
         for (const rush of [false, true]) {
@@ -62,22 +63,24 @@ describe('quota (GDD §2)', () => {
     }
   });
 
-  it('starts District 1 at 26 and applies a mayor modifier', () => {
-    expect(roundQuota(1, 1, false)).toBe(26);
-    expect(roundQuota(1, 4, true)).toBe(55);
-    expect(roundQuota(1, 1, false, 1100)).toBe(29);
+  it('starts District 1 at 79 and applies a mayor modifier', () => {
+    expect(roundQuota(1, 1, false)).toBe(79);
+    // 79 * 1.33 * 1.6 = 168.1; the toy's round 5 (Market Day) is 79 * 1.44 * 1.6 = 182.0.
+    expect(roundQuota(1, 4, true)).toBe(168);
+    expect(roundQuota(1, 5, true)).toBe(182);
+    expect(roundQuota(1, 1, false, 1100)).toBe(87);
   });
 });
 
 describe('demand volume and mix (GDD §5)', () => {
   it('grows with the quota and 1.6× on rush rounds', () => {
-    expect(roundVehicles(1, 1, false)).toBe(28);
-    expect(roundVehicles(1, 2, false)).toBe(31);
-    expect(roundVehicles(1, 4, true)).toBe(60);
-    expect(roundVehicles(1, 12, true)).toBe(99);
-    // Festival: +60% on top of rush (28 * 2.21 * 1.6 * 1.6 = 158.4).
-    expect(roundVehicles(1, 12, true, 'festival')).toBe(158);
-    expect(roundVehicles(1, 4, true, 'market-day')).toBe(60);
+    expect(roundVehicles(1, 1, false)).toBe(63);
+    expect(roundVehicles(1, 2, false)).toBe(70);
+    expect(roundVehicles(1, 4, true)).toBe(134);
+    expect(roundVehicles(1, 12, true)).toBe(223);
+    // Festival: +60% on top of rush (63 * 2.21 * 1.6 * 1.6 = 356.4).
+    expect(roundVehicles(1, 12, true, 'festival')).toBe(356);
+    expect(roundVehicles(1, 4, true, 'market-day')).toBe(134);
   });
 
   it('splits counts exactly by the per-mille mix, leftovers to the largest remainders', () => {
@@ -103,8 +106,8 @@ describe('demand volume and mix (GDD §5)', () => {
 
   it('the mix of a generated round is exact and only uses D1 types', () => {
     const p = generateDemand({ map, district: 1, round: 1, rush: false, boss: null, seed: 7 });
-    expect(p).toHaveLength(28);
-    expect(typeCounts(p)).toEqual(Object.fromEntries(mixCounts(28, DISTRICT_DEMAND[1].mix)));
+    expect(p).toHaveLength(63);
+    expect(typeCounts(p)).toEqual(Object.fromEntries(mixCounts(63, DISTRICT_DEMAND[1].mix)));
   });
 
   it('the spawn-time curve covers all 15 seconds', () => {
@@ -210,6 +213,18 @@ describe('setupRound', () => {
     }
   });
 
+  it('finds a free spawn tick on every map at the heaviest District 1 demand (P1-CON-05)', () => {
+    // Round 12 Festival is the most vehicles a D1 round spawns, and Market Day adds 30 trucks
+    // to a rush round. An edge has 300 spawn ticks, so a hot edge must never run out.
+    for (const m of maps) {
+      for (const seed of [1, 2, 3]) {
+        const base = { map: m, district: 1 as const, rush: true, seed };
+        expect(generateDemand({ ...base, round: 12, boss: 'festival' })).toHaveLength(356);
+        expect(generateDemand({ ...base, round: 5, boss: 'market-day' })).toHaveLength(145 + 30);
+      }
+    }
+  });
+
   it('is deterministic and picks across the map bank', () => {
     expect(setupRound({ round: 2, seed: 42 })).toEqual(setupRound({ round: 2, seed: 42 }));
     const picked = new Set(
@@ -272,12 +287,12 @@ describe('Festival (GDD §5: all demand +60%, emergency vehicles appear)', () =>
     const args = { map, district: 1 as const, round: 12, rush: true, seed: 77 };
     const plain = generateDemand({ ...args, boss: null });
     const fest = generateDemand({ ...args, boss: 'festival' });
-    expect(plain).toHaveLength(99);
-    expect(fest).toHaveLength(158);
+    expect(plain).toHaveLength(223);
+    expect(fest).toHaveLength(356);
     expect(typeCounts(fest)).toEqual(
-      Object.fromEntries(mixCounts(158, DISTRICT_DEMAND[1].festival.mix)),
+      Object.fromEntries(mixCounts(356, DISTRICT_DEMAND[1].festival.mix)),
     );
-    expect(typeCounts(fest)[VehicleType.Emergency]).toBe(8);
+    expect(typeCounts(fest)[VehicleType.Emergency]).toBe(18);
     expect(typeCounts(plain)[VehicleType.Emergency]).toBeUndefined();
   });
 
