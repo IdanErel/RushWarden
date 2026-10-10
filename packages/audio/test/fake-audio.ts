@@ -5,7 +5,7 @@ import type {
   AudioNodeLike,
   BufferSourceLike,
   GainNodeLike,
-} from '../src/engine';
+} from '../src/engine.js';
 
 export class FakeNode implements AudioNodeLike {
   readonly outputs: AudioNodeLike[] = [];
@@ -44,7 +44,10 @@ export class FakeSource extends FakeNode implements BufferSourceLike {
   constructor() {
     super('source');
   }
+  /** When true, start() throws, like a browser rejecting playback. */
+  failStart = false;
   start(when = 0): void {
+    if (this.failStart) throw new Error('start failed');
     this.startedAt = when;
   }
   end(): void {
@@ -60,6 +63,8 @@ export class FakeAudioContext implements AudioContextLike {
   readonly sources: FakeSource[] = [];
   readonly buffers: FakeBuffer[] = [];
   resumeCalls = 0;
+  /** Sources created from now on throw in start(). */
+  failStart = false;
   suspendCalls = 0;
   constructor(readonly sampleRate = 8000) {}
   createGain(): FakeGain {
@@ -74,6 +79,7 @@ export class FakeAudioContext implements AudioContextLike {
   }
   createBufferSource(): FakeSource {
     const s = new FakeSource();
+    s.failStart = this.failStart;
     this.sources.push(s);
     return s;
   }

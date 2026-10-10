@@ -80,9 +80,12 @@ describe('Effect union v2 validation (ADR-014)', () => {
       [{ kind: 'energyModifier', delta: 1, when: 'next-round' }],
       [{ kind: 'costModifier', cards: 'all', delta: -1 }],
       [{ kind: 'costModifier', cards: ['one-way'], delta: -1 }],
+      [{ kind: 'costModifier', cards: 'all', next: 1, cost: 0 }],
+      [{ kind: 'costModifier', cards: 'all', next: 2, cost: 0 }],
+      [{ kind: 'banType', vehicleType: 3, scope: 'target-class' }, seg(3, 0, 3, 3)],
       [{ kind: 'redraw', keep: 1 }],
       [{ kind: 'drawModifier', delta: 2 }],
-      [{ kind: 'addBusStop', dwellTicks: 2 }, seg(3, 0, 3, 3)],
+      [{ kind: 'setBusStopDwell', dwellTicks: 2 }, seg(3, 0, 3, 3)],
     ];
     for (const [effect, target, extra] of ok) {
       expect(placementError(map, place([effect], target, extra)), effect.kind).toBeNull();
@@ -92,10 +95,10 @@ describe('Effect union v2 validation (ADR-014)', () => {
   it.each<[string, Placement]>([
     [
       'Express Stop without a stop',
-      place([{ kind: 'addBusStop', dwellTicks: 2 }], seg(3, 5, 3, 8)),
+      place([{ kind: 'setBusStopDwell', dwellTicks: 2 }], seg(3, 5, 3, 8)),
     ],
-    ['addBusStop off a segment', place([{ kind: 'addBusStop', dwellTicks: 2 }])],
-    ['dwell out of range', place([{ kind: 'addBusStop', dwellTicks: -1 }], seg(3, 0, 3, 3))],
+    ['setBusStopDwell off a segment', place([{ kind: 'setBusStopDwell', dwellTicks: 2 }])],
+    ['dwell out of range', place([{ kind: 'setBusStopDwell', dwellTicks: -1 }], seg(3, 0, 3, 3))],
     ['one-way with no direction off a segment', place([{ kind: 'setOneWay', doubleLanes: false }])],
     [
       'one-way with no direction on one tile',
@@ -131,6 +134,23 @@ describe('Effect union v2 validation (ADR-014)', () => {
     ['unknown edge target', place([], { kind: 'edge', edge: 42 })],
     ['intersection out of bounds', place([], { kind: 'intersection', tile: { x: 7, y: 0 } })],
     ['diagonal segment', place([], seg(0, 0, 1, 1))],
+    [
+      'banType target-class off a segment',
+      place([{ kind: 'banType', vehicleType: 3, scope: 'target-class' }]),
+    ],
+    ['costModifier with neither', place([{ kind: 'costModifier', cards: 'all' }])],
+    [
+      'costModifier with both',
+      place([{ kind: 'costModifier', cards: 'all', delta: -1, next: 1, cost: 0 }]),
+    ],
+    ['costModifier next without cost', place([{ kind: 'costModifier', cards: 'all', next: 1 }])],
+    ['costModifier cost without next', place([{ kind: 'costModifier', cards: 'all', cost: 0 }])],
+    ['costModifier cost range', place([{ kind: 'costModifier', cards: 'all', next: 1, cost: 4 }])],
+    [
+      'costModifier next range',
+      place([{ kind: 'costModifier', cards: 'all', next: 3 as 1, cost: 0 }]),
+    ],
+    ['costModifier delta not integer', place([{ kind: 'costModifier', cards: 'all', delta: 0.5 }])],
     ['segment out of bounds', place([], seg(0, 0, 0, 9))],
   ])('rejects: %s', (_name, p) => {
     expect(placementError(map, p)).not.toBeNull();
@@ -146,10 +166,10 @@ describe('Effect union v2 validation (ADR-014)', () => {
 
   it('Sim.init rejects invalid placements and run effects, and accepts valid ones', () => {
     const base = { ...sampleInput(1), map, mapId: map.id };
-    const bad = place([{ kind: 'addBusStop', dwellTicks: 2 }], seg(3, 5, 3, 8));
+    const bad = place([{ kind: 'setBusStopDwell', dwellTicks: 2 }], seg(3, 5, 3, 8));
     expect(() => Sim.init({ ...base, placements: [bad] })).toThrow(/already has a bus stop/);
     expect(() => Sim.init({ ...base, cardState: { runEffects: [bad] } })).toThrow(RangeError);
-    const good = place([{ kind: 'addBusStop', dwellTicks: 2 }], seg(3, 0, 3, 3));
+    const good = place([{ kind: 'setBusStopDwell', dwellTicks: 2 }], seg(3, 0, 3, 3));
     expect(Sim.init({ ...base, placements: [good] }).tick).toBe(0);
   });
 });

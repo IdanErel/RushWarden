@@ -7,8 +7,11 @@
   "scripts": {
     "lint": "eslint src e2e",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests --dir src",
+    "test": "vitest run --coverage",
     "build": "vite build",
+    "build:itch": "VITE_PORTAL=itch vite build",
+    "build:poki": "VITE_PORTAL=poki vite build",
+    "build:crazygames": "VITE_PORTAL=crazygames vite build",
     "package:itch": "VITE_PORTAL=itch vite build && node ../../tools/size-budget/check.mjs dist && node scripts/package-itch.mjs",
     "dev": "vite",
     "preview": "vite preview --port 4173 --strictPort",
