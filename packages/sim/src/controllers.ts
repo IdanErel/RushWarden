@@ -179,21 +179,20 @@ const candSide = new Int8Array(16);
 
 /** Picks this tick's grant for an uncontrolled, stop-all or priority intersection. */
 function grant(t: Traffic, ix: number): number {
-  if (t.lineOcc[ix] === 0) return NONE; // nobody at any stop line
+  const heads = t.headCount[ix]!;
+  if (heads === 0) return NONE; // nobody at any stop line
   const kind = t.ctrlKind[ix]!;
   const tick = t.tick;
   if (kind === ControllerCode.StopAll && t.boxCount[ix]! > 0) return NONE;
   let majorNear = -1; // computed on first need: -1 unknown, 0 no, 1 yes
   let n = 0;
   let emergency = false;
-  const { occ, linePhys, lineLane, lineSide, lane: vLane, cell: vCell, laneCells, atLine } = t;
-  // Every stop-line cell of this intersection (approach lanes and pockets), precomputed.
-  for (let e = t.lineStart[ix]!, end = t.lineStart[ix + 1]!; e < end; e++) {
-    const j = occ[linePhys[e]!]! - 1;
-    if (j < 0) continue;
-    const lane = lineLane[e]!;
-    if (vLane[j] !== lane || vCell[j] !== laneCells[lane]! - 1) continue; // a tail, not a head
-    const s = lineSide[e]!;
+  const { headAt, laneEndSide, lane: vLane, atLine } = t;
+  // Every vehicle whose head is on one of this intersection's stop lines (approaches and pockets).
+  // The pick below does not depend on their order.
+  for (let e = t.lineStart[ix]!, end = e + heads; e < end; e++) {
+    const j = headAt[e]!;
+    const s = laneEndSide[vLane[j]!]!;
     if (kind === ControllerCode.Priority && (s & 1) === t.ctrlAxis[ix]) continue; // major road
     const isEmergency = priorityVehicle(t, j, ix);
     if (!isEmergency) {

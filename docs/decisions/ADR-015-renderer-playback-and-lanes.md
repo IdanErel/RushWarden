@@ -70,6 +70,28 @@ middle and tail stay on the road.
   light `vehicleBody`), not darker than the road: on District 1's dark road a dark truck would
   fall under the 3:1 contrast floor.
 
+## Live controller readouts (REN-03, 2026-10-10)
+
+The sim worker's `frames` carry `controllers` (ADR-020 point 10): `[kind, greenMask, boxCount]`
+per intersection, for the same tick as each snapshot. `SimClient` releases each one with its
+snapshot, and the scene draws:
+
+- **Signal stop bars.** For a signalled intersection, there is one bar per approach, just outside
+  the box and across that approach's inbound lanes. It is green when the approach may enter and red
+  otherwise, so all four are red during the all-red clearance. The bars are drawn from the live
+  mask, not from the glyph, so they show the real phase. Other controller kinds have no bars.
+- **Box occupancy.** The box square gets an amber tint that rises per vehicle inside it, up to
+  alpha 0.5 at 4 vehicles (one per quarter, so the box is full). It sits under the glyph and the
+  vehicles, so it reads as a box filling up without hiding what is in it.
+- **Live glyphs.** A glyph the UI set wins. Otherwise the scene shows the live controller kind
+  from the frame. The sim sets the kind from the round's controller cards (#32). The dev page's
+  fake traffic sends frames in the same layout that honour `setController` placements and
+  alternate signal phases.
+- **Per-round lanes and closures.** `setRound(input)` lays lanes out on `roundWorld(input)`
+  (ADR-023), because topology cards change lane ids. It draws `input.closedSegments` (Parade,
+  ADR-022) through the sim's `closedLinkMask`: every closed link's road is faded, and a barrier
+  crosses the road at each end of each segment.
+
 ## Consequences
 
 - Swapping in the sim's lane geometry touches `lanes.ts` (and the fake) only.
