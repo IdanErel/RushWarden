@@ -115,6 +115,9 @@ importers:
       '@playwright/test':
         specifier: 1.56.1
         version: 1.56.1
+      '@rushwarden/content':
+        specifier: workspace:*
+        version: link:../content
       vite:
         specifier: ~7.3.7
         version: 7.3.7(@types/node@22.20.5)(jiti@2.6.1)(lightningcss@1.33.0)

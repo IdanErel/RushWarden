@@ -34,3 +34,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 026 | Phase 1 sim throughput budget                           | Accepted (Lead) |
 | 027 | Nightly balance report is an artifact                   | Accepted (Lead) |
 | 028 | Clip tool: replay rendering, determinism, captions, CI  | Accepted        |
+| 029 | Toy e2e in CI, E2E-18 tracking, store-asset rules       | Accepted (Lead) |

@@ -38,6 +38,27 @@ jobs:
       - name: Golden hashes on Chromium, WebKit and Firefox
         run: pnpm golden:browsers
 
+  toy-webkit:
+    # ADR-029: the whole toy e2e suite on the 390x844 WebKit phone (iPhone 12 profile).
+    name: Toy e2e on WebKit (phone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the public web build (the e2e preview serves it)
+        run: pnpm --filter @rushwarden/platform-web run build
+      - run: pnpm --filter @rushwarden/platform-web exec playwright install --with-deps webkit
+      - name: Toy e2e (phone-webkit, all specs)
+        env:
+          PW_WEBKIT: '1'
+        run: pnpm --filter @rushwarden/platform-web run e2e --project phone-webkit
+
   sim-bench:
     name: Sim throughput (report only)
     runs-on: ubuntu-latest
