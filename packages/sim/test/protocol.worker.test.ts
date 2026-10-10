@@ -32,10 +32,13 @@ describe('sim worker protocol over worker_threads', () => {
     const worker = new Worker(new URL(`data:text/javascript,${encodeURIComponent(src)}`));
     const input = sampleInput(21);
     const frames: Uint16Array[] = [];
+    const controllers: Uint8Array[] = [];
     const done = new Promise<FromSimWorker>((resolve) => {
       worker.on('message', (m: FromSimWorker) => {
-        if (m.type === 'frames') frames.push(...m.frames);
-        else resolve(m);
+        if (m.type === 'frames') {
+          frames.push(...m.frames);
+          controllers.push(...(m.controllers ?? []));
+        } else resolve(m);
       });
     });
     worker.postMessage({ type: 'start', roundId: 1, input });
@@ -45,5 +48,7 @@ describe('sim worker protocol over worker_threads', () => {
     const headless = Sim.simulate({ ...input, recordFrames: true });
     expect(frames.map((f) => Array.from(f))).toEqual(headless.frames!.map((f) => Array.from(f)));
     expect(last.type === 'done' && last.result.finalHash).toBe(headless.finalHash);
+    expect(controllers).toHaveLength(frames.length);
+    expect(controllers.every((c) => c instanceof Uint8Array && c.length === 3)).toBe(true);
   });
 });
