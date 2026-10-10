@@ -101,39 +101,23 @@ function tileCellPoint(
   out.heading = HEADING[dir];
 }
 
-/**
- * Intersection box lanes (one per turn movement) are added by P1-SIM-02 (#23) after the road
- * lanes, with these fields. Read them structurally so this file works before and after #23.
- */
-interface BoxLaneFields {
-  readonly intersection?: number;
-  readonly entryDir?: number;
-  readonly exitDir?: number;
-}
-
-/**
- * Lane layout over the sim's world (ADR-012 numbering: lane 0 is the kerb lane, right-hand
- * traffic; cell 0 upstream; `CELLS_PER_TILE` cells per tile).
- *
- * - Road lanes: `locateCell` gives the tile, the cell within it and the travel directions. A lane
- *   sits `k + 0.5` lane widths in from the right-hand kerb of the whole road, so a one-way road
- *   whose lanes were doubled fills the road instead of one half of it.
- * - Intersection box lanes (after #23): drawn on a straight line from the approach lane's last
- *   cell to the exit lane's first cell (Lead's decision, ADR-015). Before #23 the sim reports no
- *   vehicle inside a box, and the renderer's blend between those two cells draws the same line.
- * - Unknown ids return false, so the vehicle is hidden rather than guessed.
- */
 export function worldLaneLayout(world: World): LaneLayout {
   const a: LanePoint = { x: 0, y: 0, heading: 0 };
   const b: LanePoint = { x: 0, y: 0, heading: 0 };
   const side = (dir: number): Side => SIM_SIDES[dir & 3] ?? 'n';
 
+  /** Offset of a link's kerb lane from the road's centre line, in tile units. */
+  function kerbLateral(linkId: number): number {
+    const link = world.links[linkId];
+    if (!link) return LANE_WIDTH / 2;
+    const total = link.lanes.length + (world.links[link.reverse]?.lanes.length ?? 0);
+    return (total / 2 - 0.5) * LANE_WIDTH;
+  }
+
   function roadPoint(lane: Lane, cell: number, out: LanePoint): boolean {
     if (!Number.isInteger(cell) || cell < 0 || cell >= lane.cells) return false;
-    const link = world.links[lane.link];
-    if (!link) return false;
-    const total = link.lanes.length + (world.links[link.reverse]?.lanes.length ?? 0);
-    const lateral = (total / 2 - lane.index - 0.5) * LANE_WIDTH;
+    if (!world.links[lane.link]) return false;
+    const lateral = kerbLateral(lane.link) - lane.index * LANE_WIDTH;
     const at = locateCell(world, lane.id, cell);
     const x = at.tile % GRID_WIDTH;
     const y = Math.floor(at.tile / GRID_WIDTH);
@@ -141,20 +125,30 @@ export function worldLaneLayout(world: World): LaneLayout {
     return true;
   }
 
-  function boxPoint(lane: Lane & BoxLaneFields, cell: number, out: LanePoint): boolean {
-    const ix = world.intersections[lane.intersection ?? -1];
-    if (!ix || lane.entryDir === undefined || lane.exitDir === undefined) return false;
-    if (!Number.isInteger(cell) || cell < 0 || cell >= lane.cells) return false;
+  /** Centre of the cell's box quarter; quadrants run clockwise from NE (0 NE, 1 SE, 2 SW, 3 NW). */
+  function quarterPoint(lane: Lane, cell: number, out: LanePoint): void {
+    const at = locateCell(world, lane.id, cell);
+    const q = at.quadrant & 3;
+    out.x = (at.tile % GRID_WIDTH) + 0.5 + (q < 2 ? 0.25 : -0.25);
+    out.y = Math.floor(at.tile / GRID_WIDTH) + 0.5 + (q === 1 || q === 2 ? 0.25 : -0.25);
+  }
+
+  function boxPoint(lane: Lane, cell: number, out: LanePoint): boolean {
+    const ix = world.intersections[lane.intersection];
+    if (!ix || !Number.isInteger(cell) || cell < 0 || cell >= lane.cells) return false;
     // The approach arrives on the side opposite its direction of travel.
-    const inLink = world.links[ix.inLinks[(lane.entryDir + 2) & 3] ?? -1];
-    const outLink = world.links[ix.outLinks[lane.exitDir] ?? -1];
-    const inLane = world.lanes[inLink?.lanes[0] ?? -1];
-    const outLane = world.lanes[outLink?.lanes[0] ?? -1];
-    if (!inLane || !outLane) return false;
-    if (!roadPoint(inLane, inLane.cells - 1, a) || !roadPoint(outLane, 0, b)) return false;
-    const t = (cell + 1) / (lane.cells + 1);
-    out.x = a.x + (b.x - a.x) * t;
-    out.y = a.y + (b.y - a.y) * t;
+    const inId = ix.inLinks[(lane.entryDir + 2) & 3] ?? -1;
+    quarterPoint(lane, cell, out);
+    if (cell > 0) quarterPoint(lane, cell - 1, a);
+    else {
+      const inLane = world.lanes[world.links[inId]?.lanes[0] ?? -1];
+      if (!inLane || !roadPoint(inLane, inLane.cells - 1, a)) return false;
+    }
+    if (cell < lane.cells - 1) quarterPoint(lane, cell + 1, b);
+    else {
+      const outLane = world.lanes[world.links[ix.outLinks[lane.exitDir] ?? -1]?.lanes[0] ?? -1];
+      if (!outLane || !roadPoint(outLane, 0, b)) return false;
+    }
     out.heading = Math.atan2(b.y - a.y, b.x - a.x);
     return true;
   }
@@ -162,7 +156,7 @@ export function worldLaneLayout(world: World): LaneLayout {
   return {
     cellsPerLane: CELLS_PER_TILE,
     cellPoint(laneId, cell, out) {
-      const lane = world.lanes[laneId] as (Lane & BoxLaneFields) | undefined;
+      const lane = world.lanes[laneId];
       if (!lane) return false;
       return lane.link >= 0 ? roadPoint(lane, cell, out) : boxPoint(lane, cell, out);
     },

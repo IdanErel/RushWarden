@@ -5,14 +5,20 @@
   "type": "module",
   "description": "Cards, maps, districts, mayors and demand templates as JSON with schemas and loaders.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./schema/card.schema.json": "./schema/card.schema.json"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --coverage",
+    "schema:write": "UPDATE_SCHEMA=1 vitest run test/schema-file.test.ts"
   },
   "dependencies": {
     "@rushwarden/sim": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "~4.1.11",
+    "vitest": "~4.1.11"
   }
 }

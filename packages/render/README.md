@@ -63,8 +63,8 @@ Chromium).
 ## Lane geometry
 
 `worldLaneLayout(buildWorld(map))` places sim snapshots using `locateCell` (ADR-012 numbering).
-Intersection box lanes from P1-SIM-02 (#23) are drawn on a straight line from the approach cell to
-the exit cell. `FakeTraffic` still numbers lanes per tile (`tileLaneId`) and is paired with
+Intersection box lanes from P1-SIM-02 (#23) are drawn at the centre of the sim's box quarter for each
+cell (`locateCell(...).quadrant`). `FakeTraffic` still numbers lanes per tile (`tileLaneId`) and is paired with
 `tileLaneLayout`; both go when the sim spawns vehicles. ADR-015 records this.
 
 ## Status

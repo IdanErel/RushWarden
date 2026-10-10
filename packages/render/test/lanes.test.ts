@@ -87,10 +87,10 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
     }
   });
 
-  it('keeps traffic on the right of travel and moving downstream', () => {
+  it('keeps road traffic on the right of travel and moving downstream', () => {
     const a = p();
     const b = p();
-    for (const lane of world.lanes) {
+    for (const lane of world.lanes.slice(0, world.roadLanes)) {
       expect(layout.cellPoint(lane.id, 0, a)).toBe(true);
       expect(layout.cellPoint(lane.id, 1, b)).toBe(true);
       const { tile, entryDir } = locateCell(world, lane.id, 0);
@@ -142,7 +142,16 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
       ),
       lanes: [
         ...world.lanes,
-        { id: world.lanes.length, link: link.id, index: 1, cells: link.cells },
+        {
+          id: world.lanes.length,
+          link: link.id,
+          index: 1,
+          cells: link.cells,
+          intersection: -1,
+          turn: -1,
+          entryDir: -1,
+          exitDir: -1,
+        },
       ],
     };
     const one = worldLaneLayout(doubled);
@@ -158,44 +167,39 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
     expect(kerb[across]).not.toBeCloseTo(inner[across]);
   });
 
-  it('draws intersection box lanes (#23) on a straight line from approach to exit', () => {
-    const ix = world.intersections[0]!;
-    const inSide = ix.inLinks.findIndex((l) => l >= 0);
-    const heading = (inSide + 2) & 3;
-    const outSide = ix.outLinks.findIndex((l, d) => l >= 0 && d !== inSide);
-    const boxId = world.lanes.length;
-    const boxed = {
-      ...world,
-      lanes: [
-        ...world.lanes,
-        {
-          id: boxId,
-          link: -1,
-          index: 0,
-          cells: 2,
-          intersection: ix.index,
-          entryDir: heading,
-          exitDir: outSide,
-        },
-      ],
-    };
-    const box = worldLaneLayout(boxed);
-    const inLane = world.links[ix.inLinks[inSide]!]!.lanes[0]!;
-    const outLane = world.links[ix.outLinks[outSide]!]!.lanes[0]!;
-    const from = p();
-    const to = p();
-    box.cellPoint(inLane, world.lanes[inLane]!.cells - 1, from);
-    box.cellPoint(outLane, 0, to);
-    const pts = [0, 1].map((c) => {
-      const q = p();
-      expect(box.cellPoint(boxId, c, q)).toBe(true);
-      return q;
-    });
-    pts.forEach((q, i) => {
-      const t = (i + 1) / 3;
-      expect(q.x).toBeCloseTo(from.x + (to.x - from.x) * t);
-      expect(q.y).toBeCloseTo(from.y + (to.y - from.y) * t);
-    });
-    expect(box.cellPoint(boxId, 2, p())).toBe(false);
+  it('draws intersection box lanes (#23) in the sim quarter of each cell', () => {
+    const boxes = world.lanes.slice(world.roadLanes);
+    expect(boxes.length).toBeGreaterThan(0);
+    const q = p();
+    for (const lane of boxes) {
+      for (let c = 0; c < lane.cells; c++) {
+        expect(layout.cellPoint(lane.id, c, q)).toBe(true);
+        const { tile, quadrant } = locateCell(world, lane.id, c);
+        const cx = (tile % GRID_WIDTH) + 0.5;
+        const cy = Math.floor(tile / GRID_WIDTH) + 0.5;
+        // Quadrants clockwise from NE: east half is 0 and 1, south half is 1 and 2.
+        expect(q.x > cx).toBe(quadrant === 0 || quadrant === 1);
+        expect(q.y > cy).toBe(quadrant === 1 || quadrant === 2);
+        expect(Number.isFinite(q.heading)).toBe(true);
+      }
+      expect(layout.cellPoint(lane.id, lane.cells, q)).toBe(false);
+    }
+  });
+
+  it('joins box lanes to their approach and exit lanes without a jump', () => {
+    const prev = p();
+    const cur = p();
+    for (const lane of world.lanes.slice(world.roadLanes)) {
+      const ix = world.intersections[lane.intersection]!;
+      const inLink = world.links[ix.inLinks[(lane.entryDir + 2) & 3]!]!;
+      const outLink = world.links[ix.outLinks[lane.exitDir]!]!;
+      layout.cellPoint(inLink.lanes[0]!, world.lanes[inLink.lanes[0]!]!.cells - 1, prev);
+      for (let c = 0; c <= lane.cells; c++) {
+        if (c < lane.cells) layout.cellPoint(lane.id, c, cur);
+        else layout.cellPoint(outLink.lanes[0]!, 0, cur);
+        expect(Math.hypot(cur.x - prev.x, cur.y - prev.y)).toBeLessThanOrEqual(0.5);
+        Object.assign(prev, cur);
+      }
+    }
   });
 });
