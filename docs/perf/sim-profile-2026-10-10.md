@@ -60,7 +60,7 @@ warm-up. Sample positions are credited back to their source function, so inlined
    The `moveAll` body covers the dwell and stop-line fast-path checks, the vmax lookup and the
    p_slow draw. Every tick, `sortOrder` rebuilds all sort keys and runs an insertion sort, even
    though only about 11 vehicles are alive.
-3. **Controllers and spawning, rerun every tick: about 17%** (`grant` 7.3, `updateControllers`
+3. **Controllers and spawning, rerun every tick: about 15%** (`grant` 7.3, `updateControllers`
    2.3, `mayEnter` 0.7, `spawn` 4.9). Grants are recomputed for every non-signal intersection on
    every tick, even when nothing at its stop lines changed, and `spawn` scans every edge's queue
    each tick.
