@@ -124,10 +124,14 @@ export function Game(props: GameOptions): preact.JSX.Element {
   // Once the scene exists, at the start of every round, and when the window changes size; never
   // in the middle of a turn.
   useEffect(fit, [scene, s.round, s.phase === 'place']);
+  // One listener for the screen's life; it calls the latest `fit` (which closes over `scene`).
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
   useEffect(() => {
-    window.addEventListener('resize', fit);
-    return () => window.removeEventListener('resize', fit);
-  });
+    const onResize = (): void => fitRef.current();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // --- Scene and worker -----------------------------------------------------------------------
   useEffect(() => {
