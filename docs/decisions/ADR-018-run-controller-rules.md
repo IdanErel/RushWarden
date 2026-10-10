@@ -40,8 +40,10 @@ changing a rule needs a new ADR.
 7. **Run effects.**
    - `drawModifier` adds cards to the next round's draw, once.
    - `energyModifier` adds energy `now`, or once `next-round`, or every round (`perRound`). With
-     `replaced-signal`, it applies only when the intersection's current controller, from earlier
-     card plays, is a signal; maps do not author controllers yet.
+     `replaced-signal`, it applies only when the intersection's controller **before this round's
+     cards** (run effects over the map default; maps author none yet) is a signal. This is the
+     sim's reading in `resolvePlacements().replacedController` (#32), so a signal played earlier
+     in the same round is not "replaced": Remove Signal over it gets the conflict refund only.
    - `costModifier` with `next` + `cost` makes the next N plays this round cost exactly `cost`.
      With `delta`, it changes costs (never below 0) for the rest of the round, or for the run if
      the card's duration is `run`.
