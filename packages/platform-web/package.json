@@ -12,9 +12,11 @@
     "build:itch": "VITE_PORTAL=itch vite build",
     "build:poki": "VITE_PORTAL=poki vite build",
     "build:crazygames": "VITE_PORTAL=crazygames vite build",
+    "build:e2e": "VITE_TEST_HOOKS=1 vite build --outDir node_modules/.e2e-dist --emptyOutDir",
     "dev": "vite",
     "preview": "vite preview --port 4173 --strictPort",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "preview:e2e": "vite preview --outDir node_modules/.e2e-dist --port 4174 --strictPort"
   },
   "dependencies": {
     "@rushwarden/app": "workspace:*",
