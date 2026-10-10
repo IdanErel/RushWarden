@@ -44,7 +44,8 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
    Cloudflare Registrar sells at cost with no markup on renewals and you need a Cloudflare account
    anyway (step 6), so it is the cheapest option. Use a registrar with free WHOIS
    privacy. Cloudflare Registrar sells at cost once you have the Cloudflare account (step 6).
-2. Point nameservers at Cloudflare.
+2. Point nameservers at Cloudflare. The privacy policy is published at
+   `https://rushwarden.com/privacy` (ADR-025), and nothing is collected until it is live.
 3. Reserve matching social handles (X, Bluesky, Reddit, TikTok, YouTube) at the same time.
 
 ## 3. itch.io
@@ -71,21 +72,85 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
 
 ## 5. Web portals
 
+What each portal allows for a no-ads game with one unlock is in
+[ADR-024](../decisions/ADR-024-portal-monetisation.md). In short: Poki is fine for the player-fit
+test, but sells nothing (no purchases, ads are its only revenue, default deals are 5-year web
+exclusive); CrazyGames Basic Launch is fine, and selling the unlock there is invite-only through
+its Xsolla IAP. Portal builds send no analytics to us.
+
 1. **Poki:** apply at https://developers.poki.com with the itch link once the toy exists. They run
-   the player-fit test; no payment.
+   the player-fit test; no payment. **Do not accept a web-exclusive deal** without deciding it
+   first: it would take the game off itch, our website and CrazyGames for 5 years.
 2. **CrazyGames:** create a developer account at https://developer.crazygames.com; Basic Launch
    upload is yours. Payouts and IAP need your tax details there later.
+3. **Ask in writing before submitting** (email developer support; keep the replies, the team
+   records them in ADR-024). The Lead can draft the emails.
+   - Poki: does a game that never calls `commercialBreak()` or `rewardedBreak()` pass QA for the
+     Web Fit test and for release? What deal is possible for a no-ads game: non-exclusive, flat
+     fee or none?
+   - CrazyGames: is a game that never requests ads eligible for Basic Launch and Full Launch? Can
+     a no-ads game with a one-time unlock be invited to in-game purchases, and what is the
+     revenue split on Xsolla purchases?
+4. Give each portal the privacy policy URL `https://rushwarden.com/privacy` (Poki wants a hosted
+   page, not a Google Doc).
 
 ## 6. Cloudflare
 
 1. Create an account (free plan). Add `rushwarden.com`.
-2. Workers & Pages: nothing to create by hand; Wrangler in CI creates them.
+2. Workers & Pages: nothing to create by hand; Wrangler in CI creates them. Leave Workers Logs
+   and Logpush off for the analytics Worker (ADR-025). Cloudflare's Data Processing Addendum
+   applies to self-serve accounts automatically; nothing to sign.
 3. My Profile → API Tokens → create a token with "Edit Cloudflare Workers", D1 Edit, Workers KV
    Edit, Cloudflare Pages Edit, scoped to your account. GitHub secrets: `CLOUDFLARE_API_TOKEN`,
    `CLOUDFLARE_ACCOUNT_ID`.
 4. Later (Phase 3) we will ask you to add Worker secrets via `wrangler secret put`: the Ed25519
    license signing key and the dashboard secret. The team generates the key pair locally on your
    machine with a script; the private key never enters the repo.
+
+### 6.1 The `/ingest` Worker for the Phase 1 toy (P1-BE-01)
+
+The code is in `packages/backend` (`wrangler.toml`, `migrations/`). Nothing is deployed and
+nothing collects until you do the steps below, and **steps 4 and 5 wait until the privacy policy
+(`docs/legal/privacy.md`) is published on the website** (ADR-007). Everything is on the free plan.
+
+1. **Account and token.** Steps 1 and 3 above. The token needs "Edit Cloudflare Workers" and
+   "D1 Edit". Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub secrets.
+2. **API hostname.** With `rushwarden.com` on Cloudflare (DNS → Records), the team will deploy
+   the Worker on the route `api.rushwarden.com/ingest*`. You do not need to create anything by
+   hand. If you prefer another hostname, tell the Lead.
+3. **Database and stats secret.** The team runs these with your token, either from CI or from your
+   machine with `npx wrangler@4 …` while you watch:
+   - `wrangler d1 create rushwarden`, then paste the printed `database_id` into
+     `packages/backend/wrangler.toml` (a PR; the ID is not a secret).
+   - `wrangler d1 migrations apply rushwarden --remote`, which creates the `events` table. It has
+     no IP column.
+   - `wrangler secret put STATS_TOKEN`, a long random string that lets you read the session
+     summary. Keep it in your password manager; it never goes in the repo.
+     At this point the Worker answers 503 to every event, because `INGEST_ENABLED` is `"false"`.
+4. **After the policy is live: switch the server on.** Approve the PR that sets
+   `INGEST_ENABLED = "true"` in `wrangler.toml`, and check `ALLOWED_ORIGINS` (itch serves HTML5
+   games from `https://*.itch.zone`; add Poki or CrazyGames origins only if you decide to collect
+   there too).
+5. **After the policy is live: switch the client on.** The itch build sends events only when it
+   is built with `VITE_INGEST_URL=https://api.rushwarden.com/ingest`. The Lead adds that variable
+   to the itch deploy workflow in the same PR as step 4. No public build has it before then.
+6. **Reading gate criterion 1** (ADR-010). Run this, filling in the 14-day window, and you get the
+   session count and median length. It contains no install IDs:
+   `curl -H "Authorization: Bearer $STATS_TOKEN" "https://api.rushwarden.com/ingest/sessions?platform=itch&from=2026-11-01T00:00:00Z&to=2026-11-15T00:00:00Z"`
+7. **Deletion requests.** To delete one install's events, run
+   `curl -X DELETE https://api.rushwarden.com/ingest/<install-id>`.
+8. **Optional rate limit.** `wrangler.toml` declares a Workers rate-limit binding (60 events a
+   minute per install ID, never per IP). If your plan rejects it on deploy, the team removes the
+   block; the Worker works without it.
+
+**Open before step 4 (the server does not go live until both are done):**
+
+- [ ] **Retention purge.** A scheduled Worker job that deletes `events` rows older than the
+      retention period. **Idan picks the period** (the privacy policy must state the same number);
+      the team then adds the cron trigger and the purge with tests.
+- [ ] **Workers logging.** Set Workers Logs / observability explicitly off (or minimal, no request
+      bodies or headers) in `wrangler.toml`, so Cloudflare does not keep event payloads beyond the
+      `events` table.
 
 ## 7. Stripe
 
