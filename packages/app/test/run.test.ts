@@ -73,7 +73,7 @@ describe('start of a run (GDD §2, §4; ADR-007)', () => {
     expect(state.energy).toBe(3);
     expect(state.approval).toBe(3);
     expect(state.round).toBe(1);
-    expect(state.quota).toBe(26);
+    expect(state.quota).toBe(roundQuota(1, 1, false));
     expect(deckOf(state)).toHaveLength(12);
     expect(events).toEqual([
       { event: 'run_start', props: { mayor: 'ada', district: 1, daily: false } },
@@ -132,7 +132,7 @@ describe('determinism', () => {
       round: 1,
       rush: false,
       boss: null,
-      quota: 26,
+      quota: roundQuota(1, 1, false),
     });
     expect(Number.isInteger(input.seed) && input.seed >= 0 && input.seed < 2 ** 32).toBe(true);
   });
@@ -175,7 +175,8 @@ describe('quota (content roundQuota, ADR-018)', () => {
     expect(plain.quota).toBe(roundQuota(1, 1, false));
     const mayor = startRun({ ...toy(3), quotaPermille: 1150 }, fakeEnv()).state;
     expect(mayor.quota).toBe(roundQuota(1, 1, false, 1150));
-    expect(mayor.quota).toBe(30);
+    // 83 * 1.15 = 95.45 (P1-CON-05's District 1 base).
+    expect(mayor.quota).toBe(95);
   });
 });
 
@@ -563,7 +564,9 @@ describe('round end, offers and run end', () => {
       [4, false, null],
       [5, true, 'market-day'],
     ]);
-    expect(r.state.history.map((h) => h.quota)).toEqual([26, 29, 32, 35, 60]);
+    expect(r.state.history.map((h) => h.quota)).toEqual(
+      [1, 2, 3, 4, 5].map((round) => roundQuota(1, round, round === 5)),
+    );
     expect(r.events.map((e) => e.event)).toEqual([
       'run_start',
       ...Array(5).fill('round_end'),
@@ -673,7 +676,7 @@ describe('RunController (analytics wiring)', () => {
       round: 1,
       pass: false,
       throughput: 0,
-      quota: 26,
+      quota: roundQuota(1, 1, false),
       cardsPlayed: [],
     });
     const end = calls[4]![1] as { deckTags: string[] };

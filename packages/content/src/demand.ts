@@ -30,7 +30,7 @@ export const ROUND_SECONDS = idiv(ROUND_TICKS, TICKS_PER_SECOND);
  * sim. District 1 is tuned by P1-CON-05 to about 90% of round 1's demand score (ADR-021 item 3);
  * Districts 2 and 3 keep the GDD values until they have maps and a report.
  */
-export const BASE_QUOTA: { readonly [D in District]: number } = { 1: 79, 2: 34, 3: 42 };
+export const BASE_QUOTA: { readonly [D in District]: number } = { 1: 83, 2: 34, 3: 42 };
 /** GDD §2: quota grows 11% per round (`1 + 0.11*(r-1)`), in per-mille. */
 export const ROUND_GROWTH_PERMILLE = 110;
 /** GDD §2: rush rounds have 1.6× demand and quota, in per-mille. */
@@ -55,14 +55,14 @@ export interface DistrictDemand {
  * Demand per district. Only District 1 has maps in Phase 1 (ADR-007).
  *
  * Tuned by P1-CON-05 from the balance report (ADR-021 item 3). With D1's mix the mean score per
- * vehicle is 1.4 (bus 3, truck 2, car and bike 1), so round 1's 63 vehicles score about 88 when
- * nothing jams, against a quota of 79. A District 1 map carries nearly all of its demand until it
+ * vehicle is 1.4 (bus 3, truck 2, car and bike 1), so round 1's 66 vehicles score about 92 when
+ * nothing jams, against a quota of 83. A District 1 map carries nearly all of its demand until it
  * jams, so the quota sits just under a clean round: a round that jams or gridlocks fails. Demand
  * grows with the quota (11% a round) and the map does not, so jams get likelier each round.
  */
 export const DISTRICT_DEMAND: { readonly 1: DistrictDemand } = {
   1: {
-    baseVehicles: 63,
+    baseVehicles: 66,
     mix: { Car: 700, Bus: 150, Truck: 100, Bike: 50 },
     // +60% on top of the rush round's 1.6×; emergency vehicles take 5% from cars (D3's share).
     festival: {
@@ -113,6 +113,29 @@ export function roundQuota(
     quotaPermille;
   const den = 1_000_000_000;
   return idiv(num + idiv(den, 2), den);
+}
+
+/**
+ * ADR-030: the itch toy's 5 rounds sample District 1's 12-round curve instead of replaying rounds
+ * 1–5. Toy round `i` plays D1 round `TOY_ROUNDS[i - 1]`: that round's quota, demand, rush and
+ * boss. Tuned by P1-CON-05 against the toy targets in ADR-030.
+ */
+export const TOY_ROUNDS: readonly number[] = [4, 8, 12, 8, 12];
+
+/**
+ * The toy's rush rounds as run-controller data (`RunConfig.rushRounds`): each toy round whose D1
+ * round is a rush round, with that round's §5 boss.
+ */
+export function toyRushRounds(
+  rounds: readonly number[] = TOY_ROUNDS,
+): { readonly round: number; readonly boss: BossCondition }[] {
+  const out: { round: number; boss: BossCondition }[] = [];
+  rounds.forEach((d1Round, i) => {
+    const k = RUSH_ROUNDS.indexOf(d1Round);
+    const boss = DISTRICT_DEMAND[1].bosses[k];
+    if (k >= 0 && boss) out.push({ round: i + 1, boss });
+  });
+  return out;
 }
 
 /**
