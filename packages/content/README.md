@@ -40,6 +40,17 @@ deck with Grant replaced by Pilot Program (ADR-007).
 generates its text at both tiers. A card that needs a primitive the sim does not have is a request
 to the Sim Engineer first (GDD §4), never a schema workaround.
 
+## Maps
+
+Each map template is `maps/<id>.json`: 9 rows of 7 characters, top row first. `.` is a block,
+`#` is a road with 1 lane each way, and `B` is the same road with a bus stop. Edges are inferred:
+every dead-end road runs straight off the grid and gets an edge there. Each template expands into
+its distinct mirrored and 180° variants (`-mx`, `-my`, `-r180`). See
+[ADR-016](../../docs/decisions/ADR-016-map-templates.md).
+
+`pnpm test` runs every variant through the sim's `buildWorld` (ADR-012) and checks the district
+traits (D1: 4–6 intersections, 2 bus stops, every edge reachable from every other).
+
 ## Public API
 
 | Export                                                | What it does                                                      |
@@ -52,6 +63,9 @@ to the Sim Engineer first (GDD §4), never a schema workaround.
 | `toPlacement(card, tier, target, order)`              | The sim `Placement` for playing a card                            |
 | `cardText(card, tier)` / `effectText(effect, target)` | Generated rules text                                              |
 | `CARD_SCHEMA`, `EFFECT_SCHEMAS`, `EFFECT_TARGETS`     | The schema and the effect-to-target rules                         |
+| `loadMapTemplates()` / `districtMaps(d)`              | Validated templates; every map (variants included) for a district |
+| `pickMap(maps, seed)`                                 | Seeded uniform pick of a map                                      |
+| `templateVariants(t)`, `rowsToGridMap(id, rows)`      | Template to `GridMap`s                                            |
 | `validateSchema(schema, value)`                       | The JSON Schema subset validator                                  |
 | `loadDecks()` / `startingDeck(id?)`                   | Bundled deck lists; a deck as 12 card ids (default: Phase 1 deck) |
 | `validateDecks(files, cards)`, `DECK_SCHEMA`          | Deck validation (schema, known cards, 12 cards total)             |

@@ -21,9 +21,9 @@ const card = (
   ...extra,
 });
 
-/** Pilot Program uses costModifier next/cost from P1-SIM-01c (#21); typed loosely until it lands. */
-const pilot = { kind: 'costModifier', cards: 'all', next: 1, cost: 0 } as unknown as Effect;
-const pilot2 = { kind: 'costModifier', cards: 'all', next: 2, cost: 0 } as unknown as Effect;
+/** Pilot Program: costModifier next/cost (#21). */
+const pilot: Effect = { kind: 'costModifier', cards: 'all', next: 1, cost: 0 };
+const pilot2: Effect = { kind: 'costModifier', cards: 'all', next: 2, cost: 0 };
 
 /** A stand-in for the Phase 1 cards with the controller-relevant effects of GDD §4. */
 export const CARDS: RunCard[] = [
@@ -98,6 +98,14 @@ export const CARDS: RunCard[] = [
       { kind: 'setController', controller: 'uncontrolled' },
       { kind: 'energyModifier', delta: 1, when: 'now', condition: 'replaced-signal' },
     ],
+    {
+      upgrade: {
+        effects: [
+          { kind: 'setController', controller: 'uncontrolled' },
+          { kind: 'energyModifier', delta: 2, when: 'now', condition: 'replaced-signal' },
+        ],
+      },
+    },
   ),
   card(
     'yield-culture',

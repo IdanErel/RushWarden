@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Target } from '@rushwarden/sim';
+import type { Effect, Target } from '@rushwarden/sim';
 import {
   PHASE1_STARTING_DECK,
   RunController,
@@ -9,10 +9,13 @@ import {
   fullRunConfig,
   quotaFor,
   replay,
+  runEffectError,
+  sameTarget,
   startRun,
   step,
   toyRunConfig,
   type RunAction,
+  type RunCard,
   type RunConfig,
   type RunState,
 } from '../src/index.js';
@@ -173,11 +176,78 @@ describe('placement rules', () => {
   });
 
   it('undo restores the state before the last play, including the PRNG', () => {
-    const s0 = withHand(startRun(toy(), fakeEnv()).state, ['recount', 'detour', 'turn-lane']);
-    const s1 = (playId(s0, 'recount') as { state: RunState }).state;
+    const s0 = withHand(startRun(toy(), fakeEnv()).state, ['detour', 'turn-lane']);
+    const s1 = (playId(s0, 'detour') as { state: RunState }).state;
     const back = must(s1, { type: 'undo' });
     expect(back).toBe(s0);
     expect(step(s0, { type: 'undo' }, fakeEnv()).ok).toBe(false);
+  });
+
+  it('no undo past a redraw, so the draw pile is never revealed for free (ADR-018 point 8)', () => {
+    let s = withHand(startRun(toy(), fakeEnv()).state, ['detour', 'recount', 'turn-lane']);
+    s = (playId(s, 'detour') as { state: RunState }).state;
+    s = (playId(s, 'recount') as { state: RunState }).state;
+    expect(step(s, { type: 'undo' }, fakeEnv())).toEqual({ ok: false, error: 'nothing to undo' });
+  });
+
+  it('refuses a placement the sim would reject, so Go never throws (ADR-014)', () => {
+    const expressStop: RunCard = {
+      id: 'express-stop',
+      cost: 1,
+      target: 'segment',
+      duration: 'round',
+      rarity: 'common',
+      tags: ['MASS'],
+      effects: [{ kind: 'setBusStopDwell', dwellTicks: 2 }],
+      upgrade: {},
+    };
+    const rerouteTo: RunCard = {
+      ...expressStop,
+      id: 'detour-pick',
+      target: 'edge',
+      tags: ['TOLL'],
+      effects: [{ kind: 'reroute', percent: 50, to: 'secondary' }],
+    };
+    const env = { setupRound: fakeEnv().setupRound };
+    const s0 = startRun(toy(1, { cards: [...CARDS, expressStop, rerouteTo] }), env).state;
+    const s = withHand(s0, ['detour', 'one-way', 'express-stop', 'detour-pick']);
+    const bad: [number, Target][] = [
+      [0, { kind: 'edge', edge: 99 }],
+      [1, { kind: 'segment', from: { x: 0, y: 0 }, to: { x: 2, y: 3 } }],
+      [2, SEGMENT],
+      [3, EDGE],
+    ];
+    for (const [handIndex, target] of bad) {
+      const r = step(s, { type: 'play', handIndex, target }, env);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.length).toBeGreaterThan(0);
+    }
+    // The refused plays left the state unchanged, and the real Sim accepts the round.
+    expect(s.plays).toEqual([]);
+    expect(step(s, { type: 'go' }, env).ok).toBe(true);
+  });
+
+  it('compares targets structurally: key order and segment direction do not matter', () => {
+    expect(
+      sameTarget({ kind: 'intersection', tile: { x: 3, y: 4 } }, {
+        tile: { y: 4, x: 3 },
+        kind: 'intersection',
+      } as Target),
+    ).toBe(true);
+    expect(sameTarget(SEGMENT, { kind: 'segment', from: SEGMENT.to, to: SEGMENT.from })).toBe(true);
+    expect(sameTarget(SEGMENT, { kind: 'segment', from: SEGMENT.from, to: { x: 3, y: 2 } })).toBe(
+      false,
+    );
+    expect(sameTarget(EDGE, { kind: 'edge', edge: 1 })).toBe(false);
+    expect(sameTarget(DISTRICT, { kind: 'district' })).toBe(true);
+    expect(sameTarget(CENTER, DISTRICT)).toBe(false);
+    let s = withHand(startRun(toy(), fakeEnv()).state, ['smart-signal', 'smart-signal']);
+    s = (playId(s, 'smart-signal') as { state: RunState }).state;
+    const reordered = { tile: { y: 4, x: 3 }, kind: 'intersection' } as Target;
+    expect(step(s, { type: 'play', handIndex: 0, target: reordered }, fakeEnv())).toEqual({
+      ok: false,
+      error: 'the same card on the same target does not stack',
+    });
   });
 
   it('the same card on the same target does not stack', () => {
@@ -214,8 +284,50 @@ describe('run-level effects', () => {
     const plain = (playId(s, 'remove-signal') as { state: RunState }).state;
     expect(plain.energy).toBe(2);
     s = (playId(s, 'smart-signal') as { state: RunState }).state; // energy 2
-    s = (playId(s, 'remove-signal') as { state: RunState }).state; // -1, +1 refund of signal, +1 replaced
-    expect(s.energy).toBe(3);
+    // -1; the signal's refund (1) and the replaced-signal refund (1) don't stack: the larger applies.
+    s = (playId(s, 'remove-signal') as { state: RunState }).state;
+    expect(s.energy).toBe(2);
+  });
+
+  it('Remove Signal: replaced-signal reads the controller before this round (#32); refunds do not stack', () => {
+    const s0 = startRun(toy(), fakeEnv()).state;
+    const hand = (ids: [string, 1 | 2][]) =>
+      ids.map(([id, tier], i) => ({ uid: 900 + i, id, tier }));
+    // A same-round signal is not "replaced": tier 2 gets only the conflict refund (1). 3-1-1+1 = 2.
+    let s: RunState = {
+      ...s0,
+      hand: hand([
+        ['smart-signal', 1],
+        ['remove-signal', 2],
+      ]),
+    };
+    s = (playId(s, 'smart-signal') as { state: RunState }).state;
+    s = (playId(s, 'remove-signal') as { state: RunState }).state;
+    expect(s.energy).toBe(2);
+    // A signal from a run effect is replaced: +1 at tier 1. 3-1+1 = 3.
+    const runSignal = {
+      cardId: 'smart-signal',
+      tier: 1 as const,
+      target: CENTER,
+      effects: [{ kind: 'setController' as const, controller: 'signal' as const }],
+      order: 0,
+    };
+    let t: RunState = { ...s0, runEffects: [runSignal], hand: hand([['remove-signal', 1]]) };
+    t = (playId(t, 'remove-signal') as { state: RunState }).state;
+    expect(t.energy).toBe(3);
+    // Both trigger (a run-effect signal, then a same-round Roundabout, then tier-2 Remove Signal):
+    // only the larger refund applies. 3 - 1 - 1 + max(conflict 1, replaced 2) = 3.
+    let u: RunState = {
+      ...s0,
+      runEffects: [runSignal],
+      hand: hand([
+        ['roundabout', 1],
+        ['remove-signal', 2],
+      ]),
+    };
+    u = (playId(u, 'roundabout') as { state: RunState }).state;
+    u = (playId(u, 'remove-signal') as { state: RunState }).state;
+    expect(u.energy).toBe(3);
   });
 
   it('drawModifier (Second Shift) draws 2 extra cards next round', () => {
@@ -288,6 +400,77 @@ describe('run-level effects', () => {
     expect(s.energy).toBe(4);
     s = must(must(s, { type: 'go' }), { type: 'choose', pick: 'skip' });
     expect(s.energy).toBe(4);
+  });
+});
+
+describe('ADR-014 bounds on run-level effects', () => {
+  const withCard = (effects: Effect[], upgrade: RunCard['upgrade'] = {}): RunConfig =>
+    toy(1, {
+      cards: [
+        ...CARDS,
+        {
+          id: 'odd',
+          cost: 1,
+          target: 'district',
+          duration: 'round',
+          rarity: 'rare',
+          tags: ['TEMPO'],
+          effects,
+          upgrade,
+        },
+      ],
+    });
+
+  it('startRun throws on a card outside content schema bounds, at tier 1 or tier 2', () => {
+    const bad: Effect[] = [
+      { kind: 'energyModifier', delta: -9, when: 'now' },
+      { kind: 'drawModifier', delta: 50 },
+      { kind: 'drawModifier', delta: 0 },
+      { kind: 'costModifier', cards: 'all', delta: 0 },
+      { kind: 'costModifier', cards: 'all', delta: 4 },
+      { kind: 'costModifier', cards: 'all', delta: -1, next: 1, cost: 0 },
+      { kind: 'costModifier', cards: 'all', next: 3 as 2, cost: 0 },
+      { kind: 'costModifier', cards: 'all', next: 1, cost: 4 },
+      { kind: 'costModifier', cards: 'all' },
+      { kind: 'redraw', keep: 2 as 0 },
+      { kind: 'fundsModifier', delta: 21 },
+      { kind: 'fundsModifier', delta: 1, per: 0 },
+    ];
+    for (const e of bad) {
+      expect(runEffectError(e)).not.toBeNull();
+      expect(() => startRun(withCard([e]), fakeEnv())).toThrow(RangeError);
+    }
+    expect(() =>
+      startRun(withCard([{ kind: 'drawModifier', delta: 1 }], { effects: [bad[1]!] }), fakeEnv()),
+    ).toThrow(/odd tier 2: drawModifier/);
+    for (const c of CARDS)
+      for (const e of [...c.effects, ...(c.upgrade.effects ?? [])])
+        expect(runEffectError(e)).toBeNull();
+    expect(runEffectError({ kind: 'fundsModifier', delta: 1, per: 4 })).toBeNull();
+  });
+
+  it('in-round energy never goes below 0', () => {
+    const cfg = withCard([{ kind: 'energyModifier', delta: -5, when: 'now' }]);
+    let s = withHand(startRun(cfg, fakeEnv()).state, ['odd']);
+    s = (playId(s, 'odd') as { state: RunState }).state;
+    expect(s.energy).toBe(0);
+  });
+
+  it('flat fundsModifier is applied by the controller at round end; per-vehicle is the sim’s', () => {
+    const flat = withCard([{ kind: 'fundsModifier', delta: 3 }]);
+    let s = withHand(startRun(flat, fakeEnv()).state, ['odd']);
+    s = (playId(s, 'odd') as { state: RunState }).state;
+    s = must(s, { type: 'go' });
+    expect(s.funds).toBe(4 + 3);
+    const perVehicle = withCard([{ kind: 'fundsModifier', delta: 1, per: 4 }]);
+    let t = withHand(startRun(perVehicle, fakeEnv()).state, ['odd']);
+    t = (playId(t, 'odd') as { state: RunState }).state;
+    t = must(t, { type: 'go' });
+    expect(t.funds).toBe(4);
+    const cost = withCard([{ kind: 'fundsModifier', delta: -20 }]);
+    let u = withHand(startRun(cost, fakeEnv()).state, ['odd']);
+    u = (playId(u, 'odd') as { state: RunState }).state;
+    expect(must(u, { type: 'go' }).funds).toBe(0);
   });
 });
 
@@ -416,7 +599,7 @@ describe('offers (GDD §4 draft rules)', () => {
     }
   });
 
-  it('after round 3 always include the dominant tag (pity rule)', () => {
+  it('from the offer after round 3 always include the dominant tag (pity rule, round >= 3)', () => {
     const deck = ['bus-priority', 'bus-lane', 'fare-holiday', 'detour'].map((id, uid) => ({
       uid,
       id,
@@ -426,9 +609,9 @@ describe('offers (GDD §4 draft rules)', () => {
     let missedBefore = 0;
     for (let seed = 0; seed < 300; seed++) {
       const { state } = startRun(toy(seed), fakeEnv());
-      expect(buildOffer(CARDS, deck, 4, state.prng).some((id) => mass.has(id))).toBe(true);
+      expect(buildOffer(CARDS, deck, 3, state.prng).some((id) => mass.has(id))).toBe(true);
       if (
-        !buildOffer(CARDS, deck, 3, startRun(toy(seed), fakeEnv()).state.prng).some((id) =>
+        !buildOffer(CARDS, deck, 2, startRun(toy(seed), fakeEnv()).state.prng).some((id) =>
           mass.has(id),
         )
       )

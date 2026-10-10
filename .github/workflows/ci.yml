@@ -32,6 +32,26 @@ jobs:
       - name: Unit tests with coverage gates, including golden hashes on Node
         run: pnpm test
 
+  # P1-SIM-06: headless throughput against the GDD section 3 budget (2,000 rounds/s at 150
+  # vehicles). Report only (Lead decision): never gates a merge; numbers go to the job summary.
+  sim-bench:
+    name: Sim throughput (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Bench (one run)
+        run: pnpm --filter @rushwarden/sim exec vitest bench --run --outputJson "$RUNNER_TEMP/sim-bench.json"
+      - name: Rounds/s to the job summary
+        run: node packages/sim/bench/summary.mjs "$RUNNER_TEMP/sim-bench.json" "$GITHUB_STEP_SUMMARY"
+
   golden-browsers:
     name: Golden hashes (Chromium, WebKit, Firefox)
     runs-on: ubuntu-latest

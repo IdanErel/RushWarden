@@ -20,6 +20,7 @@ import {
   GRID_WIDTH,
   type ControllerKind,
   type GridMap,
+  type SegmentId,
   type Side,
 } from './types.js';
 
@@ -203,7 +204,18 @@ function onBoundary(x: number, y: number, dir: number): boolean {
  * Builds and validates the world for a map. Pure. Throws `MapError` (a `RangeError`) naming the
  * first broken rule, so content can use it to validate its templates.
  */
-export function buildWorld(map: GridMap): World {
+/**
+ * A per-round change to a link's lane count, from a topology card (`setOneWay`, `setLaneCount`,
+ * P1-SIM-05, ADR-023). It applies to every link that holds `tile` and travels in direction `dir`
+ * there (entering or leaving it). `lanes` is 0..4; 0 closes that direction (one-way).
+ */
+export interface LaneOverride {
+  readonly tile: number;
+  readonly dir: number;
+  readonly lanes: number;
+}
+
+export function buildWorld(map: GridMap, laneOverrides: readonly LaneOverride[] = []): World {
   if (map.tiles.length !== TILE_COUNT) {
     throw new MapError(`map "${map.id}" has ${map.tiles.length} tiles, expected ${TILE_COUNT}`);
   }
@@ -400,7 +412,16 @@ export function buildWorld(map: GridMap): World {
     const first = l.tiles[0]!;
     const reverse = exitLink[first * 4 + opposite(l.entryDirs[0]!)]!;
     const ids: number[] = [];
-    for (let k = 0; k < lanesPerDir[first]!; k++) {
+    let laneCount: number = lanesPerDir[first]!;
+    for (const o of laneOverrides) {
+      for (let k = 0; k < l.tiles.length; k++) {
+        if (l.tiles[k] === o.tile && (l.entryDirs[k] === o.dir || l.exitDirs[k] === o.dir)) {
+          laneCount = o.lanes;
+          break;
+        }
+      }
+    }
+    for (let k = 0; k < laneCount; k++) {
       ids.push(lanes.length);
       lanes.push({
         id: lanes.length,
@@ -600,10 +621,18 @@ function stepLink(world: World, tile: number, dir: number): number {
  * when one-way roads make it unreachable. Ties go to the first direction in n, e, s, w order.
  * Cached per world, since the network is fixed for the round.
  */
-export function route(world: World, origin: number, destination: number): Route | null {
+export function route(
+  world: World,
+  origin: number,
+  destination: number,
+  closed: Uint8Array | null = null,
+): Route | null {
   if (!world.edges[origin] || !world.edges[destination]) {
     throw new RangeError(`edge index out of range: ${origin} -> ${destination}`);
   }
+  // Closures are per round, so those routes are never stored in the shared world cache; the
+  // round's traffic caches them instead.
+  if (closed) return bfsRoute(world, origin, destination, closed);
   const key = origin * world.edges.length + destination;
   const cached = world.routeCache.get(key);
   if (cached !== undefined) return cached;
@@ -628,12 +657,18 @@ const bfsParent = new Int16Array(TILE_COUNT);
 const bfsParentDir = new Int8Array(TILE_COUNT);
 const bfsQueue = new Int16Array(TILE_COUNT);
 
-function bfsRoute(world: World, origin: number, destination: number): Route | null {
+function bfsRoute(
+  world: World,
+  origin: number,
+  destination: number,
+  closed: Uint8Array | null = null,
+): Route | null {
   // Indices were checked by `route`.
   const o = world.edges[origin]!;
   const d = world.edges[destination]!;
   if (origin === destination) throw new RangeError(`route from edge ${o.id} to itself`);
   if (world.links[o.spawnLink]!.lanes.length === 0) return null;
+  if (closed && closed[o.spawnLink]) return null;
 
   // Scratch buffers are module-level: the sim is single-threaded and BFS never re-enters.
   const parent = bfsParent.fill(NONE);
@@ -646,7 +681,7 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
   let found = false;
   while (head < tail) {
     const t = queue[head++]!;
-    if (t === d.tile && stepUsable(world, t, d.side)) {
+    if (t === d.tile && stepUsable(world, t, d.side, closed)) {
       found = true;
       break;
     }
@@ -658,7 +693,7 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
       if (!inBounds(nx, ny)) continue;
       const n = tileIndex(nx, ny);
       if (world.tileKind[n] === TileKind.Block || parent[n] !== NONE) continue;
-      if (!stepUsable(world, t, dir)) continue;
+      if (!stepUsable(world, t, dir, closed)) continue;
       parent[n] = t;
       parentDir[n] = dir;
       queue[tail++] = n;
@@ -684,10 +719,43 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
   return { origin, destination, links, tiles: path.length };
 }
 
-/** True when leaving `tile` in `dir` is on a link that carries traffic. */
-function stepUsable(world: World, tile: number, dir: number): boolean {
+/** True when leaving `tile` in `dir` is on a link that carries traffic and is not closed. */
+function stepUsable(world: World, tile: number, dir: number, closed: Uint8Array | null): boolean {
   const l = stepLink(world, tile, dir);
-  return l !== NONE && world.links[l]!.lanes.length > 0;
+  return l !== NONE && world.links[l]!.lanes.length > 0 && !(closed && closed[l]);
+}
+
+/**
+ * Links closed by `segments` (`RoundInput.closedSegments`, ADR-022): 1 for every link, in either
+ * direction, that holds a tile of a closed segment. Each segment must be a straight in-bounds run
+ * of plain road tiles (no intersection tiles); throws `RangeError` otherwise. Returns null when
+ * nothing is closed.
+ */
+export function closedLinkMask(world: World, segments: readonly SegmentId[]): Uint8Array | null {
+  if (segments.length === 0) return null;
+  const closedTile = new Uint8Array(TILE_COUNT);
+  for (const { from, to } of segments) {
+    if (
+      !inBounds(from.x, from.y) ||
+      !inBounds(to.x, to.y) ||
+      (from.x !== to.x && from.y !== to.y)
+    ) {
+      throw new RangeError(`closed segment must be a straight in-bounds run of tiles`);
+    }
+    const dx = Math.sign(to.x - from.x);
+    const dy = Math.sign(to.y - from.y);
+    for (let x = from.x, y = from.y; ; x += dx, y += dy) {
+      const t = tileIndex(x, y);
+      if (world.tileKind[t] !== TileKind.Road)
+        throw new RangeError(`closed segment tile (${x}, ${y}) is not a plain road tile`);
+      closedTile[t] = 1;
+      if (x === to.x && y === to.y) break;
+    }
+  }
+  const mask = new Uint8Array(world.links.length);
+  for (const link of world.links)
+    if (link.tiles.some((t) => closedTile[t] === 1)) mask[link.id] = 1;
+  return mask;
 }
 
 /**
@@ -695,7 +763,7 @@ function stepUsable(world: World, tile: number, dir: number): boolean {
  * costs"): the cheapest link sequence from intersection `from`, entered on side `arrivalSide`
  * (no U-turn back out of it; -1 allows any exit), to edge index `destination`. `cost(link)` must
  * return a positive integer, e.g. expected ticks to traverse. Ties go to the lower link id.
- * Returns null when unreachable.
+ * Links set in `closed` are never used. Returns null when unreachable.
  */
 export function weightedRoute(
   world: World,
@@ -703,49 +771,59 @@ export function weightedRoute(
   arrivalSide: number,
   destination: number,
   cost: (link: number) => number,
+  closed: Uint8Array | null = null,
 ): number[] | null {
   const n = world.links.length;
   dist.fill(-1, 0, n);
   prev.fill(NONE, 0, n);
   done.fill(0, 0, n);
   heapLen = 0;
-  const relax = (link: number, base: number, p: number): void => {
-    if (world.links[link]!.lanes.length === 0) return;
-    const c = cost(link);
-    if (!Number.isInteger(c) || c < 1)
-      throw new RangeError(`link cost must be a positive integer, got ${c}`);
-    const nd = base + c;
-    if (dist[link] === -1 || nd < dist[link]!) {
-      dist[link] = nd;
-      prev[link] = p;
-      heapPush(nd * HEAP_LINKS + link);
-    }
-  };
   const start = world.intersections[from];
   if (!start) throw new RangeError(`intersection index out of range: ${from}`);
-  for (let dir = 0; dir < 4; dir++) {
-    const l = start.outLinks[dir]!;
-    if (l !== NONE && dir !== arrivalSide) relax(l, 0, NONE);
-  }
-  while (heapLen > 0) {
-    // Keys are dist * HEAP_LINKS + link, so the minimum is the lowest distance, then link id.
-    const key = heapPop();
-    const best = key % HEAP_LINKS;
-    if (done[best] || idiv(key, HEAP_LINKS) !== dist[best]) continue; // stale entry
-    done[best] = 1;
-    const link = world.links[best]!;
-    if (link.to.kind === 'edge') {
-      if (link.to.index !== destination) continue;
-      const out: number[] = [];
-      for (let l = best; l !== NONE; l = prev[l]!) out.push(l);
-      return out.reverse();
-    }
-    const ix = world.intersections[link.to.index]!;
-    const arrived = opposite(link.exitDirs[link.exitDirs.length - 1]!);
+  const links = world.links;
+  let node = start;
+  let arrived = arrivalSide;
+  let base = 0;
+  let p = NONE;
+  for (;;) {
+    // Relax the exits of `node` (no U-turn back out of the arrival side).
     for (let dir = 0; dir < 4; dir++) {
-      const l = ix.outLinks[dir]!;
-      if (l !== NONE && dir !== arrived && !done[l]) relax(l, dist[best]!, best);
+      const l = node.outLinks[dir]!;
+      if (l === NONE || dir === arrived || done[l] || links[l]!.lanes.length === 0) continue;
+      if (closed && closed[l]) continue;
+      const c = cost(l);
+      if (!Number.isInteger(c) || c < 1)
+        throw new RangeError(`link cost must be a positive integer, got ${c}`);
+      const nd = base + c;
+      if (dist[l] === -1 || nd < dist[l]!) {
+        dist[l] = nd;
+        prev[l] = p;
+        heapPush(nd * HEAP_LINKS + l);
+      }
     }
+    // Settle the cheapest link that leads on to an intersection or is the destination.
+    let next: Intersection | null = null;
+    while (heapLen > 0) {
+      // Keys are dist * HEAP_LINKS + link, so the minimum is the lowest distance, then link id.
+      const key = heapPop();
+      const best = key % HEAP_LINKS;
+      if (done[best] || idiv(key, HEAP_LINKS) !== dist[best]) continue; // stale entry
+      done[best] = 1;
+      const link = links[best]!;
+      if (link.to.kind === 'edge') {
+        if (link.to.index !== destination) continue;
+        const out: number[] = [];
+        for (let l = best; l !== NONE; l = prev[l]!) out.push(l);
+        return out.reverse();
+      }
+      next = world.intersections[link.to.index]!;
+      arrived = opposite(link.exitDirs[link.exitDirs.length - 1]!);
+      base = dist[best]!;
+      p = best;
+      break;
+    }
+    if (!next) break;
+    node = next;
   }
   return null;
 }
