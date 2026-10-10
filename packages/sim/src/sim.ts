@@ -1,4 +1,5 @@
 import { Hasher, hashValue } from './hash.js';
+import { validatePlacements } from './placements.js';
 import { createPrng, nextU32, type PrngState } from './prng.js';
 import {
   ROUND_TICKS,
@@ -47,6 +48,8 @@ function validate(input: RoundInput): void {
     if (e.tick < 0 || e.tick >= ROUND_TICKS)
       throw new RangeError(`demand tick ${e.tick} out of range`);
   }
+  validatePlacements(input.map, input.placements);
+  validatePlacements(input.map, input.cardState.runEffects);
 }
 
 /** Creates the state at tick 0 for a round. Pure: the same input always gives an equal state. */

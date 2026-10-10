@@ -25,6 +25,7 @@ export {
   EFFECT_TARGETS,
   formatErrors,
   parseCard,
+  needsSecondaryTarget,
   resolveCard,
   toPlacement,
   validateCards,

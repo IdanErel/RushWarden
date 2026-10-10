@@ -6,7 +6,16 @@
  * Every primitive has a template (the `Templates` type makes a missing one a compile error).
  * A template states only what its effect's fields say.
  */
-import type { ControllerKind, Effect, EffectKind, Side, VehicleType } from '@rushwarden/sim';
+import {
+  type ControllerKind,
+  DEFAULT_SWITCH_TICKS,
+  type Effect,
+  type EffectKind,
+  type RoadClass,
+  type Side,
+  TICKS_PER_SECOND,
+  type VehicleType,
+} from '@rushwarden/sim';
 import { VEHICLE_NAMES } from './card-schema.js';
 import { type CardDef, resolveCard, type TargetKind, type Tier } from './card.js';
 
@@ -33,6 +42,18 @@ const CONTROLLER_NAMES: Record<ControllerKind, string> = {
   'stop-all': 'an all-way stop',
   priority: 'a priority junction',
 };
+
+const ROAD_CLASS_NAMES: Record<RoadClass, string> = {
+  local: 'local (1-lane)',
+  arterial: 'arterial (multi-lane)',
+};
+
+/** Ticks as seconds when whole ("5 seconds"), else ticks. */
+function duration(ticks: number): string {
+  return ticks % TICKS_PER_SECOND === 0
+    ? plural1((ticks - (ticks % TICKS_PER_SECOND)) / TICKS_PER_SECOND, 'second')
+    : plural1(ticks, 'tick');
+}
 
 const SIDE_NAMES: Record<Side, string> = { n: 'north', e: 'east', s: 'south', w: 'west' };
 
@@ -94,39 +115,82 @@ const TEMPLATES: Templates = {
         : e.mode === 'wave'
           ? `Signals along ${WHERE[target]} share a green wave timed to the speed limit.`
           : 'All signals share one district-wide cycle.';
-    return e.switchTicks === undefined
-      ? s
-      : `${s} Phases switch in ${plural1(e.switchTicks, 'tick')}.`;
+    if (e.switchTicks !== undefined)
+      return `${s} Phases switch in ${plural1(e.switchTicks, 'tick')}.`;
+    if (e.switchTicksDelta !== undefined) {
+      const d = e.switchTicksDelta;
+      const total = DEFAULT_SWITCH_TICKS + d;
+      const how = d < 0 ? `${plural1(-d, 'tick')} faster` : `${plural1(d, 'tick')} slower`;
+      return `${s} Phases switch ${how} (${plural1(total, 'tick')}).`;
+    }
+    return s;
   },
   setLaneCount: (e, target) =>
     `${plural1(e.lanes, 'lane')} each way on ${e.scope === 'ring' ? 'the ring road' : WHERE[target]}.`,
-  setSpeedLimit: (e, target) =>
-    `${signed(e.delta)} top speed on ${WHERE[target]} for ${whichVehicles(e.types)}.`,
-  banType: (e, target) =>
-    `${capitalize(plural(e.vehicleType))} are banned from ${WHERE[target]} and route around it.`,
+  setSpeedLimit: (e, target) => {
+    const speed =
+      e.delta === 0
+        ? `Top speed at most ${e.max ?? 0}`
+        : e.max === undefined
+          ? `${signed(e.delta)} top speed`
+          : `${signed(e.delta)} top speed, up to ${e.max},`;
+    const where =
+      e.cells === undefined
+        ? WHERE[target]
+        : `the first ${plural1(e.cells, 'cell')} of ${WHERE[target]}`;
+    return `${speed} on ${where} for ${whichVehicles(e.types)}.`;
+  },
+  banType: (e, target) => {
+    const who = capitalize(plural(e.vehicleType));
+    if (e.scope === undefined || e.scope === 'target') {
+      return `${who} are banned from ${WHERE[target]} and route around it.`;
+    }
+    return `${who} are banned from every ${ROAD_CLASS_NAMES[e.scope.roadClass]} road in the district and route around them.`;
+  },
   preferType: (e, target) => {
     const who = list([e.vehicleType, ...(e.alsoTypes ?? [])].map(plural));
     const where = target === 'district' ? 'every intersection' : WHERE[target];
     return `${capitalize(who)} get green on approach to ${where}.`;
   },
+  // ADR-014: only valid where the segment already has a bus stop; it changes that stop's dwell.
   addBusStop: (e, target) =>
-    `Bus stop on ${WHERE[target]}: buses dwell ${plural1(e.dwellTicks, 'tick')}.`,
+    `Buses dwell ${plural1(e.dwellTicks, 'tick')} at the bus stop on ${WHERE[target]}.`,
   addBikeLane: (e, target) => {
     const cars = e.carVmaxDelta === 0 ? '' : `; cars ${signed(e.carVmaxDelta)} top speed`;
     return `Adds a bike lane on ${WHERE[target]}: bikes top speed ${e.bikeVmax}${cars}.`;
   },
   setOneWay: (e, target) => {
     const lanes = e.doubleLanes ? ', with its lanes doubled that way' : '';
-    return `${capitalize(WHERE[target])} becomes one-way heading ${SIDE_NAMES[e.direction]}${lanes}.`;
+    const heading =
+      e.direction === undefined
+        ? 'in the direction you place it'
+        : `heading ${SIDE_NAMES[e.direction]}`;
+    return `${capitalize(WHERE[target])} becomes one-way ${heading}${lanes}.`;
   },
+  addTurnLane: (e) =>
+    e.turns === 'left'
+      ? 'Left turns get their own lane and stop blocking through traffic.'
+      : 'Left and right turns get their own lanes and stop blocking through traffic.',
+  reserveLane: (e, target) =>
+    `One lane of ${WHERE[target]} is reserved for ${list(e.vehicleTypes.map(plural))}.`,
   reroute: (e, target) => {
     const who = e.vehicleTypes === undefined ? 'spawns' : list(e.vehicleTypes.map(plural));
-    const to = e.toEdge === undefined ? 'another route' : `edge ${e.toEdge}`;
-    return `${e.percent}% of ${who} from ${WHERE[target]} reroute to ${to}.`;
+    const to = e.to === 'adjacent' ? 'the next edge clockwise' : 'an edge you choose';
+    return `${e.percent}% of ${who} from ${WHERE[target]} move to ${to}.`;
   },
   spawnModifier: (e, target) => {
     const at = target === 'district' ? '' : ` at ${WHERE[target]}`;
     return `${signed(e.percent)}% ${singular(e.vehicleType)} spawns${at}.`;
+  },
+  smoothDemand: (e) =>
+    `Rush hour spreads out: peak demand ${permilleToPercent(e.peakPermille)}% lower, spread over the round.`,
+  spawnWindow: (e, target) => {
+    const at = target === 'district' ? '' : ` at ${WHERE[target]}`;
+    const when =
+      e.fromTick === 0
+        ? `in the first ${duration(e.toTick)}`
+        : `between ${duration(e.fromTick)} and ${duration(e.toTick)} in`;
+    return `${capitalize(plural(e.vehicleType))} spawn${at} only ${when}.`;
   },
   scoreModifier: (e, target) => {
     const who = e.vehicleType === undefined ? 'Vehicles' : capitalize(plural(e.vehicleType));
@@ -151,7 +215,24 @@ const TEMPLATES: Templates = {
     e.delta > 0
       ? `Draw ${plural1(e.delta, 'extra card')} next round.`
       : `Draw ${plural1(-e.delta, 'fewer card')} next round.`,
-  energyModifier: (e) => `${signed(e.delta)} energy${e.perRound === true ? ' every round' : ''}.`,
+  energyModifier: (e) => {
+    const when =
+      e.perRound === true
+        ? e.when === 'now'
+          ? ' every round, starting this round'
+          : ' every round, starting next round'
+        : e.when === 'now'
+          ? ' this round'
+          : ' next round';
+    const cond = e.condition === 'replaced-signal' ? ' if it replaced a signal' : '';
+    return `${signed(e.delta)} energy${when}${cond}.`;
+  },
+  costModifier: (e) => {
+    const which = e.cards === 'all' ? 'All cards' : list([...e.cards]);
+    return `${which} cost ${signed(e.delta)} energy.`;
+  },
+  redraw: (e) =>
+    e.keep === 0 ? 'Redraw your hand.' : 'Keep 1 card, then redraw the rest of your hand.',
   fundsModifier: (e, target) =>
     e.per === undefined
       ? `${signed(e.delta)} funds.`

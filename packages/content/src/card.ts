@@ -2,7 +2,14 @@
  * Card types, the validator (schema plus the rules a schema cannot express) and the loader that
  * turns card JSON into data the sim and run controller use.
  */
-import type { Effect, EffectKind, Placement, Target, VehicleType } from '@rushwarden/sim';
+import {
+  DEFAULT_SWITCH_TICKS,
+  type Effect,
+  type EffectKind,
+  type Placement,
+  type Target,
+  type VehicleType,
+} from '@rushwarden/sim';
 import {
   CARD_SCHEMA,
   type DURATIONS,
@@ -70,14 +77,20 @@ export const EFFECT_TARGETS: { readonly [K in EffectKind]: readonly TargetKind[]
   preferType: ['intersection', 'district'],
   addBusStop: ['segment'],
   addBikeLane: ['segment'],
+  addTurnLane: ['intersection'],
+  reserveLane: ['segment'],
   setOneWay: ['segment', 'district'],
   reroute: ['edge', 'district'],
   spawnModifier: ['edge', 'district'],
+  smoothDemand: ['district'],
+  spawnWindow: ['edge', 'district'],
   scoreModifier: ['intersection', 'segment', 'edge', 'district'],
   setPSlow: ['segment', 'district'],
   yieldRule: ['intersection', 'district'],
   drawModifier: ['district'],
   energyModifier: ['intersection', 'segment', 'edge', 'district'],
+  costModifier: ['district'],
+  redraw: ['district'],
   fundsModifier: ['intersection', 'segment', 'edge', 'district'],
 };
 
@@ -91,6 +104,10 @@ const SINGLETON_KINDS = new Set<EffectKind>([
   'setPSlow',
   'yieldRule',
   'drawModifier',
+  'addTurnLane',
+  'reserveLane',
+  'smoothDemand',
+  'redraw',
 ]);
 
 const VEHICLE_KEYS = new Set(['vehicleType']);
@@ -133,6 +150,38 @@ function effectRules(effects: readonly Effect[], target: TargetKind, path: strin
     }
     if (e.kind === 'preferType' && e.alsoTypes?.includes(e.vehicleType) === true) {
       errors.push({ path: at, message: 'alsoTypes repeats vehicleType' });
+    }
+    if (e.kind === 'setSpeedLimit') {
+      if (e.delta === 0 && e.max === undefined) {
+        errors.push({ path: at, message: 'delta 0 needs a max' });
+      }
+      if (e.cells !== undefined && target !== 'segment') {
+        errors.push({ path: at, message: 'cells is only valid on a segment target' });
+      }
+    }
+    if (e.kind === 'setSignalPhase') {
+      if (e.switchTicks !== undefined && e.switchTicksDelta !== undefined) {
+        errors.push({ path: at, message: 'use switchTicks or switchTicksDelta, not both' });
+      }
+      if (e.switchTicksDelta !== undefined && DEFAULT_SWITCH_TICKS + e.switchTicksDelta < 1) {
+        errors.push({ path: at, message: `switchTicksDelta leaves fewer than 1 tick` });
+      }
+    }
+    if (e.kind === 'setOneWay' && e.direction === undefined && target !== 'segment') {
+      errors.push({ path: at, message: 'a one-way without direction needs a segment target' });
+    }
+    if (e.kind === 'spawnWindow' && e.fromTick >= e.toTick) {
+      errors.push({ path: at, message: 'fromTick must be before toTick' });
+    }
+    if (
+      e.kind === 'energyModifier' &&
+      e.condition === 'replaced-signal' &&
+      !effects.some((x) => x.kind === 'setController')
+    ) {
+      errors.push({
+        path: at,
+        message: 'condition "replaced-signal" needs a setController effect',
+      });
     }
     // A second effect of these kinds on one card would contradict the first.
     if (SINGLETON_KINDS.has(e.kind)) {
@@ -230,6 +279,21 @@ export function validateCards(files: readonly CardFile[]): {
     names.set(card.name.toLowerCase(), source);
     cards.push(card);
   }
+  // costModifier may name cards; they must exist in the set.
+  for (const card of cards) {
+    for (const e of [...card.effects, ...(card.upgrade.effects ?? [])]) {
+      if (e.kind !== 'costModifier' || e.cards === 'all') continue;
+      for (const id of e.cards) {
+        if (!ids.has(id)) {
+          errors.push({
+            source: ids.get(card.id) ?? card.id,
+            path: 'effects',
+            message: `costModifier names unknown card "${id}"`,
+          });
+        }
+      }
+    }
+  }
   return { cards, errors };
 }
 
@@ -251,9 +315,34 @@ export function resolveCard(card: CardDef, tier: Tier): ResolvedCard {
 }
 
 /** Builds the sim `Placement` for playing `card` at `tier` on `target`. */
-export function toPlacement(card: CardDef, tier: Tier, target: Target, order: number): Placement {
+/** True when the card at this tier also needs a second, player-chosen edge (ADR-014). */
+export function needsSecondaryTarget(card: CardDef, tier: Tier): boolean {
+  return resolveCard(card, tier).effects.some((e) => e.kind === 'reroute' && e.to === 'secondary');
+}
+
+/**
+ * Builds the sim `Placement` for playing `card` at `tier` on `target`. Cards whose effects reroute
+ * to a `secondary` edge need `secondaryTarget`, an edge target; other cards must not have one.
+ */
+export function toPlacement(
+  card: CardDef,
+  tier: Tier,
+  target: Target,
+  order: number,
+  secondaryTarget?: Target,
+): Placement {
   if (target.kind !== card.target) {
     throw new Error(`${card.id} targets ${card.target}, not ${target.kind}`);
   }
-  return { cardId: card.id, tier, target, effects: resolveCard(card, tier).effects, order };
+  const needs = needsSecondaryTarget(card, tier);
+  if (needs && secondaryTarget?.kind !== 'edge') {
+    throw new Error(`${card.id} at tier ${tier} needs an edge as its secondary target`);
+  }
+  if (!needs && secondaryTarget !== undefined) {
+    throw new Error(`${card.id} at tier ${tier} takes no secondary target`);
+  }
+  const effects = resolveCard(card, tier).effects;
+  return secondaryTarget === undefined
+    ? { cardId: card.id, tier, target, effects, order }
+    : { cardId: card.id, tier, target, secondaryTarget, effects, order };
 }

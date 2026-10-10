@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type CardDef,
   parseCard,
+  needsSecondaryTarget,
   resolveCard,
   toPlacement,
   validateCards,
@@ -52,7 +53,7 @@ describe('parseCard: valid input', () => {
           { kind: 'spawnModifier', vehicleType: 'bus', percent: 40 },
           { kind: 'setSpeedLimit', delta: 1, types: ['car', 'bike'] },
           { kind: 'preferType', vehicleType: 'bus', alsoTypes: ['taxi'] },
-          { kind: 'reroute', percent: 25, vehicleTypes: ['truck', 'emergency'] },
+          { kind: 'reroute', percent: 25, to: 'adjacent', vehicleTypes: ['truck', 'emergency'] },
         ],
         upgrade: { cost: 0 },
       }),
@@ -64,6 +65,7 @@ describe('parseCard: valid input', () => {
       {
         kind: 'reroute',
         percent: 25,
+        to: 'adjacent',
         vehicleTypes: [VehicleType.Truck, VehicleType.Emergency],
       },
     ]);
@@ -118,9 +120,27 @@ describe('parseCard: schema errors', () => {
       'effects/0/vehicleType: must be one of',
     ],
     [
-      'zero delta',
-      { target: 'segment', effects: [{ kind: 'setSpeedLimit', delta: 0 }] },
-      'effects/0/delta: must not be 0',
+      'zero percent',
+      { target: 'district', effects: [{ kind: 'spawnModifier', vehicleType: 'bus', percent: 0 }] },
+      'effects/0/percent: must not be 0',
+    ],
+    [
+      'reroute without destination',
+      { target: 'edge', effects: [{ kind: 'reroute', percent: 50 }] },
+      'effects/0: missing required property "to"',
+    ],
+    [
+      'energy without timing',
+      { target: 'district', effects: [{ kind: 'energyModifier', delta: 1 }] },
+      'effects/0: missing required property "when"',
+    ],
+    [
+      'bad banType scope',
+      {
+        target: 'segment',
+        effects: [{ kind: 'banType', vehicleType: 'truck', scope: { roadClass: 'motorway' } }],
+      },
+      'effects/0/scope: must match exactly one schema in oneOf',
     ],
     [
       'boolean field',
@@ -196,6 +216,50 @@ describe('parseCard: card rules beyond the schema', () => {
       'upgrade: tier 2 must differ from tier 1',
     ],
     ['tier 2 costing more', { upgrade: { cost: 2 } }, 'upgrade/cost: tier 2 must not cost more'],
+    [
+      'zero speed delta without max',
+      { target: 'segment', effects: [{ kind: 'setSpeedLimit', delta: 0 }] },
+      'effects/0: delta 0 needs a max',
+    ],
+    [
+      'cells off a segment',
+      { target: 'district', effects: [{ kind: 'setSpeedLimit', delta: 1, cells: 2 }] },
+      'effects/0: cells is only valid on a segment target',
+    ],
+    [
+      'both switch fields',
+      {
+        effects: [
+          { kind: 'setSignalPhase', mode: 'adaptive', switchTicks: 4, switchTicksDelta: -2 },
+        ],
+      },
+      'effects/0: use switchTicks or switchTicksDelta, not both',
+    ],
+    [
+      'switch delta below 1 tick',
+      { effects: [{ kind: 'setSignalPhase', mode: 'adaptive', switchTicksDelta: -6 }] },
+      'effects/0: switchTicksDelta leaves fewer than 1 tick',
+    ],
+    [
+      'directionless one-way off a segment',
+      { target: 'district', effects: [{ kind: 'setOneWay', doubleLanes: false }] },
+      'effects/0: a one-way without direction needs a segment target',
+    ],
+    [
+      'empty spawn window',
+      {
+        target: 'district',
+        effects: [{ kind: 'spawnWindow', vehicleType: 'truck', fromTick: 100, toTick: 100 }],
+      },
+      'effects/0: fromTick must be before toTick',
+    ],
+    [
+      'signal refund without a controller change',
+      {
+        effects: [{ kind: 'energyModifier', delta: 1, when: 'now', condition: 'replaced-signal' }],
+      },
+      'effects/0: condition "replaced-signal" needs a setController effect',
+    ],
   ];
   it.each(cases)('rejects %s', (_label, patch, expected) => {
     const errors = errorsOf(withPatch(patch));
@@ -238,6 +302,49 @@ describe('validateCards', () => {
     expect(lines).toContain('wrong-name.json: id: duplicate id, also in test-roundabout.json');
     expect(lines).toContain('other.json: name: duplicate name, also in test-roundabout.json');
     expect(lines.some((l) => l.startsWith('broken.json: (root): missing required'))).toBe(true);
+  });
+});
+
+describe('costModifier card references', () => {
+  it('must name cards in the set', () => {
+    const pilot = {
+      ...validCardJson(),
+      id: 'pilot',
+      name: 'Pilot',
+      target: 'district',
+      effects: [{ kind: 'costModifier', cards: ['test-roundabout', 'ghost'], delta: -1 }],
+      upgrade: { effects: [{ kind: 'costModifier', cards: 'all', delta: -1 }] },
+    };
+    const { errors } = validateCards([
+      { source: 'test-roundabout.json', data: validCardJson() },
+      { source: 'pilot.json', data: pilot },
+    ]);
+    expect(errors.map((e) => `${e.source}: ${e.message}`)).toEqual([
+      'pilot.json: costModifier names unknown card "ghost"',
+    ]);
+  });
+});
+
+describe('secondary targets (ADR-014)', () => {
+  const detour = parsed(
+    withPatch({
+      id: 'test-detour',
+      target: 'edge',
+      effects: [{ kind: 'reroute', percent: 50, to: 'adjacent' }],
+      upgrade: { effects: [{ kind: 'reroute', percent: 50, to: 'secondary' }] },
+    }),
+  );
+  const edge = { kind: 'edge', edge: 1 } as const;
+  const other = { kind: 'edge', edge: 4 } as const;
+
+  it('is required exactly when an effect reroutes to "secondary"', () => {
+    expect(needsSecondaryTarget(detour, 1)).toBe(false);
+    expect(needsSecondaryTarget(detour, 2)).toBe(true);
+    expect(toPlacement(detour, 2, edge, 0, other)).toMatchObject({ secondaryTarget: other });
+    expect(toPlacement(detour, 1, edge, 0)).not.toHaveProperty('secondaryTarget');
+    expect(() => toPlacement(detour, 2, edge, 0)).toThrow(/needs an edge/);
+    expect(() => toPlacement(detour, 2, edge, 0, { kind: 'district' })).toThrow(/needs an edge/);
+    expect(() => toPlacement(detour, 1, edge, 0, other)).toThrow(/no secondary target/);
   });
 });
 
