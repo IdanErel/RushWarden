@@ -19,3 +19,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 010 | How the Phase 1 gate criteria are measured              | Accepted |
 | 011 | Card data format, schema and generated text             | Accepted |
 | 012 | World topology rules for maps                           | Proposed |
+| 015 | Map template format and variants                        | Accepted |
