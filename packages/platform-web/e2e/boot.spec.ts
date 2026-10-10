@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 // The public build (no test hooks): the toy's run screen boots with content's cards and the real
 // sim worker, and a round plays to its result.
 test('web build boots into the run screen and plays a round', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -17,7 +17,7 @@ test('web build boots into the run screen and plays a round', async ({ page }) =
   await page.getByRole('button', { name: 'Go: start the rush hour' }).click();
   await expect(page.getByRole('progressbar')).toBeVisible();
   await expect(page.getByRole('heading', { name: /Quota met|Quota missed|Gridlock/ })).toBeVisible({
-    timeout: 40_000,
+    timeout: 60_000,
   });
   expect(errors).toEqual([]);
 });

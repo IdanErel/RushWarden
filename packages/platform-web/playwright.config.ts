@@ -27,8 +27,12 @@ export default defineConfig({
   projects: [
     {
       name: 'phone',
+      // 390×844 at device pixel ratio 1, as the toy specs (#49): headless browsers draw WebGL in
+      // software, and at the Pixel 5's 2.75 a 15 s round took over 30 s of wall time.
       use: {
         ...devices['Pixel 5'],
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 1,
         ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },
     },
