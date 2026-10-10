@@ -18,3 +18,5 @@ The brief fixes the Phase 1 deliverable but not these details. Full task list: `
    **It stays switched off in any public build until a privacy policy (§10) is published on the
    website.** The team drafts `docs/legal/privacy.md` in Phase 1 (task P1-BE-02); publishing it,
    and whether to collect at all in the toy, is Idan's call (§13: legal/policy).
+   Idan, 2026-10-10: collecting the four events in the toy is approved once the policy is
+   published. Event time is the server's receipt time only (ADR-009).

@@ -1,3 +1,5 @@
+> "Available" below means unregistered, not free of charge: a .com costs roughly US$10–15 a year (about ₪35–55).
+
 # Name screen: "Gridlock Royale"
 
 _Screened 2026-10-10. Game: a traffic-simulation deckbuilding roguelite (puzzle/strategy) for mobile, web and Steam, sold as a premium unlock with no ads._
@@ -12,7 +14,7 @@ _Screened 2026-10-10. Game: a traffic-simulation deckbuilding roguelite (puzzle/
 - **Risk 3, "Royale":** I found no evidence that Supercell enforces "ROYALE" on its own. Many "___ Royale" games co-exist, such as Block Royale, Hexa Royale and Riddle Royale. But "Royale" on a card/deck game points straight at _Clash Royale_, which Supercell has registered in class 9. "Royale" also suggests battle-royale PvP, which misdescribes a single-player roguelite.
 - **Not checked:** EU (EUIPO/TMview) records could not be retrieved.
 
-**Recommendation: rename to Rushwarden.** It is a coined word, short, and fits the theme ("rush hour" + a warden/commissioner who sets the rules). It had no hits on Steam, the App Store, Google Play, itch.io, Poki or CrazyGames. It had no US trademark records. **rushwarden.com** (RDAP: not found), **rushwarden.game**, **rushwarden.gg** (DNS: does not exist) and **rushwarden.io** (RDAP: not found) all appear free. The runner-up is **Street Edict**. Its rule cards work as "edicts", and its .com and .game appear free.
+**Recommendation: rename to Rushwarden.** It is a coined word, short, and fits the theme ("rush hour" + a warden/commissioner who sets the rules). It had no hits on Steam, the App Store, Google Play, itch.io, Poki or CrazyGames. It had no US trademark records. **rushwarden.com** (RDAP: not found), **rushwarden.game**, **rushwarden.gg** (DNS: does not exist) and **rushwarden.io** (RDAP: not found) all appear available (unregistered). The runner-up is **Street Edict**. Its rule cards work as "edicts", and its .com and .game appear available (unregistered).
 
 > Method note: for .com and .io I used registry RDAP (Verisign / Identity Digital); "not found" is strong evidence a domain is unregistered. I verified the method against google.com and google.io, which both returned records. For .game and .gg there was no RDAP I could reach, so I used Google DNS-over-HTTPS. NXDOMAIN there is good but not conclusive, because one RDAP-registered .com (junctioneer.com) also returned NXDOMAIN. Check at a registrar before buying.
 
@@ -125,7 +127,7 @@ _Spare:_ **Rush Ordinance**. The .com is RDAP not found, the .game is NXDOMAIN, 
 
 ### Ranking
 
-1. **Rushwarden**: coined; every TLD checked appears free; no store or trademark hits.
+1. **Rushwarden**: coined; every TLD checked appears available (unregistered); no store or trademark hits.
 2. **Street Edict**: clean; fits the rule-card mechanic.
 3. **Jamwarden**: clean; slightly ambiguous.
 4. **Traffic Edict**: clean but descriptive.
