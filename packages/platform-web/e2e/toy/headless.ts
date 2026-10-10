@@ -5,7 +5,7 @@
  * 1. **Seed finder.** It picks seeds with a needed outcome (pass, fail, gridlock) when the specs
  *    run, instead of hard-coding them. Content tuning (P1-CON-05) changes which seed does what,
  *    so a hard-coded seed would silently stop testing its case. When no seed in range gives an
- *    outcome, the spec is skipped and names the outcome. The spec is not quietly passed.
+ *    outcome that a spec needs, that spec fails and names the outcome (`need()` in toy.spec.ts).
  * 2. **Reference hashes for E2E-06** ("rendered sim equals headless sim", GDD §1 zero desync).
  *
  * Contract with the game build (P1-WEB-01): the run seed is H1's `?seed=`, and the run is

@@ -66,9 +66,17 @@ done by hand from the §3.3 list.
 
 ### 2.2 Specs
 
-All specs run on every PR in the `web` CI job (§11: "E2E … Every PR"), on the `phone` and
-`desktop` Playwright projects unless the row says otherwise. Planned location:
-`packages/platform-web/e2e/toy/` (the Playwright config already lives in that package).
+All specs run on every PR (§11: "E2E … Every PR"), on the `phone` and `desktop` Playwright
+projects unless the row says otherwise, in `packages/platform-web/e2e/toy/`. Per
+[ADR-029](../decisions/ADR-029-toy-e2e-ci-and-store-assets.md):
+
+- The specs that play whole rounds or runs are tagged `@full` (E2E-06, 09, 10, 11/12/15, 13). They
+  run in the `toy-e2e` CI job on `phone` only.
+- The rest run in the `web` job.
+- `phone-webkit` runs the whole suite nightly.
+
+E2E-04 compares paused frames with reduced motion on, because the §7 queue pulse keeps animating
+while paused. E2E-18 is fixme until render-ui's landscape fix lands (ADR-029).
 
 | ID     | Flow                                   | Steps                                                                                                           | Pass when                                                                                                                                                            |
 | ------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -145,10 +153,12 @@ Both projects are in `packages/platform-web/playwright.config.ts` (the specs PR)
   at the Pixel 5's ratio of 2.75 the run screen measured 2 fps and a 15 s round took 31 s of wall
   time, against 17 fps and 16.8 s at ratio 1. Layout depends on CSS pixels, so 390×844 is still
   tested exactly; sharpness on real screens is item 9 of the §3.3 device checklist.
-- The `web` CI job installs only Chromium. Until `.github/workflows/ci.yml` (Lead) adds `webkit`
-  to its `playwright install` line, the config leaves `phone-webkit` out wherever WebKit is not
-  installed and prints a warning. `PW_WEBKIT=1` forces the project in, so a missing browser
-  fails instead of being skipped.
+- The per-PR jobs install only Chromium, so the config leaves `phone-webkit` out wherever WebKit
+  is not installed, and prints a warning. The Nightly `toy-webkit` job installs WebKit and sets
+  `PW_WEBKIT=1`, so there a missing browser fails instead of being skipped (ADR-029).
+- **Local runs:** with `reuseExistingServer`, Playwright reuses whatever already serves the
+  preview ports. On a machine with several checkouts, set `WEB_E2E_PORT` (public build on it,
+  hooks build on it + 1) so the run tests this checkout's build.
 
 ## 3. Device and browser matrix (Phase 1)
 

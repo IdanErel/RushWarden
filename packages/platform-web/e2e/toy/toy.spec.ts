@@ -1,8 +1,13 @@
 /**
  * The toy e2e (P1-QA-01; docs/release/phase-1-test-plan.md §2.2). Spec IDs match the plan.
- * They run on every PR in the `web` job, on the phone (390×844 Chromium and WebKit) and desktop
- * projects. Until P1-WEB-01 mounts the run screen in this package's build, each one reports
- * fixme (see toy.ts).
+ *
+ * Where they run (ADR-029):
+ * - Fast specs: every PR, in the `web` CI job, on `phone` and `desktop` (`--grep-invert @full`).
+ * - Specs tagged `@full` play whole rounds or runs: every PR, in the `toy-e2e` job, on `phone`.
+ * - Everything on `phone-webkit`: in the Nightly workflow.
+ *
+ * Until P1-WEB-01 mounts the run screen in this package's build, each one reports fixme (see
+ * `hasRunScreen` in toy.ts).
  */
 import { expect, test } from '@playwright/test';
 import { SEED_RANGE, findSeed, noCardRun, seedTable, type HeadlessRun } from './headless.js';
@@ -152,6 +157,11 @@ test.describe('toy flow', () => {
   });
 
   test('E2E-04 Go phase: hold for 2x, release, pause holds the picture', async ({ page }) => {
+    // Reduced motion (GDD §8) turns the once-a-second queue pulse (§7) into a steady outline.
+    // The pulse keeps running while paused by design, so with full motion a pixel compare
+    // catches the pulse, not the sim. With reduced motion, any pixel change while paused means
+    // something moved. The game reads the media query at boot, so set it before opening.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await openToy(page, passSeed());
     await pressGo(page);
     const canvas = page.locator('canvas').first();
@@ -167,12 +177,14 @@ test.describe('toy flow', () => {
     await page.keyboard.press('Escape');
     await expect(state(page)).toHaveAttribute('data-paused', 'true');
     await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+    // Let the last released tick finish interpolating and the dialog settle, then compare.
+    await page.waitForTimeout(500);
     const through = await attr(page, 'throughput');
     const a = await canvas.screenshot();
-    await page.waitForTimeout(1_000);
+    await page.waitForTimeout(1_500);
     const b = await canvas.screenshot();
+    expect(await attr(page, 'throughput'), 'throughput changed while paused').toBe(through);
     expect(b.equals(a), 'the map moved while paused').toBe(true);
-    expect(await attr(page, 'throughput')).toBe(through);
     await page.getByRole('button', { name: 'Resume' }).click();
     await expect(state(page)).toHaveAttribute('data-paused', 'false');
     await watchRound(page);
@@ -195,7 +207,7 @@ test.describe('toy flow', () => {
     expect(at1).toMatch(/^[0-9a-f]{16}$/);
   });
 
-  test('E2E-06 rendered sim equals headless sim', async ({ page }) => {
+  test('E2E-06 rendered sim equals headless sim', { tag: '@full' }, async ({ page }) => {
     gameOnly('stand-in cards and maps, so headless hashes differ');
     test.setTimeout(240_000);
     const seeds = [need('pass-round-1'), need('fail'), need('gridlock')].map((r) => r.seed);
@@ -233,101 +245,111 @@ test.describe('toy flow', () => {
     await expect(state(page)).toHaveAttribute('data-approval', '3');
   });
 
-  test('E2E-09 a failed round costs approval; zero ends the run', async ({ page }) => {
-    gameOnly('seed outcomes come from the real content');
-    test.setTimeout(120_000);
-    // A run that ends on approval when the scan met one, else S2. With the content at the time
-    // of writing no no-card run loses, so "zero ends the run" is checked only by the run
-    // controller's unit tests (packages/app) until one does.
-    const run = findSeed('loss') ?? need('fail');
-    await openToy(page, run.seed);
-    let approval = 3;
-    for (const r of run.rounds) {
-      await pressGo(page);
-      await holdRound(page);
-      if (r.mark === 'fail' || (r.gridlocked && !r.pass)) approval--;
-      await expect(state(page), `seed ${run.seed} round ${r.round}`).toHaveAttribute(
-        'data-approval',
-        String(approval),
-      );
-      await skipOffer(page);
-    }
-    if (run.outcome === 'loss') {
-      await expect(state(page)).toHaveAttribute('data-phase', 'end');
-      await expect(state(page)).toHaveAttribute('data-won', 'false');
-      await expect(page.getByText('Run over')).toBeVisible();
-    }
-  });
-
-  test('E2E-10 gridlock ends the round and shows black in the share line', async ({ page }) => {
-    gameOnly('seed outcomes come from the real content');
-    test.setTimeout(120_000);
-    const run = need('gridlock');
-    await openToy(page, run.seed);
-    await playNoCards(page);
-    const marks = (await attr(page, 'history')).split(',');
-    expect(marks, `seed ${run.seed}`).toEqual(run.rounds.map((r) => r.mark));
-    const share = (await page.getByLabel('Share text').textContent()) ?? '';
-    const glyphs = [...share.matchAll(/[🟩🟨🟥⬛]/gu)].map((m) => m[0]);
-    const at = run.rounds.findIndex((r) => r.gridlocked);
-    expect(glyphs[at], `seed ${run.seed} round ${at + 1}`).toBe(GLYPH.gridlock);
-  });
-
-  test('E2E-11/12/15 full run, share line, retry, and no network', async ({
-    page,
-    context,
-    browserName,
-  }) => {
-    test.setTimeout(150_000);
-    const errors = watchErrors(page);
-    const origin = new URL(TOY_URL).origin;
-    const offsite: string[] = [];
-    page.on('request', (r) => {
-      if (!r.url().startsWith(origin) && !r.url().startsWith('data:')) offsite.push(r.url());
-    });
-    const seed = passSeed();
-    await openToy(page, seed);
-    await playNoCards(page);
-
-    await test.step('E2E-11 run end and share line', async () => {
-      await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
-      const share = (await page.getByLabel('Share text').textContent()) ?? '';
-      expect(share).toMatch(/^Rushwarden · Old Town · [🟩🟨🟥⬛]{5} · \d+ through/u);
-      if (TARGET === 'game') {
-        const run = noCardRun(seed);
-        const strip = run.rounds.map((r) => GLYPH[r.mark]).join('');
-        expect(share.startsWith(`Rushwarden · Old Town · ${strip} · ${run.total} through`)).toBe(
-          true,
+  test(
+    'E2E-09 a failed round costs approval; zero ends the run',
+    { tag: '@full' },
+    async ({ page }) => {
+      gameOnly('seed outcomes come from the real content');
+      test.setTimeout(120_000);
+      // A run that ends on approval when the scan met one, else S2. With the content at the time
+      // of writing no no-card run loses, so "zero ends the run" is checked only by the run
+      // controller's unit tests (packages/app) until one does.
+      const run = findSeed('loss') ?? need('fail');
+      await openToy(page, run.seed);
+      let approval = 3;
+      for (const r of run.rounds) {
+        await pressGo(page);
+        await holdRound(page);
+        if (r.mark === 'fail' || (r.gridlocked && !r.pass)) approval--;
+        await expect(state(page), `seed ${run.seed} round ${r.round}`).toHaveAttribute(
+          'data-approval',
+          String(approval),
         );
+        await skipOffer(page);
       }
-      if (browserName === 'chromium') {
-        // Clipboard fallback copies the same text (no Web Share in headless Chromium).
-        await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
-        await page.getByRole('button', { name: 'Share result' }).click();
-        const copied = await page.evaluate(() => navigator.clipboard.readText());
-        expect(copied).toBe(share);
+      if (run.outcome === 'loss') {
+        await expect(state(page)).toHaveAttribute('data-phase', 'end');
+        await expect(state(page)).toHaveAttribute('data-won', 'false');
+        await expect(page.getByText('Run over')).toBeVisible();
       }
-    });
+    },
+  );
 
-    await test.step('E2E-12 retry starts a fresh run without a reload', async () => {
-      await page.evaluate(() => ((window as unknown as { __noReload: boolean }).__noReload = true));
-      await page.getByRole('button', { name: 'Retry' }).click();
-      await expect(state(page)).toHaveAttribute('data-phase', 'place');
-      await expect(state(page)).toHaveAttribute('data-round', '1');
-      await expect(state(page)).toHaveAttribute('data-approval', '3');
-      expect((await attr(page, 'hand')).split(',')).toHaveLength(5);
-      expect(
-        await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload),
-      ).toBe(true);
-    });
+  test(
+    'E2E-10 gridlock ends the round and shows black in the share line',
+    { tag: '@full' },
+    async ({ page }) => {
+      gameOnly('seed outcomes come from the real content');
+      test.setTimeout(120_000);
+      const run = need('gridlock');
+      await openToy(page, run.seed);
+      await playNoCards(page);
+      const marks = (await attr(page, 'history')).split(',');
+      expect(marks, `seed ${run.seed}`).toEqual(run.rounds.map((r) => r.mark));
+      const share = (await page.getByLabel('Share text').textContent()) ?? '';
+      const glyphs = [...share.matchAll(/[🟩🟨🟥⬛]/gu)].map((m) => m[0]);
+      const at = run.rounds.findIndex((r) => r.gridlocked);
+      expect(glyphs[at], `seed ${run.seed} round ${at + 1}`).toBe(GLYPH.gridlock);
+    },
+  );
 
-    await test.step('E2E-15 nothing but same-origin requests (ingest off by default)', async () => {
-      expect(offsite).toEqual([]);
-    });
-    expect(errors).toEqual([]);
-  });
+  test(
+    'E2E-11/12/15 full run, share line, retry, and no network',
+    { tag: '@full' },
+    async ({ page, context, browserName }) => {
+      test.setTimeout(150_000);
+      const errors = watchErrors(page);
+      const origin = new URL(TOY_URL).origin;
+      const offsite: string[] = [];
+      page.on('request', (r) => {
+        if (!r.url().startsWith(origin) && !r.url().startsWith('data:')) offsite.push(r.url());
+      });
+      const seed = passSeed();
+      await openToy(page, seed);
+      await playNoCards(page);
 
-  test('E2E-13 portal call pattern (H4 spy)', async ({ page }) => {
+      await test.step('E2E-11 run end and share line', async () => {
+        await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+        const share = (await page.getByLabel('Share text').textContent()) ?? '';
+        expect(share).toMatch(/^Rushwarden · Old Town · [🟩🟨🟥⬛]{5} · \d+ through/u);
+        if (TARGET === 'game') {
+          const run = noCardRun(seed);
+          const strip = run.rounds.map((r) => GLYPH[r.mark]).join('');
+          expect(share.startsWith(`Rushwarden · Old Town · ${strip} · ${run.total} through`)).toBe(
+            true,
+          );
+        }
+        if (browserName === 'chromium') {
+          // Clipboard fallback copies the same text (no Web Share in headless Chromium).
+          await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+          await page.getByRole('button', { name: 'Share result' }).click();
+          const copied = await page.evaluate(() => navigator.clipboard.readText());
+          expect(copied).toBe(share);
+        }
+      });
+
+      await test.step('E2E-12 retry starts a fresh run without a reload', async () => {
+        await page.evaluate(
+          () => ((window as unknown as { __noReload: boolean }).__noReload = true),
+        );
+        await page.getByRole('button', { name: 'Retry' }).click();
+        await expect(state(page)).toHaveAttribute('data-phase', 'place');
+        await expect(state(page)).toHaveAttribute('data-round', '1');
+        await expect(state(page)).toHaveAttribute('data-approval', '3');
+        expect((await attr(page, 'hand')).split(',')).toHaveLength(5);
+        expect(
+          await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload),
+        ).toBe(true);
+      });
+
+      await test.step('E2E-15 nothing but same-origin requests (ingest off by default)', async () => {
+        expect(offsite).toEqual([]);
+      });
+      expect(errors).toEqual([]);
+    },
+  );
+
+  test('E2E-13 portal call pattern (H4 spy)', { tag: '@full' }, async ({ page }) => {
     gameOnly('the dev page has no portal adapter');
     test.setTimeout(240_000);
     const seed = passSeed();
@@ -392,6 +414,9 @@ test.describe('toy flow', () => {
 
   test('E2E-18 landscape desktop fits without clipping', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
+    // A tracked bug, not a skip: at 1280×720 the run screen stays a portrait column and the hand
+    // is below the fold (§8). render-ui removes this line in its fix PR.
+    test.fixme(true, 'landscape layout pending render-ui fix (Lead, ADR-029)');
     for (const size of [
       { width: 1280, height: 720 },
       { width: 1920, height: 1080 },

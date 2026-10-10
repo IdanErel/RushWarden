@@ -49,13 +49,17 @@ export function watchErrors(page: Page): string[] {
 }
 
 /**
- * True when the target page mounts the run screen (it writes `#game-state`, H2). The Phase 0
- * boot of platform-web marks `#app[data-hash]` instead.
+ * False only on the Phase 0 build, which has no run screen and marks itself with
+ * `#app[data-hash]`. P1-WEB-01 removes that marker. So on any later build the toy specs cannot
+ * turn themselves off: a run screen that fails to mount has neither node, the wait below times
+ * out, and every spec fails. The follow-up PR to P1-WEB-01 deletes this gate.
  */
 export async function hasRunScreen(page: Page): Promise<boolean> {
   await page.goto(`${TOY_URL}/?seed=1`);
   await page.waitForSelector('#game-state, #app[data-hash]', { state: 'attached' });
-  return (await state(page).count()) > 0;
+  if ((await state(page).count()) > 0) return true;
+  // Only the Phase 0 marker is there: not wired yet.
+  return (await page.locator('#app[data-hash]').count()) === 0;
 }
 
 /**

@@ -2,6 +2,10 @@ import { existsSync } from 'node:fs';
 import { defineConfig, devices, webkit } from '@playwright/test';
 
 const executablePath = process.env['PW_CHROMIUM_PATH'];
+// WEB_E2E_PORT moves both preview servers (public on it, hooks build on it + 1) off 4173/4174
+// when another checkout is using them. e2e/toy/toy.ts reads the same variable.
+const port = Number(process.env['WEB_E2E_PORT'] ?? '4173');
+const hooksPort = port + 1;
 const launch = executablePath ? { launchOptions: { executablePath } } : {};
 
 // The WebKit phone needs the WebKit browser. CI's web job installs only Chromium until
@@ -21,18 +25,18 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 };
 export default defineConfig({
   testDir: 'e2e',
   reporter: process.env['CI'] ? 'github' : 'list',
-  use: { baseURL: 'http://localhost:4173' },
+  use: { baseURL: `http://localhost:${port}` },
   webServer: [
     // The public build (dist/, made by `pnpm build` or `pnpm size`): what players get.
     {
-      command: 'pnpm run preview',
-      url: 'http://localhost:4173',
+      command: `pnpm exec vite preview --port ${port} --strictPort`,
+      url: `http://localhost:${port}`,
       reuseExistingServer: !process.env['CI'],
     },
     // The hooks build (VITE_TEST_HOOKS=1, test hooks H1 and H4) for specs that need them.
     {
-      command: 'pnpm run build:e2e && pnpm run preview:e2e',
-      url: 'http://localhost:4174',
+      command: `pnpm run build:e2e && pnpm exec vite preview --outDir node_modules/.e2e-dist --port ${hooksPort} --strictPort`,
+      url: `http://localhost:${hooksPort}`,
       reuseExistingServer: !process.env['CI'],
     },
   ],
