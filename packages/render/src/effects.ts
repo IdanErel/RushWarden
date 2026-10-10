@@ -29,6 +29,38 @@ export function trailAlpha(i: number, n: number): number {
   return 0.45 * (1 - i / n);
 }
 
+/** Half-width of a trail where it leaves the tail, in cells: a third of the 0.6-cell body. */
+export const TRAIL_HALF_WIDTH = 0.1;
+
+/** One piece of a trail, in vehicle-local cells: along-axis span (negative = behind) and half-widths. */
+export interface TrailPiece {
+  readonly a0: number;
+  readonly a1: number;
+  readonly h0: number;
+  readonly h1: number;
+  readonly alpha: number;
+}
+
+/**
+ * A trail as one tapering streak behind a vehicle `len` cells long (head cell centred on 0). The
+ * pieces touch end to end and narrow from `TRAIL_HALF_WIDTH` to a point, so the trail reads as a
+ * motion streak. Separate body-wide blocks with gaps read as parked vehicles (#24 review note 2).
+ */
+export function trailPieces(cells: number, len: number): TrailPiece[] {
+  const out: TrailPiece[] = [];
+  const start = -(len - 0.5);
+  for (let i = 0; i < cells; i++) {
+    out.push({
+      a0: start - i,
+      a1: start - i - 1,
+      h0: TRAIL_HALF_WIDTH * (1 - i / cells),
+      h1: TRAIL_HALF_WIDTH * (1 - (i + 1) / cells),
+      alpha: trailAlpha(i, cells),
+    });
+  }
+  return out;
+}
+
 export const PULSE_PERIOD_MS = 1000;
 /** The visible part of each pulse; the rest of the second the outline is off. */
 const PULSE_ON_MS = 350;

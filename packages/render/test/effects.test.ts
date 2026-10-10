@@ -14,9 +14,12 @@ import {
   pulseAlpha,
   shakeOffset,
   stripRect,
+  TRAIL_HALF_WIDTH,
   trailAlpha,
   trailCells,
+  trailPieces,
 } from '../src/effects.js';
+import { BODY_WIDTH } from '../src/shapes.js';
 import { OLD_TOWN, luminance } from '../src/palette.js';
 import { fitGrid } from '../src/geometry.js';
 
@@ -40,6 +43,27 @@ describe('speed trails (GDD §7)', () => {
     expect(a[2]).toBeGreaterThan(0);
     expect(trailAlpha(3, 3)).toBe(0);
     expect(trailAlpha(0, 0)).toBe(0);
+  });
+
+  it('read as one tapering streak, not as parked vehicles (#24 review note 2)', () => {
+    for (const len of [1, 2, 3]) {
+      for (const n of [1, 2, 3]) {
+        const p = trailPieces(n, len);
+        expect(p).toHaveLength(n);
+        // Starts at the tail and runs backwards with no gaps between pieces.
+        expect(p[0]!.a0).toBeCloseTo(-(len - 0.5));
+        for (let i = 1; i < n; i++) {
+          expect(p[i]!.a0).toBe(p[i - 1]!.a1);
+          expect(p[i]!.h0).toBe(p[i - 1]!.h1);
+        }
+        // At most a third of the body wide, narrowing to a point.
+        expect(p[0]!.h0 * 2).toBeLessThanOrEqual(BODY_WIDTH / 3 + 1e-9);
+        for (const q of p) expect(q.h1).toBeLessThan(q.h0);
+        expect(p[n - 1]!.h1).toBe(0);
+      }
+    }
+    expect(TRAIL_HALF_WIDTH * 2).toBeLessThan(BODY_WIDTH);
+    expect(trailPieces(0, 1)).toEqual([]);
   });
 });
 
