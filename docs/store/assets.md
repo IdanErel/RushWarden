@@ -49,8 +49,8 @@ layouts:
 
 ## What it makes
 
-All frames come from seed 1 (`MARKET_DAY_SEED`). "With cards" is the Market Day round with the
-clip director's plays (Smart Signal and No Heavy, 225 through against a quota of 182). "No cards" is the same
+All frames come from seed 11 (`MARKET_DAY_SEED`). "With cards" is the Market Day round with the
+clip director's play (One-Way, 237 through against a quota of 191). "No cards" is the same
 round with nothing played, which gridlocks. The capsules crop the "no cards" map mid-round,
 when the queues are building.
 
