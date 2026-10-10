@@ -10,18 +10,18 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
 
 ## Order and when each is needed
 
-| #   | Account                                          | Cost                               | Needed by                                 | Blocks                      |
-| --- | ------------------------------------------------ | ---------------------------------- | ----------------------------------------- | --------------------------- |
-| 1   | GitHub repo + secrets                            | Free                               | **Today**                                 | Everything                  |
-| 2   | Domain                                           | ~US$10–60/yr                       | Phase 1 (share URL, itch page link)       | Website, store privacy URLs |
-| 3   | itch.io                                          | Free                               | Phase 1 gate                              | 3-minute toy build          |
-| 4   | Steamworks                                       | US$100 per app (recoupable)        | Phase 1 if ADR-006 kept, else Phase 2     | Wishlists, Next Fest        |
-| 5   | Poki for Developers, CrazyGames Developer Portal | Free                               | Phase 1 gate                              | Player-fit test             |
-| 6   | Cloudflare                                       | Free tier                          | Phase 1 (toy session metrics), else 3     | Daily, leaderboard, license |
-| 7   | Stripe                                           | Per-transaction fees               | Phase 3                                   | Web unlock                  |
-| 8   | Apple Developer Program                          | US$99/yr                           | Phase 3 (sandbox IAP)                     | iOS build, IAP              |
-| 9   | Google Play Console                              | US$25 once                         | Phase 3; start early (14-day tester rule) | Android, IAP                |
-| 10  | RevenueCat                                       | Free up to US$2.5k monthly revenue | Phase 3                                   | Mobile IAP                  |
+| #   | Account                                                   | Cost                               | Needed by                                 | Blocks                      |
+| --- | --------------------------------------------------------- | ---------------------------------- | ----------------------------------------- | --------------------------- |
+| 1   | GitHub repo + secrets                                     | Free                               | **Today**                                 | Everything                  |
+| 2   | Domain (`rushwarden.com` is available, i.e. unregistered) | ~US$10–15/yr for .com (₪35–55)     | Phase 1 (share URL, itch page link)       | Website, store privacy URLs |
+| 3   | itch.io                                                   | Free                               | Phase 1 gate                              | 3-minute toy build          |
+| 4   | Steamworks                                                | US$100 per app (recoupable)        | Phase 1 if ADR-006 kept, else Phase 2     | Wishlists, Next Fest        |
+| 5   | Poki for Developers, CrazyGames Developer Portal          | Free                               | Phase 1 gate                              | Player-fit test             |
+| 6   | Cloudflare                                                | Free tier                          | Phase 1 (toy session metrics), else 3     | Daily, leaderboard, license |
+| 7   | Stripe                                                    | Per-transaction fees               | Phase 3                                   | Web unlock                  |
+| 8   | Apple Developer Program                                   | US$99/yr                           | Phase 3 (sandbox IAP)                     | iOS build, IAP              |
+| 9   | Google Play Console                                       | US$25 once                         | Phase 3; start early (14-day tester rule) | Android, IAP                |
+| 10  | RevenueCat                                                | Free up to US$2.5k monthly revenue | Phase 3                                   | Mobile IAP                  |
 
 ## 1. GitHub (today)
 
@@ -39,7 +39,10 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
 
 ## 2. Domain
 
-1. Register `rushwarden.com` (`.com` preferred, `.game` as backup) at a registrar with free WHOIS
+1. Register `rushwarden.com`; it is available (unregistered), but registration costs about
+   US$10–15 a year (~₪35–55; GoDaddy's ~₪50 is in that range, though renewals there often cost more).
+   Cloudflare Registrar sells at cost with no markup on renewals and you need a Cloudflare account
+   anyway (step 6), so it is the cheapest option. Use a registrar with free WHOIS
    privacy. Cloudflare Registrar sells at cost once you have the Cloudflare account (step 6).
 2. Point nameservers at Cloudflare.
 3. Reserve matching social handles (X, Bluesky, Reddit, TikTok, YouTube) at the same time.
