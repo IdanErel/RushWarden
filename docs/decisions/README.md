@@ -28,3 +28,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 019 | Balance runner seeds, bots and report format            | Proposed        |
 | 020 | Intersection controllers and the turn pocket            | Proposed        |
 | 022 | p_slow, the gridlock detector and closed segments       | Proposed        |
+| 023 | Card effects, stacking and controller conflicts         | Proposed        |
