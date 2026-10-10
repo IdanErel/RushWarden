@@ -107,6 +107,51 @@ its Xsolla IAP. Portal builds send no analytics to us.
    license signing key and the dashboard secret. The team generates the key pair locally on your
    machine with a script; the private key never enters the repo.
 
+### 6.1 The `/ingest` Worker for the Phase 1 toy (P1-BE-01)
+
+The code is in `packages/backend` (`wrangler.toml`, `migrations/`). Nothing is deployed and
+nothing collects until you do the steps below, and **steps 4 and 5 wait until the privacy policy
+(`docs/legal/privacy.md`) is published on the website** (ADR-007). Everything is on the free plan.
+
+1. **Account and token.** Steps 1 and 3 above. The token needs "Edit Cloudflare Workers" and
+   "D1 Edit". Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub secrets.
+2. **API hostname.** With `rushwarden.com` on Cloudflare (DNS → Records), the team will deploy
+   the Worker on the route `api.rushwarden.com/ingest*`. You do not need to create anything by
+   hand. If you prefer another hostname, tell the Lead.
+3. **Database and stats secret.** The team runs these with your token, either from CI or from your
+   machine with `npx wrangler@4 …` while you watch:
+   - `wrangler d1 create rushwarden`, then paste the printed `database_id` into
+     `packages/backend/wrangler.toml` (a PR; the ID is not a secret).
+   - `wrangler d1 migrations apply rushwarden --remote`, which creates the `events` table. It has
+     no IP column.
+   - `wrangler secret put STATS_TOKEN`, a long random string that lets you read the session
+     summary. Keep it in your password manager; it never goes in the repo.
+     At this point the Worker answers 503 to every event, because `INGEST_ENABLED` is `"false"`.
+4. **After the policy is live: switch the server on.** Approve the PR that sets
+   `INGEST_ENABLED = "true"` in `wrangler.toml`, and check `ALLOWED_ORIGINS` (itch serves HTML5
+   games from `https://*.itch.zone`; add Poki or CrazyGames origins only if you decide to collect
+   there too).
+5. **After the policy is live: switch the client on.** The itch build sends events only when it
+   is built with `VITE_INGEST_URL=https://api.rushwarden.com/ingest`. The Lead adds that variable
+   to the itch deploy workflow in the same PR as step 4. No public build has it before then.
+6. **Reading gate criterion 1** (ADR-010). Run this, filling in the 14-day window, and you get the
+   session count and median length. It contains no install IDs:
+   `curl -H "Authorization: Bearer $STATS_TOKEN" "https://api.rushwarden.com/ingest/sessions?platform=itch&from=2026-11-01T00:00:00Z&to=2026-11-15T00:00:00Z"`
+7. **Deletion requests.** To delete one install's events, run
+   `curl -X DELETE https://api.rushwarden.com/ingest/<install-id>`.
+8. **Optional rate limit.** `wrangler.toml` declares a Workers rate-limit binding (60 events a
+   minute per install ID, never per IP). If your plan rejects it on deploy, the team removes the
+   block; the Worker works without it.
+
+**Open before step 4 (the server does not go live until both are done):**
+
+- [ ] **Retention purge.** A scheduled Worker job that deletes `events` rows older than the
+      retention period. **Idan picks the period** (the privacy policy must state the same number);
+      the team then adds the cron trigger and the purge with tests.
+- [ ] **Workers logging.** Set Workers Logs / observability explicitly off (or minimal, no request
+      bodies or headers) in `wrangler.toml`, so Cloudflare does not keep event payloads beyond the
+      `events` table.
+
 ## 7. Stripe
 
 1. Create an account as an individual/sole proprietor; complete identity and bank verification.
