@@ -45,7 +45,7 @@ Length: 213 characters, counted on the plain text.
 > lose approval; lose it all and your term is over. If nothing moves for 3 seconds, it's
 > gridlock, and the round ends on the spot.
 >
-> **Five ways to run a city.** 20 rule cards in 5 styles:
+> **20 rule cards in 5 styles:**
 >
 > - **FLOW:** smooth signals and one-way streets
 > - **MASS:** buses and bikes, which count for more per vehicle

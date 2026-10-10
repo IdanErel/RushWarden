@@ -20,7 +20,7 @@ generated in code later, after P1-QA-02 lands.
 2. **Claim only what the Phase 1 toy has** (ADR-007). The list below is the source of truth for
    the copy. If a line is not in "can say", it does not go in.
 3. The name is **Rushwarden** (ADR-008). The word "gridlock" appears only as the game mechanic.
-4. No prices, no "free forever", no release dates, no "coming to mobile/Steam Deck" promises.
+4. No prices and no "free" (the full game will have a paid unlock, §9), no release dates, no "coming to mobile/Steam Deck" promises.
    Those are Idan's calls (§13).
 
 ### The mechanic sentence (shared by every draft)
@@ -81,9 +81,13 @@ languages other than English. Sound stays out of the copy until the audio task s
 ## Before Idan posts: checklist
 
 - [ ] The GIF is rendered and placed in every `[GIF]` slot.
-- [ ] The share strip is replaced with a real one from the build.
+- [ ] The share strip is replaced with a real one from the build. The example's glyphs are
+      hand-computed; only a real strip guarantees each glyph means what §5 says (🟨 = passed
+      under 110%).
 - [ ] The itch page is live and `[itch link]` is filled in.
-- [ ] Every claim is re-checked against the build that is live (not this list).
+- [ ] Every claim is re-checked against the build that is live (not this list). The pillar-style
+      claims ("5 styles", "you can usually point at the card") are re-checked against gate
+      criterion 2 and the Reviewer's feel report (P1-REV-02).
 - [ ] Each subreddit's current rules are read (self-promotion ratio, flair, title format, days
       for promotion) and the draft is adjusted. See the notes in `reddit.md`.
 - [ ] If `/ingest` is on, the privacy policy is published and linked from the itch page

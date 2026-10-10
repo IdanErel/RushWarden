@@ -44,7 +44,7 @@ it here; the choice is Idan's:
 > Play rule cards onto a live street grid, press Go, and watch 15 seconds of rush hour decide
 > whether enough cars get through.
 >
-> Play it here (free, in the browser, phone or desktop, no account, no ads): `[itch link]`
+> Play it here (in the browser, phone or desktop, no account, no ads): `[itch link]`
 >
 > One run is 5 rounds, about 3 minutes. Each round you get 5 cards and 3 energy, and you can play
 > up to 2: put a Smart Signal on a junction, make a street one-way, give buses a lane, swap a
@@ -90,7 +90,7 @@ it here; the choice is Idan's:
 > Rushwarden · Old Town · 🟩🟩🟨🟩🟥 · 190 through
 > ```
 >
-> Free in the browser: `[itch link]`. It's an early build, and I'm testing whether the core loop
+> Plays in the browser, no account, no ads: `[itch link]`. It's an early build, and I'm testing whether the core loop
 > is fun before going further, so honest feedback helps a lot.
 
 ---
@@ -114,8 +114,8 @@ prefers text posts.
 > deckbuilder, not a dungeon crawler. The parts that may interest you:
 >
 > - **Deterministic resolution.** The traffic is a cell-based simulation. You see where demand
->   will come from before you place cards, and after Go nothing is random. A failed round is
->   always something you can trace back to a card or a missing one.
+>   will come from before you place cards, and after Go nothing is random. When a round fails,
+>   you can usually point at the card that caused it, or the one that was missing.
 > - **Permadeath-style runs.** You have 3 approval. Each missed quota costs 1, and at 0 the run is
 >   over. Passing lets you draft 1 of 3 cards.
 > - **Combos from the sim, not from text.** For example, Bus Lane plus Bus Priority, or removing

@@ -77,10 +77,10 @@ holding 2× on a keyboard, and whether Esc pauses during Go.
 Use this line only if `/ingest` is on in the public build (ADR-007). Add it at the end of the
 body:
 
-> The game sends four anonymous gameplay events (app open, run start, round end, run end) so we
-> can see how long sessions last. They carry a random install ID that the game makes up
-> locally, and nothing that identifies you. No account, no ads. Privacy policy:
-> `[privacy policy link]`.
+> The game sends four gameplay events (app open, run start, round end, run end) to our own
+> server so we can see how long sessions last. Each event carries a random install ID made on
+> your device, not linked to your name or account, and we record the time our server receives
+> it. No advertising ID, no account, no ads. Privacy policy: `[privacy policy link]`.
 
 The wording must match the published policy (`docs/legal/privacy.md`, PR #5); if they differ, the
 policy wins.
