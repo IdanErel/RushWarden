@@ -14,11 +14,11 @@ import { reverseSegment, segmentAt, segmentRuns, startRun } from '@rushwarden/ap
 import { setupRound } from '@rushwarden/content';
 
 describe('clip director', () => {
-  it('shows the toy rush round by default: round 5, Market Day (ADR-007)', () => {
-    expect(rushRound(toyConfig(1))).toBe(5);
+  it('shows the first rush round by default: round 1, Market Day (ADR-030)', () => {
+    expect(rushRound(toyConfig(1))).toBe(1);
     const p = planRun({ seed: MARKET_DAY_SEED });
-    expect(p).toMatchObject({ round: 5, rush: true, boss: 'market-day' });
-    expect(p.input.districtRules).toMatchObject({ round: 5, rush: true, boss: 'market-day' });
+    expect(p).toMatchObject({ round: 1, rush: true, boss: 'market-day' });
+    expect(p.input.districtRules).toMatchObject({ round: 1, rush: true, boss: 'market-day' });
   });
 
   it('is deterministic: the same seed gives the same actions and round', () => {
@@ -50,13 +50,15 @@ describe('clip director', () => {
     const c = planRun({ seed: MARKET_DAY_SEED, actions: a.actions });
     expect(c.cardsPlayed).toEqual(a.cardsPlayed);
     expect(Sim.simulate(c.input).finalHash).toBe(Sim.simulate(a.input).finalHash);
-    expect(replayTo(toyConfig(MARKET_DAY_SEED), a.actions).round).toBe(5);
+    expect(replayTo(toyConfig(MARKET_DAY_SEED), a.actions).round).toBe(a.round);
   });
 
-  it('can show an earlier round', () => {
-    const p = planRun({ seed: MARKET_DAY_SEED, round: 1 });
-    expect(p).toMatchObject({ round: 1, rush: false, boss: null });
-    expect(p.actions.every((a) => a.type === 'play')).toBe(true);
+  it('can show a later round: round 2, the Parade (ADR-030)', () => {
+    const first = planRun({ seed: MARKET_DAY_SEED });
+    expect(first.actions.every((a) => a.type === 'play')).toBe(true);
+    const p = planRun({ seed: MARKET_DAY_SEED, round: 2 });
+    expect(p).toMatchObject({ round: 2, rush: true, boss: 'parade' });
+    expect(p.actions.filter((a) => a.type === 'go')).toHaveLength(1);
   });
 
   it('rejects rounds outside the run and actions that stop elsewhere', () => {
