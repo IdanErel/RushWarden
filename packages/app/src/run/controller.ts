@@ -350,6 +350,7 @@ export function resolveRound(state: RunState, result: RoundResult): StepResult {
     quota: state.quota,
     pass,
     gridlocked: result.gridlocked,
+    ticks: result.ticks,
     fundsEarned,
     finalHash: result.finalHash,
     cardsPlayed,

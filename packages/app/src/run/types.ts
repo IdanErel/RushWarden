@@ -90,6 +90,8 @@ export interface RoundOutcome {
   readonly quota: number;
   readonly pass: boolean;
   readonly gridlocked: boolean;
+  /** Ticks simulated (fewer than 300 on gridlock): the round's watch time at 1×. */
+  readonly ticks: number;
   readonly fundsEarned: number;
   readonly finalHash: string;
   readonly cardsPlayed: readonly string[];
