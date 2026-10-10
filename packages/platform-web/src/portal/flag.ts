@@ -14,3 +14,19 @@ export function parsePortalFlag(value: string | undefined): PortalFlag {
   if ((PORTAL_FLAGS as readonly string[]).includes(value)) return value as PortalFlag;
   throw new Error(`VITE_PORTAL must be one of ${PORTAL_FLAGS.join(', ')}; got "${value}"`);
 }
+
+/** Portals whose builds collect nothing (ADR-024 point 4, ADR-025 point 3). */
+export const NO_ANALYTICS_PORTALS: readonly PortalFlag[] = ['poki', 'crazygames'];
+
+/**
+ * Build check run by `vite.config.ts`: parses `VITE_PORTAL` and fails the build when a portal
+ * build sets `VITE_INGEST_URL`, so a Poki or CrazyGames bundle can never contain our endpoint.
+ */
+export function checkBuildEnv(env: Readonly<Record<string, string | undefined>>): PortalFlag {
+  const portal = parsePortalFlag(env['VITE_PORTAL']);
+  if (NO_ANALYTICS_PORTALS.includes(portal) && (env['VITE_INGEST_URL'] ?? '') !== '')
+    throw new Error(
+      `VITE_INGEST_URL must not be set in a ${portal} build: portal builds collect nothing (ADR-024 point 4, ADR-025 point 3)`,
+    );
+  return portal;
+}

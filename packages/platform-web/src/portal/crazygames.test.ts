@@ -79,11 +79,11 @@ describe('CrazyGamesAdapter', () => {
     expect(env.calls.some((c) => c.startsWith('requestAd'))).toBe(false);
   });
 
-  it('uses the invite link (sync or async) and allows in-portal sales', async () => {
+  it('uses the invite link (sync or async) and does not sell in the portal (ADR-024)', async () => {
     const cg = new CrazyGamesAdapter({ shareUrl: SHARE, env: fakeEnv(installCrazy()) });
     await cg.init();
     expect(cg.shareUrl()).toBe('https://www.crazygames.com/game/rushwarden?x=1');
-    expect(cg.canSellInPortal()).toBe(true);
+    expect(cg.canSellInPortal()).toBe(false);
     expect(cg.id).toBe('crazygames');
 
     const asyncLink = new CrazyGamesAdapter({
