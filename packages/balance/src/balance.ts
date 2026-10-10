@@ -7,7 +7,7 @@ import { STANDIN_CARDS } from './standin-cards.js';
 
 /** Stand-in data the current report is built on; each line becomes a warning in its header. */
 export const STANDIN_WARNINGS: readonly string[] = [
-  'Stand-in data: the sim test map and a seeded demand stand-in (`src/env.ts`) replace the District 1 maps (P1-CON-03) and demand generator (P1-CON-04) until they are on main.',
+  'Stand-in data: the sim test map and a seeded demand stand-in (`src/env.ts`) replace the District 1 maps (P1-CON-03) and demand generator (P1-CON-04) until they are on main. Win rates here test the runner, not the cards; do not tune from them.',
   "Stand-in cards: `src/standin-cards.ts` is generated from content's Phase 1 cards (#14) until the loader is on main.",
 ];
 
