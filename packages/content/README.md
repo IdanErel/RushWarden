@@ -32,6 +32,9 @@ written by hand: it is generated from the effects by the templates in `src/text.
 
 `upgrade` holds the tier-2 deltas: each field given (`cost`, `effects`) replaces the tier-1 value.
 
+**Decks:** `decks/<id>.json` lists card ids with counts. `phase1-starting` is GDD §4's default
+deck with Grant replaced by Pilot Program (ADR-007).
+
 **Adding a card:** add the JSON file, add one import line to `src/cards.ts`, run `pnpm test`.
 `pnpm test` validates every card (schema, target rules, unique ids and names, file name = id) and
 generates its text at both tiers. A card that needs a primitive the sim does not have is a request
@@ -64,6 +67,8 @@ traits (D1: 4–6 intersections, 2 bus stops, every edge reachable from every ot
 | `pickMap(maps, seed)`                                 | Seeded uniform pick of a map                                      |
 | `templateVariants(t)`, `rowsToGridMap(id, rows)`      | Template to `GridMap`s                                            |
 | `validateSchema(schema, value)`                       | The JSON Schema subset validator                                  |
+| `loadDecks()` / `startingDeck(id?)`                   | Bundled deck lists; a deck as 12 card ids (default: Phase 1 deck) |
+| `validateDecks(files, cards)`, `DECK_SCHEMA`          | Deck validation (schema, known cards, 12 cards total)             |
 
 ## Example
 
@@ -79,5 +84,5 @@ const placement = toPlacement(card, 2, { kind: 'intersection', tile: { x: 3, y: 
 ## Scripts
 
 - `pnpm --filter @rushwarden/content test` validates all cards and runs the unit tests.
-- `pnpm --filter @rushwarden/content schema:write` regenerates `schema/card.schema.json` after a
-  schema change.
+- `pnpm --filter @rushwarden/content schema:write` regenerates `schema/card.schema.json` and
+  `schema/deck.schema.json` after a schema change.
