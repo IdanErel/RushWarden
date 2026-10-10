@@ -46,6 +46,17 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
   tile (tested).
 - `tileLaneLayout` (per-tile ids) stays only for `FakeTraffic`, which the dev page pairs with it.
 
+## Long vehicles through turns (2026-10-10)
+
+A snapshot carries only a vehicle's head cell. A bus (2 cells) or truck (3 cells) used to be
+drawn back from the head along the head cell's own heading. In a box that heading is diagonal,
+so the body swung out across the corner. Now the body points from the tail cell to the head
+cell. `LaneLayout.backPoint(lane, cell, back)` walks back along the path the vehicle took: within
+its lane, then from a box lane or a pocket into the approach's kerb lane, and straight back past
+the start of a road lane. Both ends are interpolated between snapshots like the head. A test
+drives a truck and a bus through every movement on the plus map and checks that the head,
+middle and tail stay on the road.
+
 ## Readability and shape notes (review of #18)
 
 - **Shape alone (§7 accessibility).** Car and taxi share a body, so the taxi also carries a
