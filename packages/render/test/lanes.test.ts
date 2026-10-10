@@ -144,6 +144,7 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
         ...world.lanes,
         {
           id: world.lanes.length,
+          kind: 'road' as const,
           link: link.id,
           index: 1,
           cells: link.cells,
@@ -168,7 +169,7 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
   });
 
   it('draws intersection box lanes (#23) in the sim quarter of each cell', () => {
-    const boxes = world.lanes.slice(world.roadLanes);
+    const boxes = world.lanes.slice(world.roadLanes, world.pocketLanes);
     expect(boxes.length).toBeGreaterThan(0);
     const q = p();
     for (const lane of boxes) {
@@ -186,10 +187,38 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
     }
   });
 
+  it('draws turn pockets (#27) beside the approach stop line, inside its lanes', () => {
+    const pockets = world.lanes.slice(world.pocketLanes);
+    expect(pockets.length).toBeGreaterThan(0);
+    const q = p();
+    const last = p();
+    for (const lane of pockets) {
+      const link = world.links[lane.link]!;
+      const through = world.lanes[link.lanes[0]!]!;
+      expect(layout.cellPoint(lane.id, 0, q)).toBe(true);
+      layout.cellPoint(through.id, through.cells - 1, last);
+      const { entryDir } = locateCell(world, lane.id, 0);
+      const across = entryDir % 2 === 0 ? 'x' : 'y';
+      const along = across === 'x' ? 'y' : 'x';
+      // Level with the stop-line cell, shifted toward the road centre (left of travel).
+      expect(q[along]).toBeCloseTo(last[along]);
+      const [dx, dy] = [
+        [0, -1],
+        [1, 0],
+        [0, 1],
+        [-1, 0],
+      ][entryDir]!;
+      const right = (q.x - last.x) * -dy! + (q.y - last.y) * dx!;
+      expect(right).toBeLessThan(0);
+      expect(q.heading).toBeCloseTo(last.heading);
+      expect(layout.cellPoint(lane.id, 1, q)).toBe(false);
+    }
+  });
+
   it('joins box lanes to their approach and exit lanes without a jump', () => {
     const prev = p();
     const cur = p();
-    for (const lane of world.lanes.slice(world.roadLanes)) {
+    for (const lane of world.lanes.slice(world.roadLanes, world.pocketLanes)) {
       const ix = world.intersections[lane.intersection]!;
       const inLink = world.links[ix.inLinks[(lane.entryDir + 2) & 3]!]!;
       const outLink = world.links[ix.outLinks[lane.exitDir]!]!;
