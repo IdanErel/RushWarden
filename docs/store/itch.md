@@ -1,6 +1,6 @@
 # itch.io page (Phase 1 toy)
 
-> **DRAFT: pending the GIF (P1-QA-02).** Idan pastes this into the draft project and publishes it
+> **DRAFT.** The GIF and the store images now exist (see [assets.md](assets.md)); still pending: a real share line and the itch link from the live build. Idan pastes this into the draft project and publishes it
 > himself (`docs/setup/accounts.md` step 3). See the "can say" list in [README.md](README.md).
 
 ## Fields
@@ -15,7 +15,7 @@
 | Genre                        | Strategy                                                                                                                |
 | Tags (itch allows up to 10)  | deckbuilding, roguelite, traffic, simulation, strategy, card-game, short, singleplayer, minimalist, mobile              |
 | Input methods                | Mouse, Keyboard, Touchscreen                                                                                            |
-| Cover image (630×500)        | Generated later from the game (P1-QA-03, assets part)                                                                   |
+| Cover image (630×500)        | `itch-cover-630x500.png` from `store-assets` ([assets.md](assets.md))                                                   |
 | Screenshots                  | `[GIF]` first, then three still frames: placing a card with the ghost preview, the Go phase, and the run-end share line |
 
 ## Body

@@ -1,6 +1,6 @@
 # Reddit posts (Phase 1)
 
-> **DRAFT: pending the GIF (P1-QA-02).** Idan posts all of these from his own account; the team
+> **DRAFT.** The GIF and the store images now exist (see [assets.md](assets.md)); still pending: a real share line and the itch link from the live build. Idan posts all of these from his own account; the team
 > never posts (GDD §13). See the rules and the "can say" list in [README.md](README.md).
 
 How to use this file:
