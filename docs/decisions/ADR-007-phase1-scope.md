@@ -13,6 +13,7 @@ The brief fixes the Phase 1 deliverable but not these details. Full task list: `
    ("5 archetypes with 35–65% win rates in sim") needs them.
 4. The deterministic run controller lives in `packages/app/src/run/`, owned by the Sim Engineer
    in Phase 1.
+   Amended 2026-10-10 (Lead): P1-BAL-01 moved to the Platform Engineer so Sim stays on SIM-02–06; rule readings in ADR-018.
 5. A minimal `/ingest` Worker with four of the §10 events measures itch session length for gate
    criterion 1; it is pulled forward from Phase 3 and needs Idan's Cloudflare account.
    **It stays switched off in any public build until a privacy policy (§10) is published on the

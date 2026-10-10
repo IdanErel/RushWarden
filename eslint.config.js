@@ -8,7 +8,8 @@ import prettier from 'eslint-config-prettier';
  * Integer division goes through `idiv` in packages/sim/src/math.ts, the one file allowed to use `/`.
  */
 const simDeterminism = {
-  files: ['packages/sim/src/**/*.ts'],
+  // The run controller (P1-BAL-01) follows the same discipline: integer-only, seeded PRNG only.
+  files: ['packages/sim/src/**/*.ts', 'packages/app/src/run/**/*.ts'],
   rules: {
     'no-restricted-properties': [
       'error',
