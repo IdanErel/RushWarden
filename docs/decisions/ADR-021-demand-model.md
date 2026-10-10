@@ -8,10 +8,10 @@ the seed is split, and what the bosses do in data. `packages/content/src/demand.
 `src/parade.ts` read them as follows.
 
 **District 1's numbers were tuned on 2026-10-10 by P1-CON-05** from the P1-BAL-02 runner on the
-real District 1 maps, demand and cards (10,000 full runs per bot; the report is linked in the
-P1-CON-05 PR). The tuned values are the D1 base quota (item 2), `baseVehicles` (item 3), the
-spawn curve and the edge-weight range (item 5). No rule changed. Changing a value is a content
-change with a balance report; changing a rule needs a new ADR.
+real District 1 maps, demand and cards, with bot targets fixed by #57. The P1-CON-05 PR (#55)
+carries the report and `docs/balance/latest.md`. The tuned values are the D1 base quota (item 2),
+`baseVehicles` (item 3), the spawn curve and the edge-weight range (item 5). No rule changed.
+Changing a value is a content change with a balance report; changing a rule needs a new ADR.
 
 1. **Entry point.** `setupRound({ round, seed, rush?, boss?, district? })` returns:
    - the map
@@ -27,16 +27,16 @@ change with a balance report; changing a rule needs a new ADR.
 
 2. **Quota.** `roundQuota` is the single source (Lead decision): `base[d] * (1000 + 110*(r-1)) *
 rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5). GDD §2 leaves
-   `base` to the balance sim. District 1's base is 79 (P1-CON-05), about 90% of round 1's demand
+   `base` to the balance sim. District 1's base is 83 (P1-CON-05), about 90% of round 1's demand
    score, so a round that flows passes with about 10% to spare and a round that jams fails.
    Districts 2 and 3 keep the GDD's 34 and 42 until they have maps and a report.
 3. **Volume.** A round spawns `baseVehicles * (1 + 0.11*(r-1)) * rush * festival` vehicles,
    rounded half up. It grows with the quota, while the map's capacity stays fixed, so congestion
    rises each round. In District 1:
-   - `baseVehicles` is 63. With the mean score of 1.4 per vehicle, a round 1 that flows scores
-     about 88 against a quota of 79. The trial value of 28 never jammed a map, so every bot
+   - `baseVehicles` is 66. With the mean score of 1.4 per vehicle, a round 1 that flows scores
+     about 92 against a quota of 83. The trial value of 28 never jammed a map, so every bot
      passed every normal round at about 1.5× quota.
-   - Round 12 under rush is 223 vehicles. With Festival it is 356. That is spawns over 15 s, not
+   - Round 12 under rush is 233 vehicles. With Festival it is 373. That is spawns over 15 s, not
      vehicles on screen at once.
 4. **Mix.** Each type gets exact counts from the district's per-mille mix: shares are rounded
    down, and the leftovers go to the largest remainders (ties in `VehicleType` order). The order

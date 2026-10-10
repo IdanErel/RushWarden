@@ -59,7 +59,7 @@ profile, the heat-strip, the quota, the sim's `DistrictRules`
 and `closedSegments` (Parade). The argument matches
 `RunEnv.setupRound`, so `{ setupRound }` can be passed to the run controller as is.
 
-- **Volume:** `baseVehicles` (63 in D1, tuned by P1-CON-05) grows 11% a round with the quota and
+- **Volume:** `baseVehicles` (66 in D1, tuned by P1-CON-05) grows 11% a round with the quota and
   ×1.6 on rush rounds.
 - **Mix:** exact per-round counts from GDD §5's per-mille mix (D1: 70% car, 15% bus, 10% truck,
   5% bike), with leftovers going to the largest remainders.
@@ -71,7 +71,7 @@ and `closedSegments` (Parade). The argument matches
   Festival adds 60% more vehicles, 5% of them emergency vehicles.
 - **Heat-strip** (GDD §2): spawns per edge per second, plus the max for scaling.
 - **Quota:** `roundQuota` is GDD §2's formula in per-mille integers, rounded half up (ADR-018),
-  and the single quota source. District 1's base is tuned to 79 (P1-CON-05); D2 and D3 keep 34
+  and the single quota source. District 1's base is tuned to 83 (P1-CON-05); D2 and D3 keep 34
   and 42.
 
 The model, the seed salts and the boss rules are in
