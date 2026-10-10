@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "bus-priority",
+  "name": "Bus Priority",
+  "cost": 1,
+  "target": "intersection",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["MASS"],
+  "effects": [
+    {
+      "kind": "preferType",
+      "vehicleType": "bus"
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "preferType",
+        "vehicleType": "bus",
+        "alsoTypes": ["taxi"]
+      }
+    ]
+  },
+  "flavor": "Forty people in one vehicle deserve a green light."
+}
