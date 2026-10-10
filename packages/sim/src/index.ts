@@ -18,7 +18,7 @@ export * from './types.js';
 export { Hasher, hashValue } from './hash.js';
 export { createPrng, clonePrng, nextU32, nextInt, chancePermille, type PrngState } from './prng.js';
 export { idiv, imod, pct, clamp } from './math.js';
-export { emptyMap, sampleInput } from './fixtures.js';
+export { emptyMap, sampleInput, latticeMap, denseInput } from './fixtures.js';
 export { placementError, segmentTiles } from './placements.js';
 export {
   createSimWorkerHandler,
@@ -40,6 +40,7 @@ export {
   SIDES,
   TileKind,
   Turn,
+  type LaneKind,
   MapError,
   type World,
   type Link,
@@ -58,3 +59,13 @@ export {
   type VehicleSpec,
 } from './vehicles.js';
 export { TAXI_LOAD_COST } from './traffic.js';
+export { controllerSnapshot } from './sim.js';
+export {
+  ControllerCode,
+  PocketMode,
+  SIGNAL_GREEN_TICKS,
+  ADAPTIVE_MIN_GREEN_TICKS,
+  ADAPTIVE_MAX_GREEN_TICKS,
+  UNCONTROLLED_RESOLVE_TICKS,
+  ROUNDABOUT_CAPACITY,
+} from './controllers.js';

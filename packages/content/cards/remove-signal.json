@@ -1,0 +1,37 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "remove-signal",
+  "name": "Remove Signal",
+  "cost": 1,
+  "target": "intersection",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["CHAOS"],
+  "effects": [
+    {
+      "kind": "setController",
+      "controller": "uncontrolled"
+    },
+    {
+      "kind": "energyModifier",
+      "delta": 1,
+      "when": "now",
+      "condition": "replaced-signal"
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "setController",
+        "controller": "uncontrolled"
+      },
+      {
+        "kind": "energyModifier",
+        "delta": 2,
+        "when": "now",
+        "condition": "replaced-signal"
+      }
+    ]
+  },
+  "flavor": "The lights went out. Somehow it got better."
+}
