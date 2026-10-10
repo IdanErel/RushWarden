@@ -3,8 +3,7 @@
  * intersection, in `World.intersections` order, `[kind, greenMask, boxCount]`. Pure: decodes a
  * frame and turns it into the shapes the scene draws (signal stop bars and box occupancy).
  *
- * - `kind` is a `ControllerCode`. Until P1-SIM-05 wires the cards it is 0 (uncontrolled) for
- *   every intersection, so the scene keeps showing the glyphs the UI set.
+ * - `kind` is a `ControllerCode`, set by the round's controller cards (0 = uncontrolled).
  * - `greenMask` has bit `SIDES.indexOf(side)` set for each approach that may enter now. A signal
  *   with mask 0 is in its all-red clearance.
  * - `boxCount` is the number of vehicles inside the box (4 quarters, so 4 fills it).

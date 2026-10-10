@@ -10,9 +10,11 @@ export * from './lanes.js';
 export * from './interpolate.js';
 export * from './palette.js';
 export * from './shapes.js';
+export * from './effects.js';
 export {
   FakeTraffic,
   buildRoute,
+  fakeDemand,
   type FakeTrafficOptions,
   type FakeTrafficState,
 } from './fake-traffic.js';
@@ -24,11 +26,11 @@ export {
   createFakeWorkerHandler,
   fakeControllerFrame,
 } from './worker/fake-handler.js';
+export { SimClient, spawnSimWorker, type SimClientHandlers } from './worker/client.js';
 export {
-  SimClient,
-  spawnFakeWorker,
-  spawnSimWorker,
-  type SimClientHandlers,
-} from './worker/client.js';
-export { TrafficScene, type ControllerMark, type TrafficSceneOptions } from './pixi/scene.js';
+  TrafficScene,
+  type ControllerMark,
+  type SceneStats,
+  type TrafficSceneOptions,
+} from './pixi/scene.js';
 export { drawShapes } from './pixi/draw.js';

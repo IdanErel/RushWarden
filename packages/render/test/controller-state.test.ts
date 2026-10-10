@@ -50,7 +50,7 @@ describe('controllers frames (ADR-020 point 10)', () => {
     );
   });
 
-  it('decode what the sim worker sends: uncontrolled until SIM-05, box count moving', () => {
+  it('decode what the sim sends with no controller cards: uncontrolled, box count moving', () => {
     let s = Sim.init(sampleInput(6));
     let maxBox = 0;
     for (let t = 0; t < 400; t++) {
@@ -62,6 +62,34 @@ describe('controllers frames (ADR-020 point 10)', () => {
       }
     }
     expect(maxBox).toBeGreaterThan(0);
+  });
+});
+
+describe('controllers frames from the sim with a controller card (#32)', () => {
+  it('report the signal and both phases', () => {
+    const ix = world.intersections[0]!;
+    const input = {
+      ...sampleInput(6),
+      placements: [
+        {
+          cardId: 'smart-signal',
+          tier: 1 as const,
+          target: { kind: 'intersection' as const, tile: { x: ix.x, y: ix.y } },
+          effects: [{ kind: 'setController' as const, controller: 'signal' as const }],
+          order: 0,
+        },
+      ],
+    };
+    let s = Sim.init(input);
+    const phases = new Set<string>();
+    while (!s.done) {
+      s = Sim.step(s);
+      const l = readControllers(controllerSnapshot(s), world)[0]!;
+      expect(l.kind).toBe('signal');
+      phases.add(l.green.join(''));
+    }
+    expect(phases).toContain('ns');
+    expect(phases).toContain('ew');
   });
 });
 

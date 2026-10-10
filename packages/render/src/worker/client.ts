@@ -27,13 +27,6 @@ export function spawnSimWorker(): WorkerLike {
   }) as unknown as WorkerLike;
 }
 
-/** Spawns the fake-traffic worker (dev page only). */
-export function spawnFakeWorker(): WorkerLike {
-  return new Worker(new URL('./fake.worker.ts', import.meta.url), {
-    type: 'module',
-  }) as unknown as WorkerLike;
-}
-
 /** Sim time requested ahead of playback, in ms; covers worker latency without adding lag. */
 const LOOKAHEAD_MS = 150;
 

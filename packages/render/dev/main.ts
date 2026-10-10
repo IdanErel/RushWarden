@@ -27,8 +27,9 @@ import {
 } from '@rushwarden/sim';
 import {
   OLD_TOWN,
+  HEAT_GUTTER_PX,
   SimClient,
-  spawnFakeWorker,
+  fakeDemand,
   spawnSimWorker,
   TrafficScene,
   tileLaneLayout,
@@ -38,6 +39,7 @@ import {
   lanesAt,
   vehicleShapes,
 } from '../src/index.js';
+import { spawnFakeWorker } from '../src/worker/fake-spawn.js';
 
 const q = new URLSearchParams(location.search);
 const speed = Number(q.get('speed') ?? '1') || 1;
@@ -45,9 +47,13 @@ const ctrl = (q.get('ctrl') ?? 'signal') as ControllerKind;
 const source = q.get('source') === 'sim' ? 'sim' : 'fake';
 const parade = q.get('boss') === 'parade';
 let seed = Number(q.get('seed') ?? '1') >>> 0;
+const reducedMotion =
+  q.get('reduced') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** `jam=1` runs the fake in Gridlock Drill jam mode to show the gridlock effect. */
+const jam = q.get('jam') === '1';
 
 const WIDTH = Math.min(window.innerWidth, 430);
-const SCENE_H = Math.round((WIDTH / 7) * 9);
+const SCENE_H = Math.round(((WIDTH - 2 * HEAT_GUTTER_PX) / 7) * 9 + 2 * HEAT_GUTTER_PX);
 /** `map=d1-03` picks a District 1 template from content; the default is the plus map. */
 const map: GridMap = districtMaps(1).find((m) => m.id === q.get('map')) ?? emptyMap();
 const world = buildWorld(map);
@@ -107,7 +113,13 @@ function input(s: number): RoundInput {
     map,
     mapId: map.id,
     placements,
-    ...(map.id === emptyMap().id ? {} : { demandProfile: devDemand(s) }),
+    demandProfile:
+      source === 'fake'
+        ? fakeDemand(map, s)
+        : map.id === emptyMap().id
+          ? base.demandProfile
+          : devDemand(s),
+    districtRules: { ...base.districtRules, boss: jam ? 'gridlock-drill' : null },
     ...(parade ? { closedSegments: paradeSegment() } : {}),
   };
 }
@@ -117,6 +129,7 @@ async function boot(): Promise<void> {
     map,
     width: WIDTH,
     height: SCENE_H,
+    reducedMotion,
   });
   if (centre) scene.setControllers([{ x: centre.x, y: centre.y, kind: ctrl, direction: 'e' }]);
   scene.setSpeed(speed);
@@ -133,9 +146,17 @@ async function boot(): Promise<void> {
       scene.pushSnapshot(f, now);
       if (controllers) scene.pushControllers(controllers);
     },
-    onDone: () => {
-      seed = (seed + 1) >>> 0;
-      begin(seed);
+    onDone: (result) => {
+      // Gridlock: hold the red queue on screen for a moment before the next round.
+      if (result.gridlocked) scene.setGridlock(true);
+      setTimeout(
+        () => {
+          seed = (seed + 1) >>> 0;
+          scene.setGridlock(false);
+          begin(seed);
+        },
+        result.gridlocked ? 2500 : 0,
+      );
     },
     onError: (m) => (state.textContent = `error: ${m}`),
   });
@@ -146,9 +167,12 @@ async function boot(): Promise<void> {
   setInterval(() => {
     state.dataset['tick'] = String(scene.buffer.tick);
     state.dataset['vehicles'] = String(scene.vehicleCount);
-    // Live readout of the centre intersection: kind, green approaches, vehicles in the box.
-    const live = scene.liveControllers[0];
+    state.dataset['queued'] = String(scene.stats.queued);
+    state.dataset['trails'] = String(scene.stats.trails);
+    state.dataset['gridlock'] = String(scene.stats.gridlock);
     state.dataset['closed'] = String(scene.closedTiles.length);
+    // Live readout of the first intersection: kind, green approaches, vehicles in the box.
+    const live = scene.liveControllers[0];
     state.dataset['live'] = live ? `${live.kind}:${live.green.join('')}:${live.box}` : '';
     state.textContent = `seed ${seed} · tick ${scene.buffer.tick} · ${scene.vehicleCount} vehicles`;
   }, 100);

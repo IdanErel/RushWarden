@@ -7,9 +7,11 @@ import {
   chevronPoints,
   controllerShapes,
   octagonPoints,
+  vehicleOutline,
   vehicleShapes,
   type Shape,
 } from '../src/shapes.js';
+import { HEAT_GUTTER_PX } from '../src/effects.js';
 
 function bounds(shapes: Shape[]): { x0: number; x1: number; y0: number; y1: number } {
   let x0 = Infinity;
@@ -65,7 +67,8 @@ describe('vehicle shapes (GDD §7)', () => {
   });
 
   it('draws a car at least 12 px long on a 390 px wide phone', () => {
-    const cellPx = fitGrid(390, 600).tilePx / CELLS_PER_TILE;
+    // The scene keeps a heat-strip gutter (HEAT_GUTTER_PX) around the grid.
+    const cellPx = fitGrid(390, 600, HEAT_GUTTER_PX).tilePx / CELLS_PER_TILE;
     const b = bounds(vehicleShapes(VehicleType.Car));
     expect((b.x1 - b.x0) * cellPx).toBeGreaterThanOrEqual(12);
   });
@@ -180,5 +183,16 @@ describe('controller glyphs (GDD §7)', () => {
   it('builds a regular octagon', () => {
     const pts = octagonPoints(1);
     for (let i = 0; i < 16; i += 2) expect(Math.hypot(pts[i]!, pts[i + 1]!)).toBeCloseTo(1);
+  });
+});
+
+describe('queue pulse outline', () => {
+  it.each(TYPES)('surrounds the body of type %i without leaving its lane', (t) => {
+    const body = bounds(vehicleShapes(t));
+    const ring = bounds(vehicleOutline(t));
+    expect(ring.x0).toBeLessThan(body.x0);
+    expect(ring.x1).toBeGreaterThan(body.x1);
+    expect(ring.y1 - ring.y0).toBeLessThan(lane);
+    expect(vehicleOutline(t)[0]!.fill).toBeUndefined();
   });
 });

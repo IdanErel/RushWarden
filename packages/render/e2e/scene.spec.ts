@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const SHOTS = process.env['SHOT_DIR'] ?? 'test-results/shots';
 
 test('scene draws the map and interpolated vehicles from the worker', async ({ page }) => {
+  test.setTimeout(60_000); // five page loads and screenshots
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => {
@@ -37,6 +38,9 @@ test('the real sim drives vehicles and live controller frames through the worker
   await expect(state).toHaveAttribute('data-vehicles', /^[1-9]\d*$/, { timeout: 15_000 });
   // The sim runs the dev page's Smart Signal placement (#32), so its frames show the live phase.
   await expect(state).toHaveAttribute('data-live', /^signal:(ns|ew|):\d+$/);
+  // Another controller card: the frames report its kind, and only signals have green sides.
+  await page.goto('/?source=sim&seed=6&ctrl=roundabout');
+  await expect(state).toHaveAttribute('data-live', /^roundabout::\d+$/, { timeout: 15_000 });
   expect(errors).toEqual([]);
 });
 

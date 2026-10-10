@@ -179,39 +179,38 @@ const candSide = new Int8Array(16);
 
 /** Picks this tick's grant for an uncontrolled, stop-all or priority intersection. */
 function grant(t: Traffic, ix: number): number {
+  if (t.lineOcc[ix] === 0) return NONE; // nobody at any stop line
   const kind = t.ctrlKind[ix]!;
   const tick = t.tick;
   if (kind === ControllerCode.StopAll && t.boxCount[ix]! > 0) return NONE;
   let majorNear = -1; // computed on first need: -1 unknown, 0 no, 1 yes
   let n = 0;
   let emergency = false;
+  const { occ, linePhys, lineLane, lineSide, lane: vLane, cell: vCell, laneCells, atLine } = t;
   // Every stop-line cell of this intersection (approach lanes and pockets), precomputed.
   for (let e = t.lineStart[ix]!, end = t.lineStart[ix + 1]!; e < end; e++) {
-    const j = t.occ[t.linePhys[e]!]! - 1;
+    const j = occ[linePhys[e]!]! - 1;
     if (j < 0) continue;
-    const lane = t.lineLane[e]!;
-    if (t.lane[j] !== lane || t.cell[j] !== t.laneCells[lane]! - 1) continue; // a tail, not a head
-    const s = t.lineSide[e]!;
+    const lane = lineLane[e]!;
+    if (vLane[j] !== lane || vCell[j] !== laneCells[lane]! - 1) continue; // a tail, not a head
+    const s = lineSide[e]!;
     if (kind === ControllerCode.Priority && (s & 1) === t.ctrlAxis[ix]) continue; // major road
-    {
-      const isEmergency = priorityVehicle(t, j, ix);
-      if (!isEmergency) {
-        if (emergency) continue;
-        if (kind === ControllerCode.Uncontrolled && tick - t.atLine[j]! < t.resolveTicks[ix]!)
-          continue;
-        if (kind === ControllerCode.StopAll && (t.speed[j] !== 0 || t.atLine[j]! >= tick)) continue;
-        if (kind === ControllerCode.Priority) {
-          if (majorNear < 0) majorNear = majorTrafficNear(t, ix) ? 1 : 0;
-          if (majorNear === 1) continue;
-        }
-      } else if (!emergency) {
-        emergency = true;
-        n = 0; // emergency vehicles win over everyone else
+    const isEmergency = priorityVehicle(t, j, ix);
+    if (!isEmergency) {
+      if (emergency) continue;
+      if (kind === ControllerCode.Uncontrolled && tick - atLine[j]! < t.resolveTicks[ix]!) continue;
+      if (kind === ControllerCode.StopAll && (t.speed[j] !== 0 || atLine[j]! >= tick)) continue;
+      if (kind === ControllerCode.Priority) {
+        if (majorNear < 0) majorNear = majorTrafficNear(t, ix) ? 1 : 0;
+        if (majorNear === 1) continue;
       }
-      candVehicle[n] = j;
-      candSide[n] = s;
-      n++;
+    } else if (!emergency) {
+      emergency = true;
+      n = 0; // emergency vehicles win over everyone else
     }
+    candVehicle[n] = j;
+    candSide[n] = s;
+    n++;
   }
   if (n === 0) return NONE;
   // First at line (earliest arrival).

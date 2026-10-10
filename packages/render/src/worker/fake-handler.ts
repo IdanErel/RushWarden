@@ -1,8 +1,7 @@
 /**
  * Worker-side handler for the renderer's fake traffic, speaking the shared sim worker protocol
  * (same messages, same roundId and step rules as `createSimWorkerHandler`). Dev page and tests
- * only. It also sends fake `controllers` frames (`fakeControllerFrame`) so the dev page can show
- * the live signal and box readouts before P1-SIM-05.
+ * only. It also sends `controllers` frames (`fakeControllerFrame`) in the sim's layout.
  */
 import {
   ControllerCode,
@@ -31,7 +30,7 @@ function fakeResult(s: FakeTrafficState): RoundResult {
     spawned: s.spawned,
     exited: s.exited,
     ticks: s.tick,
-    gridlocked: false,
+    gridlocked: s.gridlocked,
     fundsDelta: 0,
     // Not a sim hash: the fake is not part of the determinism contract.
     finalHash: '0000000000000000',
@@ -50,8 +49,8 @@ const CODE: Readonly<Record<ControllerKind, number>> = {
 };
 
 /**
- * Fake controller frames in the ADR-020 layout, so the dev page shows the live readouts before
- * P1-SIM-05 wires the cards: the kind comes from the input's `setController` placements, a signal
+ * Fake controller frames in the ADR-020 layout, so fake traffic shows the live readouts too: the
+ * kind comes from the input's `setController` placements, a signal
  * alternates n-s and e-w green with an all-red gap, and the box count is the number of vehicles on
  * the intersection tile. Not the sim's controller model.
  */
@@ -128,7 +127,12 @@ export function createFakeWorkerHandler(post: PostFromWorker): (msg: ToSimWorker
         } catch {
           world = { intersections: [] };
         }
-        state = FakeTraffic.init(msg.input.map, msg.input.seed);
+        // Dev affordance: the "Gridlock Drill" boss runs the fake in jam mode, so the gridlock
+        // effect can be seen through the normal `done` path.
+        state = FakeTraffic.init(msg.input.map, msg.input.seed, {
+          demand: msg.input.demandProfile,
+          jam: msg.input.districtRules.boss === 'gridlock-drill',
+        });
         return;
       case 'step':
         if (msg.roundId === roundId) advance(Math.max(0, Math.min(msg.ticks, MAX_TICKS_PER_STEP)));

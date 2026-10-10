@@ -8,10 +8,12 @@ import {
   CELLS_PER_TILE,
   GRID_HEIGHT,
   GRID_WIDTH,
+  ROUND_TICKS,
   VehicleType,
   buildWorld,
   roundWorld,
   type ControllerKind,
+  type DemandProfile,
   type GridMap,
   type RoundInput,
   type Side,
@@ -34,7 +36,21 @@ import { boxAlpha, readControllers, stopBars, type LiveIntersection } from '../c
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
 import { worldLaneLayout, type LaneLayout } from '../lanes.js';
 import { OLD_TOWN, type Palette } from '../palette.js';
-import { controllerShapes, vehicleShapes } from '../shapes.js';
+import { VEHICLE_LENGTH, controllerShapes, vehicleOutline, vehicleShapes } from '../shapes.js';
+import {
+  GRIDLOCK_TINT,
+  HEAT_BINS,
+  HEAT_GUTTER_PX,
+  demandBins,
+  heatLevel,
+  maxBin,
+  pulseAlpha,
+  shakeOffset,
+  stripRect,
+  trailCells,
+  trailPieces,
+  type MotionPrefs,
+} from '../effects.js';
 import { drawShapes } from './draw.js';
 
 export interface ControllerMark {
@@ -54,6 +70,25 @@ export interface TrafficSceneOptions {
   readonly layout?: LaneLayout;
   /** Device pixel ratio; defaults to `window.devicePixelRatio`. */
   readonly resolution?: number;
+  /** GDD §8 reduced-motion mode: no shake, no trails, steady queue outline. */
+  readonly reducedMotion?: boolean;
+}
+
+/** One drawn vehicle: the shared-context body plus its queue-pulse outline. */
+interface VehicleView {
+  readonly root: Container;
+  readonly body: Graphics;
+  readonly pulse: Graphics;
+}
+
+/** What the last frame drew; read by tests and the dev page's state node. */
+export interface SceneStats {
+  vehicles: number;
+  /** Vehicles at speed 0 (pulsing, or red during gridlock). */
+  queued: number;
+  /** Vehicles drawing a speed trail. */
+  trails: number;
+  gridlock: boolean;
 }
 
 /** Emergency beacon period per frame (2-frame blink, GDD §7). */
@@ -74,9 +109,18 @@ export class TrafficScene {
   private readonly closureLayer = new Graphics();
   private closed: Closures = NO_CLOSURES;
   private readonly glyphLayer = new Container();
+  private readonly heatLayer = new Graphics();
+  private readonly heatProgress = new Graphics();
+  private readonly trailLayer = new Graphics();
   private readonly vehicleLayer = new Container();
-  private readonly vehicles = new Map<number, Graphics>();
-  private readonly pool: Graphics[] = [];
+  private readonly vehicles = new Map<number, VehicleView>();
+  private readonly pool: VehicleView[] = [];
+  private pulseContexts: GraphicsContext[] = [];
+  private demand: DemandProfile | null = null;
+  private gridlockAt: number | null = null;
+  private lastTick = -1;
+  private motion: MotionPrefs;
+  readonly stats: SceneStats = { vehicles: 0, queued: 0, trails: 0, gridlock: false };
   private readonly poses: VehiclePose[] = [];
   private readonly seen = new Set<number>();
   private contexts: GraphicsContext[] = [];
@@ -96,12 +140,16 @@ export class TrafficScene {
     this.map = opts.map;
     this.palette = opts.palette ?? OLD_TOWN;
     this.buffer = new SnapshotBuffer(opts.layout ?? worldLaneLayout(buildWorld(opts.map)));
-    this.fit = fitGrid(opts.width, opts.height);
+    this.motion = { reducedMotion: opts.reducedMotion ?? false };
+    this.fit = fitGrid(opts.width, opts.height, HEAT_GUTTER_PX);
     this.world.addChild(
       this.mapLayer,
       this.closureLayer,
+      this.heatLayer,
+      this.heatProgress,
       this.liveLayer,
       this.glyphLayer,
+      this.trailLayer,
       this.vehicleLayer,
     );
     this.ixWorld = intersectionWorld(opts.map);
@@ -182,13 +230,16 @@ export class TrafficScene {
     this.ixWorld = intersectionWorld(map);
     this.clearLive();
     this.closed = NO_CLOSURES;
+    this.demand = null;
+    this.gridlockAt = null;
     this.rebuild();
   }
 
   /**
    * Prepares the scene for a round. Snapshot lane ids refer to `roundWorld(input)` (the map plus
    * its topology cards, ADR-023), so the default layout is built from it every round; the
-   * controllers frames use its intersection order; and `input.closedSegments` are drawn closed.
+   * controllers frames use its intersection order; `input.closedSegments` are drawn closed; and
+   * the round's demand shows as heat-strips (as `setDemand`).
    * Switches map when `input.map` differs. Inputs the sim would reject fall back to the bare map.
    */
   setRound(input: RoundInput, layout?: LaneLayout): void {
@@ -211,6 +262,8 @@ export class TrafficScene {
       }
     }
     this.closed = closed;
+    this.demand = input.demandProfile;
+    this.gridlockAt = null;
     this.rebuild();
   }
 
@@ -219,9 +272,31 @@ export class TrafficScene {
     return this.closed.tiles;
   }
 
+  /**
+   * Shows the round's demand as a heat-strip per edge (GDD §2: "shown before placement as a
+   * 15-second heat-strip per edge"). During Go, elapsed seconds are dimmed. Null hides them.
+   */
+  setDemand(profile: DemandProfile | null): void {
+    this.demand = profile;
+    this.drawHeat();
+  }
+
+  /**
+   * Gridlock feedback (GDD §7): stopped vehicles turn desaturated red and the camera shakes 4 px
+   * for 300 ms (no shake under reduced motion). Call with the round result's `gridlocked`; a new
+   * round (tick 0) clears it.
+   */
+  setGridlock(on: boolean, now = performance.now()): void {
+    this.gridlockAt = on ? now : null;
+  }
+
+  setReducedMotion(on: boolean): void {
+    this.motion = { reducedMotion: on };
+  }
+
   resize(width: number, height: number): void {
     this.app.renderer.resize(width, height);
-    this.fit = fitGrid(width, height);
+    this.fit = fitGrid(width, height, HEAT_GUTTER_PX);
     this.rebuild();
   }
 
@@ -236,6 +311,7 @@ export class TrafficScene {
 
   destroy(): void {
     for (const c of this.contexts) c.destroy();
+    for (const c of this.pulseContexts) c.destroy();
     this.beaconAlt?.destroy();
     this.app.destroy(true, { children: true });
   }
@@ -246,6 +322,7 @@ export class TrafficScene {
     this.world.position.set(this.fit.originX, this.fit.originY);
     this.drawMap();
     this.drawClosures();
+    this.drawHeat();
     this.drawLive();
     this.drawGlyphs();
     this.buildVehicleContexts();
@@ -295,7 +372,14 @@ export class TrafficScene {
 
   private buildVehicleContexts(): void {
     const cellPx = this.fit.tilePx / CELLS_PER_TILE;
-    const old = [...this.contexts, ...(this.beaconAlt ? [this.beaconAlt] : [])];
+    const old = [
+      ...this.contexts,
+      ...this.pulseContexts,
+      ...(this.beaconAlt ? [this.beaconAlt] : []),
+    ];
+    this.pulseContexts = VEHICLE_TYPES.map((t) =>
+      drawShapes(new GraphicsContext(), vehicleOutline(t), this.palette, cellPx),
+    );
     this.contexts = VEHICLE_TYPES.map((t) =>
       drawShapes(new GraphicsContext(), vehicleShapes(t, 0), this.palette, cellPx),
     );
@@ -305,8 +389,8 @@ export class TrafficScene {
       this.palette,
       cellPx,
     );
-    for (const g of this.vehicles.values()) g.destroy();
-    for (const g of this.pool) g.destroy();
+    for (const v of this.vehicles.values()) v.root.destroy({ children: true });
+    for (const v of this.pool) v.root.destroy({ children: true });
     this.vehicles.clear();
     this.pool.length = 0;
     for (const c of old) c.destroy();
@@ -337,6 +421,15 @@ export class TrafficScene {
       const c = (run.at + 0.5) * T - w / 2;
       if (run.axis === 'h') g.roundRect(a0, c, a1 - a0, w, r).fill(p.road);
       else g.roundRect(c, a0, w, a1 - a0, r).fill(p.road);
+      // Ends that continue off-map through an edge are square: a rounded end reads as a dead end.
+      for (const [open, from] of [
+        [run.openStart, a0],
+        [run.openEnd, a1 - r],
+      ] as const) {
+        if (!open) continue;
+        if (run.axis === 'h') g.rect(from, c, r, w).fill(p.road);
+        else g.rect(c, from, w, r).fill(p.road);
+      }
     }
     // Lane dividers: 2 px centre line, plus a 1 px line between same-direction lanes. Lines run
     // from each tile's centre to its connected sides; intersection squares are drawn over them.
@@ -399,38 +492,145 @@ export class TrafficScene {
     }
   }
 
+  private drawHeat(): void {
+    const g = this.heatLayer.clear();
+    this.heatProgress.clear();
+    if (!this.demand) return;
+    const T = this.fit.tilePx;
+    const bins = demandBins(this.demand, this.map.edges);
+    const max = maxBin(bins);
+    const p = this.palette;
+    const ramp = [p.heat0, p.heat1, p.heat2, p.heat3, p.heat4];
+    const gutter = HEAT_GUTTER_PX / T;
+    for (const edge of this.map.edges) {
+      const counts = bins.get(edge.id);
+      if (!counts) continue;
+      const r = stripRect(edge, GRID_WIDTH, GRID_HEIGHT, gutter);
+      for (let b = 0; b < HEAT_BINS; b++) {
+        const color = ramp[heatLevel(counts[b] ?? 0, max)] ?? p.heat0;
+        const f0 = b / HEAT_BINS;
+        const f1 = (b + 1) / HEAT_BINS;
+        if (r.horizontal)
+          g.rect((r.x + r.w * f0) * T, r.y * T, r.w * (f1 - f0) * T, r.h * T).fill(color);
+        else g.rect(r.x * T, (r.y + r.h * f0) * T, r.w * T, r.h * (f1 - f0) * T).fill(color);
+      }
+    }
+  }
+
+  /** Dims the elapsed part of each heat-strip during Go. */
+  private drawHeatProgress(tick: number): void {
+    const g = this.heatProgress.clear();
+    if (!this.demand || tick <= 0) return;
+    const T = this.fit.tilePx;
+    const gutter = HEAT_GUTTER_PX / T;
+    const f = Math.min(1, tick / ROUND_TICKS);
+    for (const edge of this.map.edges) {
+      const r = stripRect(edge, GRID_WIDTH, GRID_HEIGHT, gutter);
+      if (r.horizontal) g.rect(r.x * T, r.y * T, r.w * f * T, r.h * T);
+      else g.rect(r.x * T, r.y * T, r.w * T, r.h * f * T);
+    }
+    g.fill({ color: this.palette.ground, alpha: 0.65 });
+  }
+
+  private takeView(): VehicleView {
+    const pooled = this.pool.pop();
+    if (pooled) return pooled;
+    const root = new Container();
+    const body = new Graphics();
+    const pulse = new Graphics();
+    root.addChild(body, pulse);
+    return { root, body, pulse };
+  }
+
   private frame(now: number): void {
     this.source?.update(now);
     const T = this.fit.tilePx;
+    const cellPx = T / CELLS_PER_TILE;
+    const tick = this.buffer.tick;
+    if (tick < this.lastTick) this.gridlockAt = null; // a new round started
+    if (tick !== this.lastTick) this.drawHeatProgress(tick);
+    this.lastTick = tick;
+
+    const gridlock = this.gridlockAt !== null;
+    const [sx, sy] = gridlock ? shakeOffset(now - (this.gridlockAt ?? now), this.motion) : [0, 0];
+    this.world.position.set(this.fit.originX + sx, this.fit.originY + sy);
+
     const n = this.buffer.sample(now, this.poses);
     const beacon = Math.floor(now / BEACON_MS) % 2 === 1;
+    const pulse = pulseAlpha(now, this.motion);
+    const trails = this.trailLayer.clear();
+    let queued = 0;
+    let trailing = 0;
     this.seen.clear();
     for (let i = 0; i < n; i++) {
       const pose = this.poses[i];
       if (!pose) continue;
-      this.seen.add(pose.id);
-      let g = this.vehicles.get(pose.id);
       const ctx =
         pose.type === VehicleType.Emergency && beacon && this.beaconAlt
           ? this.beaconAlt
           : (this.contexts[pose.type] ?? this.contexts[0]);
       if (!ctx) continue;
-      if (!g) {
-        g = this.pool.pop() ?? new Graphics();
-        this.vehicles.set(pose.id, g);
-        this.vehicleLayer.addChild(g);
+      this.seen.add(pose.id);
+      let v = this.vehicles.get(pose.id);
+      if (!v) {
+        v = this.takeView();
+        this.vehicles.set(pose.id, v);
+        this.vehicleLayer.addChild(v.root);
       }
-      if (g.context !== ctx) g.context = ctx;
-      g.position.set(pose.x * T, pose.y * T);
-      g.rotation = pose.heading;
+      if (v.body.context !== ctx) v.body.context = ctx;
+      const pctx = this.pulseContexts[pose.type] ?? this.pulseContexts[0];
+      if (pctx && v.pulse.context !== pctx) v.pulse.context = pctx;
+      v.root.position.set(pose.x * T, pose.y * T);
+      v.root.rotation = pose.heading;
+
+      const stopped = pose.speed === 0;
+      if (stopped) queued++;
+      v.body.tint = gridlock && stopped ? GRIDLOCK_TINT : 0xffffff;
+      v.pulse.visible = stopped && !gridlock && pulse > 0;
+      v.pulse.alpha = pulse;
+
+      const cells = trailCells(pose.speed, this.motion);
+      if (cells > 0) {
+        trailing++;
+        this.drawTrail(trails, pose, cells, cellPx, T);
+      }
     }
-    for (const [id, g] of this.vehicles) {
+    for (const [id, v] of this.vehicles) {
       if (this.seen.has(id)) continue;
       this.vehicles.delete(id);
-      this.vehicleLayer.removeChild(g);
-      this.pool.push(g);
+      this.vehicleLayer.removeChild(v.root);
+      this.pool.push(v);
     }
     this.drawn = this.seen.size;
+    this.stats.vehicles = this.drawn;
+    this.stats.queued = queued;
+    this.stats.trails = trailing;
+    this.stats.gridlock = gridlock;
+  }
+
+  /** 1–3 cell tapering streak behind the vehicle's tail, fading with distance (GDD §7). */
+  private drawTrail(
+    g: Graphics,
+    pose: VehiclePose,
+    cells: number,
+    cellPx: number,
+    T: number,
+  ): void {
+    const len = VEHICLE_LENGTH[pose.type as VehicleType] ?? 1;
+    const c = Math.cos(pose.heading);
+    const s = Math.sin(pose.heading);
+    const cx = pose.x * T;
+    const cy = pose.y * T;
+    for (const p of trailPieces(cells, len)) {
+      const pts = [p.a0, -p.h0, p.a0, p.h0, p.a1, p.h1, p.a1, -p.h1];
+      const out: number[] = [];
+      for (let k = 0; k < pts.length; k += 2) {
+        const x = (pts[k] ?? 0) * cellPx;
+        const y = (pts[k + 1] ?? 0) * cellPx;
+        out.push(cx + x * c - y * s, cy + x * s + y * c);
+      }
+      g.poly(out, true).fill({ color: this.palette.divider, alpha: p.alpha });
+    }
   }
 }
 
