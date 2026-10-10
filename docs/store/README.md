@@ -78,6 +78,13 @@ languages other than English. Sound stays out of the copy until the audio task s
   tool supports it.
 - Length 6–15 s, looping cleanly. The seed is recorded next to the file so it can be reproduced.
 
+**Status (P1-QA-02):** `pnpm clip` renders it (`tools/clip`, ADR-028). The current pick is seed 4.
+`clips/market-day.json` gives a 17 s clip in which Delivery Window and Fare Holiday carry Market
+Day to 155 through, against a quota of 60. `clips/market-day-none.json` is the same round with no
+cards, which gridlocks at 0:12 with 29 through. CI uploads both as MP4 and GIF on every push to
+`main`. Only 9:16 exists so far; a square or 16:9 crop comes with the Steam and itch assets
+(rest of P1-QA-03).
+
 ## Before Idan posts: checklist
 
 - [ ] The GIF is rendered and placed in every `[GIF]` slot.
