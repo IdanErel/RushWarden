@@ -1,4 +1,5 @@
 import { Hasher, hashValue } from './hash.js';
+import { validatePlacements } from './placements.js';
 import { createPrng, nextU32, type PrngState } from './prng.js';
 import { buildWorld, edgeIndex, type World } from './world.js';
 import {
@@ -57,6 +58,8 @@ function validate(input: RoundInput): World {
       throw new RangeError(`demand at tick ${e.tick} has edge ${e.edge} as its own destination`);
     }
   }
+  validatePlacements(input.map, input.placements);
+  validatePlacements(input.map, input.cardState.runEffects);
   return world;
 }
 
