@@ -67,8 +67,9 @@ rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5).
    - **Map pool:** Parade rounds pick only from maps with at least one candidate. Tree-shaped
      maps have none. In District 1 those are d1-02, d1-05, d1-09 and d1-10, leaving 24 of 38
      maps. Other rounds pick from all maps.
-   - **Sim support:** the run controller passes `closedSegments` on as
-     `RoundInput.closedSegments`, and the sim closes those links for the round (ADR-022).
+   - **Sim support:** the sim closes the links of `RoundInput.closedSegments` for the round
+     (ADR-022). The run controller must copy `closedSegments` from `setupRound` into the round
+     input; until it does, a Parade has no effect in runs.
 10. **Festival** (round 12): data only.
     - Volume is ×1.6 on top of the rush ×1.6.
     - The mix gives 5% to emergency vehicles, taken from cars (650 car, 150 bus, 100 truck,

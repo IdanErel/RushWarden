@@ -1,7 +1,7 @@
 /**
  * Parade (GDD §5, District 1 round 8 boss): "one segment closed". Content picks the segment from
- * the round seed and returns it in `RoundSetup.closedSegments`, which the run controller passes
- * on as `RoundInput.closedSegments` (sim `SegmentId`, ADR-022).
+ * the round seed and returns it in `RoundSetup.closedSegments`, for the run controller to copy
+ * into `RoundInput.closedSegments` (sim `SegmentId`, ADR-022).
  */
 import {
   buildWorld,
