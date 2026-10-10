@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "golden": "pnpm --filter @rushwarden/golden run test:node",
+    "clip": "pnpm --filter @rushwarden/clip run clip",
     "golden:browsers": "pnpm --filter @rushwarden/golden run test:browsers",
     "golden:update": "pnpm --filter @rushwarden/golden run update",
     "size": "pnpm --filter @rushwarden/platform-web run build && node tools/size-budget/check.mjs",
