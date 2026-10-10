@@ -1,0 +1,75 @@
+# P1-LEAD-02: builds the itch HTML5 zip (P1-PLT-01) and pushes it to the itch.io draft channel
+# with butler. Manual only. The push runs only when the BUTLER_API_KEY secret and the ITCH_GAME
+# repository variable (`user/game`) both exist; otherwise the workflow builds, uploads the zip as
+# an artifact and skips the push cleanly. Secrets are added by Idan in the repo settings, never
+# by a workflow or a PR.
+name: itch deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: itch.io channel to push to
+        required: false
+        default: draft
+
+concurrency:
+  group: itch-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and push to itch (draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_GAME: ${{ vars.ITCH_GAME }}
+      CHANNEL: ${{ inputs.channel || 'draft' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the itch zip (size-, map- and hook-checked)
+        run: pnpm --filter @rushwarden/platform-web run package:itch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rushwarden-itch-${{ github.sha }}
+          path: packages/platform-web/itch/rushwarden-itch.zip
+          if-no-files-found: error
+          retention-days: 14
+      - name: Decide whether to push
+        id: gate
+        run: |
+          if [ -z "$BUTLER_API_KEY" ]; then
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::BUTLER_API_KEY is not set; built the zip and skipped the itch push."
+            echo "itch push skipped: the \`BUTLER_API_KEY\` secret is not set. The zip is in this run's artifacts." >> "$GITHUB_STEP_SUMMARY"
+          elif [ -z "$ITCH_GAME" ]; then
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::The ITCH_GAME repository variable (user/game) is not set; skipped the itch push."
+            echo "itch push skipped: the \`ITCH_GAME\` repository variable (\`user/game\`) is not set." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install butler
+        if: steps.gate.outputs.push == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/butler"
+          curl -fsSL -o "$RUNNER_TEMP/butler.zip" https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q "$RUNNER_TEMP/butler.zip" -d "$RUNNER_TEMP/butler"
+          chmod +x "$RUNNER_TEMP/butler/butler"
+          echo "$RUNNER_TEMP/butler" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/butler/butler" -V
+      - name: Push to ${{ env.CHANNEL }}
+        if: steps.gate.outputs.push == 'true'
+        run: |
+          butler push packages/platform-web/itch/rushwarden-itch.zip "$ITCH_GAME:$CHANNEL" --userversion "${GITHUB_SHA::7}"
+          echo "Pushed \`${GITHUB_SHA::7}\` to itch channel \`$ITCH_GAME:$CHANNEL\`." >> "$GITHUB_STEP_SUMMARY"

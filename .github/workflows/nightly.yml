@@ -1,0 +1,103 @@
+# P1-LEAD-02: nightly golden (all three browsers), sim throughput and the GDD section 11 balance
+# report. The report is uploaded as an artifact and never committed (Lead decision).
+name: Nightly
+
+on:
+  schedule:
+    - cron: '17 2 * * *' # 02:17 UTC, off the top of the hour
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: Balance seeds per bot (the nightly default fits well inside the 6 h job limit)
+        required: false
+        default: '2000'
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  golden-browsers:
+    name: Golden hashes (Node, Chromium, WebKit, Firefox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Golden hashes on Node
+        run: pnpm golden
+      - run: pnpm --filter @rushwarden/golden exec playwright install --with-deps chromium webkit firefox
+      - name: Golden hashes on Chromium, WebKit and Firefox
+        run: pnpm golden:browsers
+
+  sim-bench:
+    name: Sim throughput (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Report only: compare numbers only between runs on the same CPU model (ADR-026).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Bench (one run)
+        run: pnpm --filter @rushwarden/sim exec vitest bench --run --outputJson "$RUNNER_TEMP/sim-bench.json"
+      - name: Rounds/s to the job summary
+        run: node packages/sim/bench/summary.mjs "$RUNNER_TEMP/sim-bench.json" "$GITHUB_STEP_SUMMARY"
+
+  balance:
+    name: Balance report (GDD section 11)
+    runs-on: ubuntu-latest
+    # 2,000 seeds per bot on the runner's cores; the hard ceiling is GitHub's 6 h job limit.
+    timeout-minutes: 300
+    env:
+      SEEDS: ${{ inputs.seeds || '2000' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check that the balance runner exists
+        id: runner
+        run: |
+          if node -e "process.exit(require('./packages/balance/package.json').scripts?.report ? 0 : 1)"; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::@rushwarden/balance has no 'report' script yet (P1-BAL-02); skipping the balance report."
+            echo "Balance report skipped: \`@rushwarden/balance\` has no \`report\` script yet (P1-BAL-02)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Run the balance report
+        if: steps.runner.outputs.present == 'true'
+        # Flags go straight after the script name: with `--`, pnpm passes a literal `--` through
+        # and the CLI's parseArgs rejects every flag after it.
+        run: >-
+          pnpm --filter @rushwarden/balance run report
+          --seeds "$SEEDS"
+          --commit "${GITHUB_SHA::7}"
+          --out "$RUNNER_TEMP/balance/latest.md"
+      - name: Report to the job summary
+        if: steps.runner.outputs.present == 'true'
+        run: cat "$RUNNER_TEMP/balance/latest.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: steps.runner.outputs.present == 'true'
+        with:
+          name: balance-report-${{ github.run_number }}-${{ github.sha }}
+          path: ${{ runner.temp }}/balance/latest.md
+          if-no-files-found: error
+          retention-days: 30
