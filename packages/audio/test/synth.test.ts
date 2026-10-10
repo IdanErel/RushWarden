@@ -7,8 +7,8 @@ import {
   voiceDuration,
   type SfxDef,
   type Voice,
-} from '../src/synth';
-import { hashString, rng } from '../src/rng';
+} from '../src/synth.js';
+import { hashString, rng } from '../src/rng.js';
 
 const SR = 8000;
 

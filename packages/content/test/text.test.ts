@@ -96,6 +96,11 @@ const CASES: [Effect, TargetKind, string][] = [
     'Trucks are banned from this segment and route around it.',
   ],
   [
+    { kind: 'banType', vehicleType: Truck, scope: 'target-class' },
+    'segment',
+    'Trucks are banned from every road in the district of the same class (local or arterial) as this segment and route around them.',
+  ],
+  [
     { kind: 'banType', vehicleType: Truck, scope: { roadClass: 'local' } },
     'segment',
     'Trucks are banned from every local (1-lane) road in the district and route around them.',
@@ -121,7 +126,7 @@ const CASES: [Effect, TargetKind, string][] = [
     'Buses and taxis get green on approach to every intersection.',
   ],
   [
-    { kind: 'addBusStop', dwellTicks: 2 },
+    { kind: 'setBusStopDwell', dwellTicks: 2 },
     'segment',
     'Buses dwell 2 ticks at the bus stop on this segment.',
   ],
@@ -195,6 +200,21 @@ const CASES: [Effect, TargetKind, string][] = [
     { kind: 'costModifier', cards: ['one-way', 'detour'], delta: 1 },
     'district',
     'one-way and detour cost +1 energy.',
+  ],
+  [
+    { kind: 'costModifier', cards: 'all', next: 1, cost: 0 },
+    'district',
+    'The next card you play this round costs 0.',
+  ],
+  [
+    { kind: 'costModifier', cards: 'all', next: 2, cost: 0 },
+    'district',
+    'The next 2 cards you play this round cost 0.',
+  ],
+  [
+    { kind: 'costModifier', cards: ['detour'], next: 1, cost: 1 },
+    'district',
+    'The next card of detour you play this round costs 1.',
   ],
   [{ kind: 'redraw', keep: 0 }, 'district', 'Redraw your hand.'],
   [{ kind: 'redraw', keep: 1 }, 'district', 'Keep 1 card, then redraw the rest of your hand.'],

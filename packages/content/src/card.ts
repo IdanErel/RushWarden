@@ -75,7 +75,7 @@ export const EFFECT_TARGETS: { readonly [K in EffectKind]: readonly TargetKind[]
   setSpeedLimit: ['intersection', 'segment', 'district'],
   banType: ['segment', 'district'],
   preferType: ['intersection', 'district'],
-  addBusStop: ['segment'],
+  setBusStopDwell: ['segment'],
   addBikeLane: ['segment'],
   addTurnLane: ['intersection'],
   reserveLane: ['segment'],
@@ -98,7 +98,7 @@ const SINGLETON_KINDS = new Set<EffectKind>([
   'setController',
   'setSignalPhase',
   'setLaneCount',
-  'addBusStop',
+  'setBusStopDwell',
   'addBikeLane',
   'setOneWay',
   'setPSlow',
@@ -169,6 +169,18 @@ function effectRules(effects: readonly Effect[], target: TargetKind, path: strin
     }
     if (e.kind === 'setOneWay' && e.direction === undefined && target !== 'segment') {
       errors.push({ path: at, message: 'a one-way without direction needs a segment target' });
+    }
+    if (e.kind === 'costModifier') {
+      const relative = e.delta !== undefined;
+      const absolute = e.next !== undefined || e.cost !== undefined;
+      if (relative === absolute) {
+        errors.push({ path: at, message: 'costModifier needs either delta, or next and cost' });
+      } else if (absolute && (e.next === undefined || e.cost === undefined)) {
+        errors.push({ path: at, message: 'costModifier next and cost go together' });
+      }
+    }
+    if (e.kind === 'banType' && e.scope === 'target-class' && target !== 'segment') {
+      errors.push({ path: at, message: 'scope "target-class" needs a segment target' });
     }
     if (e.kind === 'spawnWindow' && e.fromTick >= e.toTick) {
       errors.push({ path: at, message: 'fromTick must be before toTick' });

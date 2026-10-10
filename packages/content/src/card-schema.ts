@@ -114,9 +114,10 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
       kind: kind('banType'),
       vehicleType: vehicle,
       scope: {
-        description: '"target" (default), or every segment of a road class in the district.',
+        description:
+          '"target" (default); "target-class": the placed segment\'s road class district-wide; or a fixed road class district-wide.',
         oneOf: [
-          { type: 'string', enum: ['target'] },
+          { type: 'string', enum: ['target', 'target-class'] },
           {
             type: 'object',
             properties: { roadClass: { type: 'string', enum: ROAD_CLASSES } },
@@ -135,9 +136,9 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
     required: ['kind', 'vehicleType'],
     additionalProperties: false,
   },
-  addBusStop: {
+  setBusStopDwell: {
     type: 'object',
-    properties: { kind: kind('addBusStop'), dwellTicks: int(0, 40) },
+    properties: { kind: kind('setBusStopDwell'), dwellTicks: int(0, 40) },
     required: ['kind', 'dwellTicks'],
     additionalProperties: false,
   },
@@ -274,9 +275,11 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
           },
         ],
       },
-      delta: nonZero(-3, 3),
+      delta: nonZero(-3, 3, 'Relative change; or use next + cost.'),
+      next: int(1, 2, 'The next N cards played this round...'),
+      cost: int(0, 3, '...cost exactly this much energy.'),
     },
-    required: ['kind', 'cards', 'delta'],
+    required: ['kind', 'cards'],
     additionalProperties: false,
   },
   redraw: {
