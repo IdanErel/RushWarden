@@ -12,7 +12,14 @@ import { CARD_FILES } from './cards.js';
 import { type DeckDef, expandDeck, validateDecks } from './deck.js';
 import { DECK_FILES, PHASE1_STARTING_DECK_ID } from './deck-files.js';
 import { MAP_FILES } from './map-files.js';
-import { type District, type MapTemplate, mapsForDistrict, validateMapTemplates } from './maps.js';
+import { type RoundSetup, type SetupRoundArgs, setupRoundFrom } from './demand.js';
+import {
+  type District,
+  type MapTemplate,
+  mapsForDistrict,
+  pickMap,
+  validateMapTemplates,
+} from './maps.js';
 import type { GridMap } from '@rushwarden/sim';
 
 export {
@@ -78,6 +85,39 @@ export {
   type Variant,
 } from './maps.js';
 export { MAP_CHARS, MAP_SCHEMA } from './map-schema.js';
+export {
+  BASE_QUOTA,
+  DISTRICT_DEMAND,
+  EDGE_WEIGHT_MAX,
+  generateDemand,
+  heatStrip,
+  MARKET_DAY_TRUCKS_PER_SECOND,
+  mixCounts,
+  ROUND_GROWTH_PERMILLE,
+  ROUND_SECONDS,
+  roundQuota,
+  roundVehicles,
+  RUSH_PERMILLE,
+  RUSH_ROUNDS,
+  SECOND_WEIGHTS,
+  SEED_SALTS,
+  setupRoundFrom,
+  SUPPORTED_BOSSES,
+  type DemandArgs,
+  type DemandMix,
+  type DistrictDemand,
+  type HeatStrip,
+  type HeatStripRow,
+  type RoundSetup,
+  type SetupRoundArgs,
+} from './demand.js';
+export {
+  edgesConnectedWithout,
+  interiorSegments,
+  paradeCandidates,
+  pickParadeSegment,
+  type SegmentId,
+} from './parade.js';
 export { MAP_FILES } from './map-files.js';
 
 let cache: readonly CardDef[] | undefined;
@@ -137,6 +177,15 @@ export function startingDeck(id: string = PHASE1_STARTING_DECK_ID): string[] {
   const deck = loadDecks().find((d) => d.id === id);
   if (deck === undefined) throw new Error(`Unknown deck ${id}`);
   return expandDeck(deck);
+}
+
+/**
+ * Sets up one round from its seed with the bundled maps: map, demand profile, heat-strip, quota
+ * and district rules (P1-CON-04). The argument matches the run controller's
+ * `RunEnv.setupRound`, so `{ setupRound }` can be passed to it as is.
+ */
+export function setupRound(args: SetupRoundArgs): RoundSetup {
+  return setupRoundFrom(args, districtMaps, pickMap);
 }
 
 /** One bundled card by id. Throws if unknown. */
