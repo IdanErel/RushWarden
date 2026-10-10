@@ -82,7 +82,7 @@ describe('H4 spy PortalAdapter', () => {
       true,
     );
     expect(cg.id).toBe('crazygames');
-    expect(cg.canSellInPortal()).toBe(true);
+    expect(cg.canSellInPortal()).toBe(false);
     expect(cg.shareUrl()).toBe(SHARE);
 
     const unknown = withPortalSpy(

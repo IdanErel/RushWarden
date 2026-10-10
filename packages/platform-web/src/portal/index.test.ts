@@ -6,6 +6,7 @@ import {
   createPortalAdapter,
   parsePortalFlag,
 } from './index.js';
+import { checkBuildEnv } from './flag.js';
 import { fakeEnv } from './fake-env.test-helper.js';
 
 const SHARE = 'https://rushwarden.com/';
@@ -19,6 +20,25 @@ describe('parsePortalFlag', () => {
 
   it('throws on an unknown flag so the build fails', () => {
     expect(() => parsePortalFlag('Poki')).toThrow(/VITE_PORTAL/);
+  });
+});
+
+describe('checkBuildEnv (ADR-024 point 4)', () => {
+  const URL = 'https://api.rushwarden.com/ingest';
+
+  it('fails a Poki or CrazyGames build that sets VITE_INGEST_URL', () => {
+    for (const portal of ['poki', 'crazygames'])
+      expect(() => checkBuildEnv({ VITE_PORTAL: portal, VITE_INGEST_URL: URL })).toThrow(
+        /VITE_INGEST_URL must not be set/,
+      );
+  });
+
+  it('allows portal builds without it, and itch or own-site builds with it', () => {
+    expect(checkBuildEnv({ VITE_PORTAL: 'poki' })).toBe('poki');
+    expect(checkBuildEnv({ VITE_PORTAL: 'crazygames', VITE_INGEST_URL: '' })).toBe('crazygames');
+    expect(checkBuildEnv({ VITE_PORTAL: 'itch', VITE_INGEST_URL: URL })).toBe('itch');
+    expect(checkBuildEnv({ VITE_INGEST_URL: URL })).toBe('none');
+    expect(() => checkBuildEnv({ VITE_PORTAL: 'Poki' })).toThrow(/VITE_PORTAL/);
   });
 });
 
