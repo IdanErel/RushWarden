@@ -54,7 +54,7 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
 2. Settings → API keys → generate a key. GitHub secret: `BUTLER_API_KEY`. Variable:
    `ITCH_TARGET` = `youruser/rushwarden:html5`.
 3. You publish; CI only uploads builds to the draft channel.
-4. Until the butler deploy exists (P1-LEAD-02), every CI run on `main` attaches the zip as the
+4. Until the butler deploy exists (P1-LEAD-02), every CI run (on `main` and on PRs) attaches the zip as the
    artifact `rushwarden-itch-<commit>` (GitHub → Actions → the run → Artifacts). To try it by hand,
    upload that zip to the draft project and tick "This file will be played in the browser".
 
