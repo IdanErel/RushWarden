@@ -15,4 +15,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 006 | Phase 1 Steam wishlist gate needs Steamworks in Phase 1 | Proposed (Idan) |
 | 007 | Phase 1 scope                                           | Accepted        |
 | 008 | The game is named Rushwarden                            | Accepted        |
-| 010 | How the Phase 1 gate criteria are measured              | Proposed (Idan) |
+| 010 | How the Phase 1 gate criteria are measured              | Accepted        |

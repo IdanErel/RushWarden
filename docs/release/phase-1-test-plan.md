@@ -14,7 +14,7 @@ The specs themselves land in a second P1-QA-01 PR once P1-UI-01 gives us a playa
 Sources: GDD §2 (core loop), §8 (screens, input), §9 (portal rules), §11 (test layers, device
 matrix, bug policy), §13 (Phase 1 gate); ADR-006 (Steam gate, accepted); ADR-007 (Phase 1 scope); ADR-008 (name); ADR-009 (event time
 is the server's receipt time, in PR #8); [ADR-010](../decisions/ADR-010-phase1-gate-measurement.md) (gate measurement
-definitions, proposed in this PR).
+definitions, accepted by the Lead; Idan can override them at the gate review).
 
 ## 1. What the toy is, and what it is not
 
@@ -38,28 +38,30 @@ into the e2e in the phase that builds them.
 
 ## 2. Toy e2e flow
 
-### 2.1 What the specs need from the build (requests, not decisions)
+### 2.1 What the specs need from the build (approved by the Lead)
 
 The run screen is a Pixi canvas, so Playwright cannot read cards or vehicles from the DOM. The
-specs need these hooks. They live in packages owned by Render/UI and Platform, so the Lead decides
-how they are provided. QA proposes:
+specs need these hooks. The Lead approved H1–H5 and routes them to their owners. QA writes the
+specs against them; the owners build them:
 
-- **H1. Seed in the URL.** `?seed=<u32>` fixes the run seed in dev and e2e builds, so a spec can
+- **H1. Seed in the URL** (Platform, `packages/platform-web`). `?seed=<u32>` fixes the run seed in dev and e2e builds, so a spec can
   pick a run that passes, one that fails, and one that gridlocks. Public builds ignore it.
-- **H2. Test state on a DOM node**, in the same style as the existing `#app[data-hash]` in
+- **H2. Test state on a DOM node** (Render/UI, `packages/ui`), in the same style as the existing `#app[data-hash]` in
   `packages/platform-web`: `data-phase` (`place` | `go` | `result` | `end`), `data-round`,
   `data-approval`, `data-energy`, `data-hand` (card ids), `data-throughput`, `data-quota`,
   `data-speed` (`1` | `2`), `data-paused`, `data-round-hash` (the sim's 64-bit final-state hash
   for the round, as hex).
-- **H3. Accessible names on the DOM controls** (Go, pause, offer cards, skip, share, retry). §8
+- **H3. Accessible names on the DOM controls** (Render/UI, `packages/ui`) (Go, pause, offer cards, skip, share, retry). §8
   requires screen-reader labels anyway. Specs select by role and name, never by CSS class.
-- **H4. A spy `PortalAdapter`** in e2e builds that records calls in order on `window`, so a spec
+- **H4. A spy `PortalAdapter`** (Platform, `packages/platform-web`) in e2e builds that records calls in order on `window`, so a spec
   can check the §9 call pattern without the real Poki or CrazyGames SDK.
-- **H5. Canvas targets by keyboard.** Specs place cards with the §8 keyboard path (1–5, arrows,
+- **H5. Canvas targets by keyboard** (Render/UI: the §8 keyboard path from P1-UI-01, plus
+  `data-target-rects` on the H2 node). Specs place cards with the §8 keyboard path (1–5, arrows,
   Enter), because canvas pixel coordinates are fragile. One phone spec also taps the canvas at a
   target position that H2 exposes (`data-target-rects`), to cover touch.
 
-If a hook is refused, the matching spec becomes a manual check in §3.3, and this plan is updated.
+Until a hook ships, the matching spec is marked `test.fixme` with the hook ID, and the check is
+done by hand from the §3.3 list.
 
 ### 2.2 Specs
 
@@ -108,15 +110,15 @@ itch:
 | Frame time                                        | QA; Playwright trace, 4× CPU throttle on the desktop project | Reported in the itch release notes; not a Phase 1 gate (the 60 fps gate is Phase 2) |
 | Soak                                              | QA; headless runner                                          | 500 full toy runs (5 rounds) without an exception before each itch upload           |
 
-### 2.4 Proposed CI changes (Lead owns CI)
+### 2.4 CI changes (approved by the Lead)
 
 - Add a Playwright project at exactly **390×844** (the §2 design size). The current `phone`
   project uses Pixel 5 (393×851), which is close but not the spec size.
 - Add a **WebKit phone** project (iPhone 12 profile, 390×844) to the `web` job, so Safari-family
   layout and input are covered on every PR, not only by Idan's phone.
 
-These change `packages/platform-web/playwright.config.ts` and `.github/workflows/ci.yml`. QA will
-propose them in the specs PR for the Lead to approve.
+These change `packages/platform-web/playwright.config.ts` and `.github/workflows/ci.yml`. The
+Lead approved both; QA adds them in the e2e specs PR (the second half of P1-QA-01).
 
 ## 3. Device and browser matrix (Phase 1)
 
@@ -127,12 +129,12 @@ emulators").
 
 ### 3.1 Automated (CI, every PR)
 
-| Engine   | Viewport                         | Projects                                 |
-| -------- | -------------------------------- | ---------------------------------------- |
-| Chromium | Pixel 5 phone (390×844 proposed) | `phone`, all specs                       |
-| Chromium | Desktop 1280×720 and 1920×1080   | `desktop`, all specs except E2E-03       |
-| WebKit   | iPhone 12, 390×844 (proposed)    | `phone-webkit`, E2E-01 to E2E-12         |
-| Firefox  | n/a                              | Golden hashes only (already on every PR) |
+| Engine   | Viewport                        | Projects                                 |
+| -------- | ------------------------------- | ---------------------------------------- |
+| Chromium | 390×844 (specs PR; Pixel 5 now) | `phone`, all specs                       |
+| Chromium | Desktop 1280×720 and 1920×1080  | `desktop`, all specs except E2E-03       |
+| WebKit   | iPhone 12, 390×844 (specs PR)   | `phone-webkit`, E2E-01 to E2E-12         |
+| Firefox  | n/a                             | Golden hashes only (already on every PR) |
 
 ### 3.2 Real devices (Idan, before the itch build goes public and again before the Poki/CrazyGames submission)
 
@@ -183,8 +185,8 @@ into `docs/release/phase-1-gate.md` (task P1-QA-04) with a source for every numb
 reads a store, portal or analytics console itself: the Steam, itch, Poki and CrazyGames numbers
 come from Idan as an export or screenshot, committed under `docs/release/evidence/phase-1/`.
 
-The exact definitions below are proposed in ADR-010 for Idan to confirm. Where the brief leaves a
-choice open, the ADR gives a default.
+The exact definitions below are fixed in ADR-010 (accepted by the Lead). They are measurement
+definitions, not a gate change; Idan can override any of them at the gate review.
 
 ### 4.1 Criterion 1: 200+ itch plays with median session > 2 min
 
@@ -254,9 +256,9 @@ shows the data next to the bar so Idan can see how close it was.
 
 ## 6. Open items
 
-| Item                                                       | Who decides                       | Blocks                      |
-| ---------------------------------------------------------- | --------------------------------- | --------------------------- |
-| Test hooks H1–H5                                           | Lead, with Render/UI and Platform | Most of the specs in §2.2   |
-| 390×844 and WebKit phone projects in CI                    | Lead                              | §3.1 rows marked "proposed" |
-| Measurement definitions (windows, sessions, net wishlists) | Idan (ADR-010)                    | The gate page               |
-| Privacy policy published (enables `/ingest`)               | Idan (ADR-007)                    | Criterion 1                 |
+| Item                                               | Status / owner                                        | Blocks                    |
+| -------------------------------------------------- | ----------------------------------------------------- | ------------------------- |
+| Test hooks H1–H5 (approved)                        | Built by Render/UI (H2, H3, H5) and Platform (H1, H4) | Most of the specs in §2.2 |
+| 390×844 and WebKit phone projects in CI (approved) | QA adds them in the specs PR                          | §3.1 rows                 |
+| Measurement definitions (ADR-010, accepted)        | Idan may override at the gate review                  | The gate page             |
+| Privacy policy published (enables `/ingest`)       | Idan (ADR-007)                                        | Criterion 1               |

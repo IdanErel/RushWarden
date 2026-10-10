@@ -1,10 +1,10 @@
 # ADR-010: How the Phase 1 gate criteria are measured
 
-Status: Proposed · 2026-10-10 · QA / Release · needs Idan
+Status: Accepted · 2026-10-10 · Lead (proposed by QA / Release; Idan can override at the gate review)
 
 GDD §13 sets the four Phase 1 gate criteria but not their exact definitions. Those details decide
-pass or fail, and the gate is Idan's call, so QA proposes them here. They apply unless Idan
-changes them before the gate page (P1-QA-04) is written. The full method is in
+pass or fail. This ADR fixes them as measurement definitions; it does not change the gate. The
+go/no-go stays Idan's call, and he can override any definition at the gate review (P1-QA-04). The full method is in
 `docs/release/phase-1-test-plan.md` §4.
 
 1. **itch window and session.** Criterion 1 counts the 14 days from Idan's first public post of the
