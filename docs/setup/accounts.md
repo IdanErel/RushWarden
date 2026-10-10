@@ -145,12 +145,14 @@ nothing collects until you do the steps below, and **steps 4 and 5 wait until th
 
 **Open before step 4 (the server does not go live until both are done):**
 
-- [ ] **Retention purge.** A scheduled Worker job that deletes `events` rows older than the
-      retention period. **Idan picks the period** (the privacy policy must state the same number);
-      the team then adds the cron trigger and the purge with tests.
-- [ ] **Workers logging.** Set Workers Logs / observability explicitly off (or minimal, no request
-      bodies or headers) in `wrangler.toml`, so Cloudflare does not keep event payloads beyond the
-      `events` table.
+- [x] **Retention purge.** ADR-025 set 90 days. The Worker's daily cron (`wrangler.toml`
+      `[triggers]`, 02:30 UTC) rolls up yesterday into `daily_rollups` (no install IDs, rows under
+      10 installs dropped) and deletes `events` rows older than 90 days
+      (`packages/backend/src/ingest/retention.ts`). Apply migration `0002_daily_rollups.sql` with
+      the first deploy.
+- [x] **Workers logging.** `wrangler.toml` sets `[observability] enabled = false` and
+      `logpush = false`, so Cloudflare keeps no event payloads beyond the `events` table. Check in
+      the dashboard after the first deploy that Workers Logs shows as off.
 
 ## 7. Stripe
 

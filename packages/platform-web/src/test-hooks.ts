@@ -36,7 +36,8 @@ const SPY_IDS = ['poki', 'crazygames', 'itch'] as const;
 type SpyId = (typeof SPY_IDS)[number];
 
 /** Same `canSellInPortal` answers as the real adapters (GDD §9). */
-const SELLS_IN_PORTAL: Record<SpyId, boolean> = { poki: false, crazygames: true, itch: true };
+// Mirrors each real adapter's canSellInPortal() (ADR-024: no unlock on Poki or CrazyGames).
+const SELLS_IN_PORTAL: Record<SpyId, boolean> = { poki: false, crazygames: false, itch: true };
 
 /** One recorded call, in order. `window.__portalCalls` holds these in hooks builds. */
 export type PortalCall =
@@ -47,7 +48,8 @@ export type PortalCall =
   | 'commercialBreak'
   | 'happyTime'
   | 'shareUrl'
-  | 'canSellInPortal';
+  | 'canSellInPortal'
+  | 'openExternalLink';
 
 /**
  * H4: a `PortalAdapter` that records every call in order into `calls`, then delegates to
@@ -96,6 +98,10 @@ export class SpyPortalAdapter implements WebPortalAdapter {
     this.calls.push('canSellInPortal');
     return this.inner.canSellInPortal();
   }
+  openExternalLink(url: string): void {
+    this.calls.push('openExternalLink');
+    this.inner.openExternalLink(url);
+  }
 }
 
 /** A stand-in portal with a given identity and no SDK, for `?portalSpy=<id>`. */
@@ -116,6 +122,8 @@ class StandInPortal implements WebPortalAdapter {
   canSellInPortal(): boolean {
     return SELLS_IN_PORTAL[this.id];
   }
+  /** No SDK and no new tab: specs check the call in `__portalCalls`. */
+  openExternalLink(): void {}
 }
 
 /**

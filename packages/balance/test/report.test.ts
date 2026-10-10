@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildReport, dataWarnings, formatReport, BOT_NAMES, roundsOf } from '../src/balance.js';
 import { greedyBot, phase1Bots } from '../src/bots.js';
-import { gateCriterion2, renderReport, summarizeDeck } from '../src/report.js';
+import { draftedDelta, gateCriterion2, renderReport, summarizeDeck } from '../src/report.js';
 import { runSeeds, seedSet } from '../src/runner.js';
 import { record, scoredSpec } from './fixtures.js';
 
@@ -84,6 +84,39 @@ describe('report', () => {
     expect(md).toContain('| 3 | 1 |');
     expect(md).toContain('| random | 15 | 1 | 6.7% |');
     expect(md).not.toContain('[!WARNING]');
+  });
+
+  it('computes the drafted delta within each bot, not against a pooled baseline', () => {
+    // A weak bot that always drafts X and a strong bot that never does: pooling would call X a
+    // −50 point card although no bot did better or worse with it. Against each bot's own
+    // baseline it is 0.
+    const pooledOnly = new Map([
+      ['weak', [record({ bot: 'weak', seed: 1, win: false, drafted: ['x'] })]],
+      ['strong', [record({ bot: 'strong', seed: 1, win: true })]],
+    ]);
+    expect(draftedDelta(pooledOnly, 'x')).toBe(0);
+    expect(draftedDelta(pooledOnly, 'y')).toBeNull();
+    // Bot a: drafted 1/2 wins vs baseline 1/4 (+250, weight 2); b: 0/1 vs 1/2 (−500, weight 1).
+    const a = [
+      record({ bot: 'a', seed: 1, win: true, drafted: ['x'] }),
+      record({ bot: 'a', seed: 2, win: false, drafted: ['x'] }),
+      record({ bot: 'a', seed: 3, win: false }),
+      record({ bot: 'a', seed: 4, win: false }),
+    ];
+    const b = [
+      record({ bot: 'b', seed: 1, win: false, drafted: ['x'] }),
+      record({ bot: 'b', seed: 2, win: true }),
+    ];
+    expect(
+      draftedDelta(
+        new Map([
+          ['a', a],
+          ['b', b],
+        ]),
+        'x',
+      ),
+    ).toBe(0);
+    expect(draftedDelta(new Map([['a', a]]), 'x')).toBe(250);
   });
 
   it('warns when every round scored zero (the stub sim) and always names the stand-ins', () => {

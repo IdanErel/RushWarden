@@ -6,6 +6,7 @@
 export const PACKAGE = { name: '@rushwarden/backend', phase: 1 } as const;
 export * from './ingest/sessions.js';
 export { D1EventStore } from './ingest/store.js';
+export * from './ingest/retention.js';
 export type { D1Database, D1PreparedStatement, EventStore, StoredEvent } from './ingest/store.js';
 export { handleIngest } from './ingest/handler.js';
 export type { IngestEnv, IngestDeps } from './ingest/handler.js';

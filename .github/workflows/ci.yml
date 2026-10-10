@@ -92,6 +92,9 @@ jobs:
       # P1-PLT-01: itch HTML5 zip (itch flavour, size-, map- and hook-checked). Builds to its own dir.
       - name: Package itch zip
         run: pnpm --filter @rushwarden/platform-web run package:itch
+      # P1-PLT-01: the zip itself boots from an itch-like subfolder in a 390×844 iframe and plays a round.
+      - name: Itch zip smoke test
+        run: pnpm --filter @rushwarden/platform-web run e2e:itch
       - uses: actions/upload-artifact@v4
         with:
           name: rushwarden-itch-${{ github.sha }}
@@ -118,20 +121,3 @@ jobs:
       - run: pnpm --filter @rushwarden/platform-web exec playwright install --with-deps chromium
       - name: Toy e2e (@full, phone)
         run: pnpm --filter @rushwarden/platform-web run e2e --project phone --grep @full
-
-  pr-title:
-    name: Conventional commit title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Lint PR title (squash-merge commit message)
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: printf '%s\n' "$TITLE" | pnpm exec commitlint

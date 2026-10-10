@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { describe, expect, it } from 'vitest';
 import { inflateRawSync } from 'node:zlib';
-import { zipEntries } from '../scripts/zip.mjs';
+import { readZip as readBack, zipEntries } from '../scripts/zip.mjs';
 
 /** Reads a zip's central directory back: the format check for our writer. */
 function readZip(zip: Buffer): Map<string, Buffer> {
@@ -39,5 +39,9 @@ describe('itch zip writer', () => {
 
   it('is byte-identical for the same input (no timestamps)', () => {
     expect(zipEntries(entries).equals(zipEntries(entries))).toBe(true);
+  });
+
+  it('readZip (used by the itch smoke test) returns exactly the entries written', () => {
+    expect(readBack(zipEntries(entries))).toEqual(entries);
   });
 });

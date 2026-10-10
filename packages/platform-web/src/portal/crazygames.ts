@@ -1,6 +1,7 @@
 import { withTimeout } from './load-script.js';
 import { browserEnv } from './env.js';
 import {
+  isHttpsUrl,
   prop,
   safeCall,
   type AdapterEnv,
@@ -37,7 +38,8 @@ function asCrazySdk(value: unknown): CrazySdk | null {
 /**
  * CrazyGames adapter (GDD §9). Loads SDK v3 lazily in `init`, reports loading start/stop,
  * strictly alternating `gameplayStart`/`gameplayStop`, and `happytime` on a district win. Never
- * requests ads (ADR-010). CrazyGames has its own IAP, so `canSellInPortal` is true.
+ * requests ads (ADR-013). In-game purchases on CrazyGames are invite-only, so `canSellInPortal` is
+ * false until CrazyGames invites us (ADR-024 point 3; flipping it back is a one-line change).
  */
 export class CrazyGamesAdapter implements WebPortalAdapter {
   readonly id = 'crazygames' as const;
@@ -125,6 +127,11 @@ export class CrazyGamesAdapter implements WebPortalAdapter {
   }
 
   canSellInPortal(): boolean {
-    return true;
+    return false;
+  }
+
+  /** CrazyGames has no link API in its SDK; a plain new tab with no opener. */
+  openExternalLink(url: string): void {
+    if (isHttpsUrl(url)) this.env.openWindow?.(url);
   }
 }

@@ -8,5 +8,8 @@ export function browserEnv(): AdapterEnv {
     global: globalThis,
     loadScript: (url) => loadScript(url, document as unknown as ScriptDocument, SDK_TIMEOUT_MS),
     timeoutMs: SDK_TIMEOUT_MS,
+    openWindow: (url) => {
+      globalThis.open(url, '_blank', 'noopener,noreferrer');
+    },
   };
 }

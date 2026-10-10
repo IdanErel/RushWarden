@@ -6,6 +6,13 @@ compatibility_date = "2026-09-01"
 workers_dev = false
 
 # Collection is off until the privacy policy is published (ADR-007). Flip to "true" only then.
+# ADR-025 point 4: no Workers Logs and no Logpush for the analytics Worker. The code never logs
+# request bodies, IP addresses or install IDs either.
+logpush = false
+
+[observability]
+enabled = false
+
 [vars]
 INGEST_ENABLED = "false"
 ALLOWED_ORIGINS = "https://*.itch.zone"
@@ -15,6 +22,11 @@ binding = "DB"
 database_name = "rushwarden"
 database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
 migrations_dir = "migrations"
+
+# ADR-025: daily roll-up of yesterday (no install IDs, 10-install floor), then deletion of raw
+# events older than 90 days. 02:30 UTC.
+[triggers]
+crons = ["30 2 * * *"]
 
 # Keyed by install ID in code, never by IP.
 [[ratelimits]]

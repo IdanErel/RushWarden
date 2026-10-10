@@ -6,13 +6,13 @@ Owner: Platform Engineer. See GDD section 6 for this package's responsibilities 
 
 ## Public API
 
-| Export (`src/portal/index.ts`)                    | What it does                                                                                            |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `createPortalAdapter({ shareUrl, env? })`         | Returns the `WebPortalAdapter` for this build's `VITE_PORTAL` flag. Other adapters are tree-shaken out. |
-| `PokiAdapter`, `CrazyGamesAdapter`, `ItchAdapter` | `PortalAdapter` implementations (GDD §6, §9). They never show ads (ADR-013).                            |
-| `WebPortalAdapter`                                | `PortalAdapter` plus `loadingFinished()`, which only `main.ts` calls.                                   |
-| `parsePortalFlag`, `PORTAL_FLAGS`                 | Validates the build flag; `vite.config.ts` uses it to fail a build with an unknown portal.              |
-| `loadScript`, `AdapterEnv`                        | Runtime `<script>` loader and the injection point that tests use for fake SDK globals.                  |
+| Export (`src/portal/index.ts`)                    | What it does                                                                                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `createPortalAdapter({ shareUrl, env? })`         | Returns the `WebPortalAdapter` for this build's `VITE_PORTAL` flag. Other adapters are tree-shaken out.                                                                                                      |
+| `PokiAdapter`, `CrazyGamesAdapter`, `ItchAdapter` | `PortalAdapter` implementations (GDD §6, §9). They never show ads (ADR-013).                                                                                                                                 |
+| `WebPortalAdapter`                                | `PortalAdapter` plus `loadingFinished()`, which only `main.ts` calls, and `openExternalLink(url)`: https only; Poki goes through `PokiSDK.openExternalLink`, everything else opens a new tab with no opener. |
+| `parsePortalFlag`, `PORTAL_FLAGS`                 | Validates the build flag; `vite.config.ts` uses it to fail a build with an unknown portal.                                                                                                                   |
+| `loadScript`, `AdapterEnv`                        | Runtime `<script>` loader and the injection point that tests use for fake SDK globals.                                                                                                                       |
 
 Build flavours (the SDK is loaded at runtime from its official URL and never bundled):
 
@@ -64,6 +64,12 @@ build on the pinned Node (`.nvmrc`), because entries are sorted and timestamps f
 can differ between Node majors. CI uploads it as an artifact. The butler deploy is the Lead's
 (P1-LEAD-02). The itch page settings (embed 390×844, fullscreen button, mobile friendly) are in
 `docs/setup/accounts.md` §3.
+
+`pnpm e2e:itch` (after `pnpm package:itch`) is the smoke test of the artifact itself. It serves the
+zip's bytes from a CDN-like subfolder (`/html/1234567/`), embeds it the way itch does (a 390×844
+cross-origin iframe), and plays one round. It fails on any page error, any missing file or any
+request outside the game's own folder. No upload: publishing to itch waits for Idan's playtest
+sign-off.
 
 ## Test hooks (H1, H4)
 

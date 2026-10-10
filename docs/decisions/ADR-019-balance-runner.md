@@ -34,9 +34,13 @@ night. `packages/balance` reads them as follows.
    commit and is formatted with the repo's Prettier settings, so the same inputs give a
    byte-identical file and a nightly diff shows only real changes.
 5. **Readings.** Win rates are rounded to the nearest per-mille before the 35–65% check, which is
-   inclusive at both ends. The drafted delta is (win rate of runs that drafted the card) − (win rate
-   of all runs in the report). Purity is the share of final-deck cards that carry the deck's most
-   common tag. Watch time is simulated ticks ÷ 20 and excludes placement time.
+   inclusive at both ends. The drafted delta is computed per bot, against that bot's own
+   baseline (GDD §11 "minus baseline"): for each bot, (win rate of its runs that drafted the card)
+   − (win rate of all its runs), averaged over bots weighted by drafting runs; n/a when no run
+   drafted the card. Amended 2026-10-10 (Lead, from reviewer-2 on #29 and #60): the first reading
+   used one baseline over all bots, which credited a card with the strength of the bots that draft
+   it (One-Way read −28 when only `random` could draft it). Purity is the share of final-deck
+   cards that carry the deck's most common tag. Watch time is simulated ticks ÷ 20 and excludes placement time.
 6. **Caveats are labelled.** The runner plays content's cards, starting deck and `setupRound`
    (maps, demand, district rules, Parade closures); the stand-ins it used before #28 are gone (a
    small seeded environment remains as a test fixture only). Known caveats about the data, such as
