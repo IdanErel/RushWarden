@@ -1,5 +1,5 @@
 # P1-LEAD-02: nightly golden (all three browsers), sim throughput and the GDD section 11 balance
-# report. The report is uploaded as an artifact and never committed (Lead decision).
+# report. The report is uploaded as an artifact and never committed (ADR-027).
 name: Nightly
 
 on:
