@@ -65,7 +65,7 @@ export type StoreOp =
 export interface StoreAsset {
   /** File name without extension. */
   readonly id: string;
-  readonly store: 'steam' | 'itch';
+  readonly store: 'steam' | 'itch' | 'promo';
   /** What the store calls it (GDD §12 table). */
   readonly role: string;
   readonly width: number;
@@ -89,6 +89,8 @@ export const SHOTS: readonly Shot[] = [
   { id: 'jam', spec: { seed: 4, plays: 'none' }, at: 0.55, scale: 2.5 },
   { id: 'gridlock', spec: { seed: 4, plays: 'none' }, at: 1, scale: 2.5 },
   { id: 'calm', spec: { seed: 4, round: 2 }, at: 0.5, scale: 2.5 },
+  // Capsules up to 1438 px wide (page background, main capsule) are cut from the map alone.
+  { id: 'jam-hi', spec: { seed: 4, plays: 'none' }, at: 0.55, scale: 5 },
   // The library hero is 3840 px wide and cut from the map alone, so it needs a bigger render.
   { id: 'hero', spec: { seed: 4, plays: 'none' }, at: 0.55, scale: 10 },
 ];
@@ -399,7 +401,7 @@ function screenshot(
   return ops;
 }
 
-/** The Steam screenshots: shot and caption (three words, GDD §12), plus a line under it. */
+/** Captioned promo images: shot and caption (three words, GDD §12), plus a line under it. */
 export const SCREENSHOTS: readonly {
   readonly shot: string;
   readonly caption: readonly string[];
@@ -434,8 +436,9 @@ export const SCREENSHOTS: readonly {
 ];
 
 /**
- * Every asset, from the grabbed frames. Steam sizes are the GDD §12 table; Steam has changed
- * some sizes since (see docs/store/assets.md), which Idan checks in Steamworks before upload.
+ * Every asset, from the grabbed frames. Steam sizes are Steamworks' current ones (ADR-029; the
+ * "Graphical Assets" and "Library Assets" pages), which supersede the GDD §12 table. Steam
+ * screenshots must show gameplay only, so they are captured from the run screen, not made here.
  */
 export function storeAssets(frames: ReadonlyMap<string, ShotFrame>): StoreAsset[] {
   const a = (
@@ -449,40 +452,70 @@ export function storeAssets(frames: ReadonlyMap<string, ShotFrame>): StoreAsset[
   ): StoreAsset => ({ id, store, role, width, height, transparent, ops });
   const one = [WORDMARK];
   const two = ['RUSH', 'WARDEN'];
+  const cap = 'jam-hi';
   return [
+    // Store assets (Steamworks "Graphical Assets": store assets page).
     a(
-      'steam-header-460x215',
+      'steam-header-920x430',
       'steam',
       'Header capsule',
-      460,
-      215,
-      capsule(frames, 'jam', 460, 215, { x: 30, y: 52, w: 400, h: 111 }, one),
+      920,
+      430,
+      capsule(frames, cap, 920, 430, { x: 60, y: 104, w: 800, h: 222 }, one),
     ),
     a(
-      'steam-small-231x87',
+      'steam-small-462x174',
       'steam',
       'Small capsule',
-      231,
-      87,
-      capsule(frames, 'jam', 231, 87, { x: 8, y: 14, w: 215, h: 59 }, one),
+      462,
+      174,
+      capsule(frames, cap, 462, 174, { x: 16, y: 28, w: 430, h: 118 }, one),
     ),
     a(
-      'steam-main-616x353',
+      'steam-main-1232x706',
       'steam',
       'Main capsule',
-      616,
-      353,
-      capsule(frames, 'jam', 616, 353, { x: 48, y: 101, w: 520, h: 151 }, one),
+      1232,
+      706,
+      capsule(frames, cap, 1232, 706, { x: 96, y: 202, w: 1040, h: 302 }, one),
     ),
     a(
-      'steam-vertical-374x448',
+      'steam-vertical-748x896',
       'steam',
       'Vertical capsule',
-      374,
-      448,
-      capsule(frames, 'jam', 374, 448, { x: 37, y: 214, w: 300, h: 180 }, two),
+      748,
+      896,
+      capsule(frames, cap, 748, 896, { x: 74, y: 428, w: 600, h: 360 }, two),
     ),
-    a('steam-hero-3840x1240', 'steam', 'Library hero (no text, per Steam)', 3840, 1240, [
+    a('steam-background-1438x810', 'steam', 'Page background (ambient, no text)', 1438, 810, [
+      { op: 'fill', color: P.ground },
+      {
+        op: 'image',
+        shot: cap,
+        src: coverCrop(frameOf(frames, cap).map, 1438, 810, MAP_FOCUS),
+        dst: { x: 0, y: 0, w: 1438, h: 810 },
+      },
+      // Washed out so it does not compete with the page.
+      { op: 'rect', x: 0, y: 0, w: 1438, h: 810, color: P.ground, alpha: 0.72 },
+    ]),
+    // Library assets (Steamworks "Library Assets" page).
+    a(
+      'steam-library-capsule-600x900',
+      'steam',
+      'Library capsule',
+      600,
+      900,
+      capsule(frames, cap, 600, 900, { x: 50, y: 560, w: 500, h: 280 }, two),
+    ),
+    a(
+      'steam-library-header-920x430',
+      'steam',
+      'Library header',
+      920,
+      430,
+      capsule(frames, cap, 920, 430, { x: 60, y: 104, w: 800, h: 222 }, one),
+    ),
+    a('steam-library-hero-3840x1240', 'steam', 'Library hero (no text, per Steam)', 3840, 1240, [
       { op: 'fill', color: P.ground },
       {
         op: 'image',
@@ -492,7 +525,7 @@ export function storeAssets(frames: ReadonlyMap<string, ShotFrame>): StoreAsset[
       },
     ]),
     a(
-      'steam-logo-1280x720',
+      'steam-library-logo-1280x720',
       'steam',
       'Library logo (transparent)',
       1280,
@@ -500,11 +533,13 @@ export function storeAssets(frames: ReadonlyMap<string, ShotFrame>): StoreAsset[
       wordmarkOps({ x: 40, y: 40, w: 1200, h: 640 }, two),
       true,
     ),
+    // Captioned promo images: not Steam screenshots (Steam wants gameplay only, no marketing
+    // text). For itch, press and social posts.
     ...SCREENSHOTS.map((s, k) =>
       a(
-        `steam-screenshot-${k + 1}-1920x1080`,
-        'steam',
-        `Screenshot ${k + 1}`,
+        `promo-${k + 1}-1920x1080`,
+        'promo',
+        `Captioned promo ${k + 1}`,
         1920,
         1080,
         screenshot(frames, s.shot, s.caption, s.sub),
@@ -516,7 +551,7 @@ export function storeAssets(frames: ReadonlyMap<string, ShotFrame>): StoreAsset[
       'Cover image',
       630,
       500,
-      capsule(frames, 'jam', 630, 500, { x: 65, y: 160, w: 500, h: 180 }, two),
+      capsule(frames, cap, 630, 500, { x: 65, y: 160, w: 500, h: 180 }, two),
     ),
   ];
 }

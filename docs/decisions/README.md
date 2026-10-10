@@ -25,6 +25,7 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 016 | Map template format and variants                        | Accepted        |
 | 017 | Vehicles, intersection boxes and tick mechanics         | Proposed        |
 | 018 | Run controller rule readings                            | Accepted        |
+| 019 | Balance runner seeds, bots and report format            | Proposed        |
 | 020 | Intersection controllers and the turn pocket            | Proposed        |
 | 021 | Round demand model, seed salts and District 1 bosses    | Accepted        |
 | 022 | p_slow, the gridlock detector and closed segments       | Proposed        |
@@ -34,3 +35,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 026 | Phase 1 sim throughput budget                           | Accepted (Lead) |
 | 027 | Nightly balance report is an artifact                   | Accepted (Lead) |
 | 028 | Clip tool: replay rendering, determinism, captions, CI  | Accepted        |
+| 029 | Toy e2e in CI, E2E-18 tracking, store-asset rules       | Accepted (Lead) |
