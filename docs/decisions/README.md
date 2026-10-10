@@ -33,3 +33,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 025 | Privacy defaults: consent, retention, requests          | Accepted        |
 | 026 | Phase 1 sim throughput budget                           | Accepted (Lead) |
 | 027 | Nightly balance report is an artifact                   | Accepted (Lead) |
+| 028 | Clip tool: replay rendering, determinism, captions, CI  | Accepted        |

@@ -1,6 +1,6 @@
 # Poki and CrazyGames (Phase 1)
 
-> **DRAFT: pending the GIF (P1-QA-02).** Idan submits to Poki (player-fit test) and to
+> **DRAFT.** The GIF and the store images now exist (see [assets.md](assets.md)); still pending: a real share line and the itch link from the live build. Idan submits to Poki (player-fit test) and to
 > CrazyGames (Basic Launch) himself (`docs/setup/accounts.md` step 5). The submission package
 > (zip, 512×512 thumbnail, 16:9 cover) is P1-PLT-02's. This file is the text it uses.
 

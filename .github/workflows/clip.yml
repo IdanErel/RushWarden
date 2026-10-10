@@ -1,0 +1,70 @@
+name: Clip
+
+# P1-QA-02 clip tool (ADR-028): checks a seeded clip renders byte-identically, then renders the
+# Market Day clips (with cards, and the no-card jam) as 9:16 MP4 + GIF artifacts. Its own
+# workflow so it can be path-filtered (Lead's decision): PRs touching what a clip shows, and
+# every push to main.
+on:
+  pull_request:
+    paths:
+      - 'packages/sim/**'
+      - 'packages/render/**'
+      - 'packages/ui/**'
+      - 'packages/app/**'
+      - 'packages/content/**'
+      - 'tools/clip/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/clip.yml'
+  push:
+    branches: [main]
+
+concurrency:
+  group: clip-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  clip:
+    name: Clip tool (determinism check and Market Day clips)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Plain apt, skipped when the runner image already has ffmpeg. No apt cache: the only
+      # cache action is third-party, which is not worth it in a public repo for ~30 s.
+      - name: Install ffmpeg
+        run: |
+          command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg; }
+          ffmpeg -version | head -1
+      - run: pnpm --filter @rushwarden/clip exec playwright install --with-deps chromium
+      - name: Determinism check (two renders, different worker counts, byte-identical)
+        run: pnpm --filter @rushwarden/clip run e2e
+      - name: Render the Market Day clip (seed 4, director's cards)
+        run: pnpm clip --spec tools/clip/clips/market-day.json
+      - name: Render the Market Day jam (seed 4, no cards)
+        run: pnpm clip --spec tools/clip/clips/market-day-none.json
+      - name: Hashes to the job summary
+        run: |
+          {
+            echo '### Clips'
+            echo '| File | sha256 |'
+            echo '| --- | --- |'
+            cd tools/clip/out && for f in *.mp4 *.gif; do echo "| $f | \`$(sha256sum "$f" | cut -d' ' -f1)\` |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rushwarden-clips-${{ github.sha }}
+          path: |
+            tools/clip/out/*.mp4
+            tools/clip/out/*.gif
+            tools/clip/out/*.json
+          if-no-files-found: error
+          retention-days: 14

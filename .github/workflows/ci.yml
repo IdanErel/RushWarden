@@ -86,6 +86,8 @@ jobs:
         run: pnpm --filter @rushwarden/platform-web run e2e
       - name: Renderer dev-page check (scene, worker playback, readability effects)
         run: pnpm --filter @rushwarden/render run e2e
+      - name: Run screen e2e (hooks H2, H3, H5; phone and desktop)
+        run: pnpm --filter @rushwarden/ui run e2e
       # P1-PLT-01: itch HTML5 zip (itch flavour, size-, map- and hook-checked). Builds to its own dir.
       - name: Package itch zip
         run: pnpm --filter @rushwarden/platform-web run package:itch
