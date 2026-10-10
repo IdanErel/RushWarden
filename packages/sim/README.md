@@ -18,7 +18,7 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `route(world, o, d)`, `routeByEdgeId(world, oId, dId)`                              | BFS shortest route between two edges as a list of link ids, cached per round.                                                |
 | `weightedRoute(world, intersection, arrivalSide, d, cost)`                          | Integer Dijkstra over links for taxis (time-weighted costs), no U-turns.                                                     |
 | `locateCell(world, laneId, cell)`                                                   | Tile, offset, travel directions and box quarter of a snapshot's (lane, cell), for the renderer.                              |
-| `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-016).                                                                       |
+| `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-017).                                                                       |
 
 ## Worker protocol (P1-LEAD-01)
 
@@ -71,7 +71,7 @@ lanes has 4 cells per tile, cell 0 upstream. Directions are indices 0..3 = n, e,
 `Sim.init` (for example, Express Stop needs a segment that already has a bus stop) and applies
 the effects from P1-SIM-05 on. `DEFAULT_SWITCH_TICKS` is the default phase-switch time.
 
-## Vehicles and lane ids (P1-SIM-02, ADR-016)
+## Vehicles and lane ids (P1-SIM-02, ADR-017)
 
 Snapshots are `[tick, count, ...count × (id, lane, cell, speed, type)]`, listed in the tick's
 update order: (lane, cell) descending at the start of the tick. `id` is the spawn index and

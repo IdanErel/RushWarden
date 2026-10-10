@@ -1,4 +1,4 @@
-# ADR-016: Vehicles, intersection boxes and tick mechanics
+# ADR-017: Vehicles, intersection boxes and tick mechanics
 
 Status: Proposed · 2026-10-10 · Sim Engineer (P1-SIM-02)
 
