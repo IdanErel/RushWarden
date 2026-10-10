@@ -98,6 +98,9 @@ importers:
       '@rushwarden/app':
         specifier: workspace:*
         version: link:../app
+      '@rushwarden/backend':
+        specifier: workspace:*
+        version: link:../backend
       '@rushwarden/sim':
         specifier: workspace:*
         version: link:../sim

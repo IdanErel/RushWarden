@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@rushwarden/app": "workspace:*",
+    "@rushwarden/backend": "workspace:*",
     "@rushwarden/sim": "workspace:*"
   },
   "devDependencies": {
