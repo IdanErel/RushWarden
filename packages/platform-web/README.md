@@ -64,3 +64,14 @@ build on the pinned Node (`.nvmrc`), because entries are sorted and timestamps f
 can differ between Node majors. CI uploads it as an artifact. The butler deploy is the Lead's
 (P1-LEAD-02). The itch page settings (embed 390×844, fullscreen button, mobile friendly) are in
 `docs/setup/accounts.md` §3.
+
+## Test hooks (H1, H4)
+
+From `docs/release/phase-1-test-plan.md` §2.1. They exist only in builds made with
+`VITE_TEST_HOOKS=1` (`pnpm build:e2e`, served on port 4174 by the Playwright config). Vite
+inlines the flag, so public builds drop the hook code and ignore the URL parameters.
+
+| Hook | Use                                                                                                                                                                                                                              |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H1   | `?seed=<u32>` fixes the seed (`seedOverride(location.search)`); `#app[data-seed]` shows it. The run controller will take its seed the same way.                                                                                  |
+| H4   | Every `PortalAdapter` call is recorded in order on `window.__portalCalls`. `?portalSpy=poki\|crazygames\|itch` swaps in a stand-in with that portal's identity and no SDK, so a spec checks the §9 call pattern without network. |

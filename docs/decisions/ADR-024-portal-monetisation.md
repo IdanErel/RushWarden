@@ -1,7 +1,6 @@
 # ADR-024: What Poki and CrazyGames allow for a no-ads, one-unlock game
 
-Status: Accepted · 2026-10-10 · Lead, except decision 2, which is Proposed (Idan): decision card
-posted 2026-10-10, recommended free District 1 demo, non-exclusive only.
+Status: Accepted · 2026-10-10 · Lead; decision 2 Accepted · Idan, 2026-10-10 (decision card).
 
 GDD §1 constraint 2 says "No ads, ever" and one unlock purchase. §9 plans the unlock on
 CrazyGames through its IAP, and on Poki an unlock button that deep-links to the stores and the
@@ -99,15 +98,14 @@ Sources: [Requirements](https://docs.crazygames.com/requirements/intro/),
 1. **Ad calls.** ADR-013 stands: no portal build calls `commercialBreak`, `rewardedBreak` or
    `SDK.ad.*`. The team never adds them; if a portal requires them, the portal is dropped for
    that phase, not the pillar.
-2. **Proposed (Idan): decision card posted 2026-10-10, recommended free District 1 demo,
-   non-exclusive only.** Poki is a test channel and a free demo channel only. The Phase 1 player-fit test goes
+2. **Accepted · Idan, 2026-10-10 (decision card): free District 1 demo on Poki, no unlock
+   button or links, non-exclusive deals only.** Poki is a test channel and a free demo channel only. The Phase 1 player-fit test goes
    ahead. A later Poki release, if any, is District 1 only, with no unlock button, no price, no
    purchase UI and no outgoing links (the share uses `shareableURL`). `canSellInPortal()` stays
    `false`. The §9 row "on Poki, the unlock CTA deep-links to the stores and the website" is
    replaced by this. Any Poki deal must be **non-exclusive** (flat fee or none); a web-exclusive
-   deal needs Idan's decision, since it would remove itch, our website and CrazyGames. Until
-   Idan answers, nothing depends on this beyond the Phase 1 player-fit test, which fits either
-   way.
+   deal needs Idan's decision, since it would remove itch, our website and CrazyGames. Idan
+   answered the decision card at 15:05 UTC: "Free demo".
 3. **CrazyGames starts in Basic Launch with no unlock.** This is not a choice we make: in-game
    purchases are invite-only under CrazyGames' own policy ("In-game purchases are an invite only
    feature"), so at launch the §9 "unlock via CrazyGames IAP" cannot exist. It reverts to §9 when

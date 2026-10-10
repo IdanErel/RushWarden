@@ -126,8 +126,8 @@ anyone.
   It deletes every event stored with that ID on our server, then deletes the ID from your
   browser.
 - **Reset:** the install ID is a random value stored only in your browser. Clearing this site's
-  data in your browser deletes it (and your saved progress), and the game makes a new random one
-  next time.
+  data in your browser deletes it (and your saved progress, and your yes/no answer). The game then
+  asks you again and makes a new random ID only if you say yes.
 - **By email:** we can only find events by install ID, never by name or email. To see a copy of
   your events, or for any other request, send the install ID shown in the Privacy panel to
   [contact email]. Having the ID is how we know the events are yours. We reply within one month.
