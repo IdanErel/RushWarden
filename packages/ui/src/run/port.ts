@@ -19,11 +19,24 @@ export interface UiCard {
   readonly tier: 1 | 2;
   /** For cards that set a controller: the glyph to ghost-preview on the map. */
   readonly controller?: 'signal' | 'roundabout' | 'uncontrolled' | 'stop-all' | 'priority';
+  /**
+   * The player chooses which way it runs along its segment (One-Way, GDD §4 "one-way in the
+   * chosen direction"). It is placed in the segment's default direction and flipped with `flip`.
+   */
+  readonly directional?: true;
+}
+
+/** A tile on the map grid. */
+export interface TileXY {
+  readonly x: number;
+  readonly y: number;
 }
 
 export interface PlacedCard {
   readonly card: UiCard;
   readonly target: TargetMark;
+  /** For a segment card: the straight run it was placed on, pointing the way the sim gets it. */
+  readonly segment?: { readonly from: TileXY; readonly to: TileXY };
 }
 
 /** §5 share glyphs: green pass, amber pass under 110%, red fail, black gridlock. */
@@ -80,6 +93,10 @@ export interface RunPort {
   canUndo(placedIndex: number): boolean;
   /** Takes back a card placed this round ("tap again to undo before Go"). No-op if `!canUndo`. */
   undo(placedIndex: number): void;
+  /** Whether play `placedIndex` is a directional card that can still be turned round. */
+  canFlip(placedIndex: number): boolean;
+  /** Turns a directional play round on its segment (from ↔ to). No-op if `!canFlip`. */
+  flip(placedIndex: number): void;
   /** The sim input for this round's Go phase, including the placements. */
   roundInput(): RoundInput;
   /** Moves to `go`. */

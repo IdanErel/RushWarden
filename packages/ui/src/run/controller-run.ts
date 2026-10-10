@@ -10,6 +10,7 @@
 import {
   RunController,
   costOf,
+  reverseSegment,
   segmentAt,
   step,
   type DeckCard,
@@ -75,8 +76,10 @@ export function toSimTarget(t: TargetMark, map: GridMap): Target {
   switch (t.kind) {
     case 'intersection':
       return { kind: 'intersection', tile: { x: t.x, y: t.y } };
-    case 'segment':
-      return segmentAt(map, t.x, t.y);
+    case 'segment': {
+      const seg = segmentAt(map, t.x, t.y);
+      return t.reverse && seg.kind === 'segment' ? reverseSegment(seg) : seg;
+    }
     case 'edge':
       return { kind: 'edge', edge: t.edge };
     case 'district':
@@ -106,6 +109,14 @@ export function candidateTargets(kind: TargetKind, map: GridMap): TargetMark[] {
 function controllerOf(card: RunCard): UiCard['controller'] {
   for (const e of card.effects) if (e.kind === 'setController') return e.controller;
   return undefined;
+}
+
+/** A segment card whose direction comes from the placed target (`setOneWay` without one). */
+function isDirectional(card: RunCard): boolean {
+  return (
+    card.target === 'segment' &&
+    card.effects.some((e) => e.kind === 'setOneWay' && e.direction === undefined)
+  );
 }
 
 export class ControllerRun implements RunPort {
@@ -150,6 +161,7 @@ export class ControllerRun implements RunPort {
       tags: def.tags,
       tier: d.tier,
       ...(controller ? { controller } : {}),
+      ...(isDirectional(def) ? { directional: true as const } : {}),
     };
   }
 
@@ -160,10 +172,14 @@ export class ControllerRun implements RunPort {
     const cfg = s.config;
     const last: RunRoundOutcome | undefined = s.history[s.history.length - 1];
     const paid = s.plays.reduce((n, p) => n + (p.refunded ? 0 : p.paid), 0);
-    const placed: PlacedCard[] = s.plays.map((p) => ({
-      card: this.card(p.card, s),
-      target: this.marks.get(p.card.uid) ?? { kind: 'district' },
-    }));
+    const placed: PlacedCard[] = s.plays.map((p) => {
+      const t = p.placement.target;
+      return {
+        card: this.card(p.card, s),
+        target: this.marks.get(p.card.uid) ?? { kind: 'district' },
+        ...(t.kind === 'segment' ? { segment: { from: t.from, to: t.to } } : {}),
+      };
+    });
     const ui: RunState = {
       phase: s.phase === 'place' && this.going ? 'go' : s.phase,
       round: s.round,
@@ -222,15 +238,44 @@ export class ControllerRun implements RunPort {
    * undone too and then replayed on the same targets. Refused (no change) when `!canUndo`.
    */
   undo(placedIndex: number): void {
-    if (!this.canUndo(placedIndex)) return;
+    if (this.canUndo(placedIndex)) this.rewrite(placedIndex, null);
+  }
+
+  canFlip(placedIndex: number): boolean {
+    const p = this.ctl.state.plays[placedIndex];
+    const mark = p && this.marks.get(p.card.uid);
+    const def = p && this.cards.get(p.card.id);
+    return !!def && isDirectional(def) && mark?.kind === 'segment' && this.canUndo(placedIndex);
+  }
+
+  /**
+   * Turns directional play `placedIndex` round: it is undone with the plays after it, played
+   * again on its segment pointing the other way, and the later plays are replayed. Play order and
+   * energy stay as they were. Refused (no change) when `!canFlip`.
+   */
+  flip(placedIndex: number): void {
+    if (!this.canFlip(placedIndex)) return;
+    const uid = this.ctl.state.plays[placedIndex]?.card.uid ?? -1;
+    const mark = this.marks.get(uid);
+    if (mark?.kind !== 'segment') return;
+    this.rewrite(placedIndex, { ...mark, reverse: !mark.reverse });
+  }
+
+  /**
+   * Undoes plays back to and including `placedIndex`, plays that card again on `replace` (or
+   * drops it for null), then replays the later plays on their marks.
+   */
+  private rewrite(placedIndex: number, replace: TargetMark | null): void {
     const s = this.ctl.state;
-    const later = s.plays.slice(placedIndex + 1).map((p) => p.card.uid);
+    const uids = s.plays.slice(placedIndex).map((p) => p.card.uid);
     for (let n = s.plays.length; n > placedIndex; n--) {
       const r = this.ctl.dispatch({ type: 'undo' });
       if (!r.ok) throw new Error(r.error);
     }
-    this.marks.delete(s.plays[placedIndex]?.card.uid ?? -1);
-    for (const uid of later) {
+    const first = uids[0] ?? -1;
+    if (replace) this.marks.set(first, replace);
+    else this.marks.delete(first);
+    for (const uid of uids) {
       const mark = this.marks.get(uid);
       const now = this.ctl.state;
       const handIndex = now.hand.findIndex((c) => c.uid === uid);

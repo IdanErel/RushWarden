@@ -168,7 +168,12 @@ export function Game(props: GameOptions): preact.JSX.Element {
       : null;
     scene.setTargets(targets, cursor, ghost);
     scene.setMarks(
-      s.placed.map((p) => ({ target: p.target, color: TAG_COLOR[p.card.tags[0] ?? 'FLOW'] })),
+      s.placed.map((p) => ({
+        target: p.target,
+        color: TAG_COLOR[p.card.tags[0] ?? 'FLOW'],
+        // One-Way shows which way it runs (GDD §4 "in the chosen direction").
+        ...(p.card.directional && p.segment ? { arrow: p.segment } : {}),
+      })),
     );
     const ctrl: ControllerMark[] = [];
     for (const p of s.placed)
@@ -214,6 +219,19 @@ export function Game(props: GameOptions): preact.JSX.Element {
       const n = i ?? s.placed.length - 1;
       if (n < 0 || !run.canUndo(n)) return;
       run.undo(n);
+      bump(0);
+    },
+    [s, run],
+  );
+
+  /** Turns a placed One-Way round on its segment (the last one placed when `i` is omitted). */
+  const flip = useCallback(
+    (i?: number) => {
+      let n = i ?? -1;
+      if (i === undefined)
+        for (let k = s.placed.length - 1; k >= 0 && n < 0; k--) if (run.canFlip(k)) n = k;
+      if (n < 0 || !run.canFlip(n)) return;
+      run.flip(n);
       bump(0);
     },
     [s, run],
@@ -305,7 +323,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
       const idx = hitTarget(targets, tile, scene.currentMap);
       if (idx >= 0) return placeAt(idx);
     }
-    // Tap a placed card's target again to undo it (§8). District cards undo from their chip.
+    // Tap a placed card's target again to undo it (§8). District cards undo from their chip. A
+    // One-Way turns round from its ⇄ chip button or R, so a second tap still means undo.
     if (tile) {
       const placedTargets = s.placed.map((p) => p.target);
       const hit = hitTarget(placedTargets, tile, scene.currentMap);
@@ -345,6 +364,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
         break;
       case 'go':
         go();
+        break;
+      case 'flip':
+        flip();
         break;
       case 'undo':
         if (selected !== null) {
@@ -435,23 +457,35 @@ export function Game(props: GameOptions): preact.JSX.Element {
           <p class="rw-detail" aria-live="polite">
             {selCard
               ? targets.length
-                ? `${selCard.text} ${t('place.hint.target')}`
+                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}`
                 : `${selCard.text} ${t('place.noTargets')}`
               : t('place.hint')}
           </p>
           {s.placed.length > 0 && (
             <div class="rw-placed">
               {s.placed.map((p, i) => (
-                <button
-                  key={`${p.card.id}-${targetKey(p.target)}`}
-                  class="rw-chip"
-                  style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
-                  aria-label={t('place.undo', { name: p.card.name })}
-                  disabled={!run.canUndo(i)}
-                  onClick={() => undo(i)}
-                >
-                  ↶ {p.card.name}
-                </button>
+                <span key={`${p.card.id}-${targetKey(p.target)}`} class="rw-chip-group">
+                  <button
+                    class="rw-chip"
+                    style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
+                    aria-label={t('place.undo', { name: p.card.name })}
+                    disabled={!run.canUndo(i)}
+                    onClick={() => undo(i)}
+                  >
+                    ↶ {p.card.name}
+                  </button>
+                  {p.card.directional && (
+                    <button
+                      class="rw-chip rw-flip"
+                      style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
+                      aria-label={t('place.flip', { name: p.card.name })}
+                      disabled={!run.canFlip(i)}
+                      onClick={() => flip(i)}
+                    >
+                      ⇄
+                    </button>
+                  )}
+                </span>
               ))}
             </div>
           )}

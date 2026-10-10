@@ -87,6 +87,14 @@ export interface PlacedMark {
   readonly target: TargetMark;
   /** 0xRRGGBB, e.g. the card's tag colour. */
   readonly color: number;
+  /**
+   * A direction of travel along a straight run of tiles (One-Way, GDD §4): an arrow from the
+   * centre of `from` to the centre of `to`, drawn in `color`.
+   */
+  readonly arrow?: {
+    readonly from: { readonly x: number; readonly y: number };
+    readonly to: { readonly x: number; readonly y: number };
+  };
 }
 
 /** One drawn vehicle: the shared-context body plus its queue-pulse outline. */
@@ -585,6 +593,38 @@ export class TrafficScene {
       const cy = r.y * T + rad + 3;
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: this.palette.outline, width: 1.5 });
     }
+    for (const m of this.marks) if (m.arrow) this.drawArrow(g, m.arrow.from, m.arrow.to, m.color);
+  }
+
+  /** A travel arrow from tile `a`'s centre to tile `b`'s, with a head at `b`. */
+  private drawArrow(
+    g: Graphics,
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+    color: number,
+  ): void {
+    const T = this.fit.tilePx;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len === 0) return;
+    const [ux, uy] = [(b.x - a.x) / len, (b.y - a.y) / len];
+    // Start and end a little inside the end tiles so the head sits on the road, not the junction.
+    const [x0, y0] = [(a.x + 0.5 - ux * 0.3) * T, (a.y + 0.5 - uy * 0.3) * T];
+    const [x1, y1] = [(b.x + 0.5 + ux * 0.3) * T, (b.y + 0.5 + uy * 0.3) * T];
+    const w = Math.max(3, T * 0.12);
+    const head = Math.max(8, T * 0.35);
+    const [hx, hy] = [x1 - ux * head, y1 - uy * head];
+    const outline = { color: this.palette.outline, width: 1.5, alpha: 0.9 };
+    g.moveTo(x0, y0).lineTo(hx, hy).stroke({ color, width: w, cap: 'round' });
+    g.poly([
+      x1,
+      y1,
+      hx - uy * head * 0.6,
+      hy + ux * head * 0.6,
+      hx + uy * head * 0.6,
+      hy - ux * head * 0.6,
+    ])
+      .fill(color)
+      .stroke(outline);
   }
 
   private drawGlyphs(): void {

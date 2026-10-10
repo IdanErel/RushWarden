@@ -62,6 +62,8 @@ describe('keyboard map (GDD §8)', () => {
     expect(keyAction('place', 'Enter')).toEqual({ type: 'confirm' });
     expect(keyAction('place', ' ')).toEqual({ type: 'go' });
     expect(keyAction('place', 'Escape')).toEqual({ type: 'undo' });
+    expect(keyAction('place', 'r')).toEqual({ type: 'flip' });
+    expect(keyAction('go', 'r')).toBeNull();
     expect(keyAction('place', 'x')).toBeNull();
   });
 
@@ -130,9 +132,32 @@ describe('test hooks H2/H5', () => {
       'data-won': '',
     });
     expect(a['data-hand']!.split(',')).toHaveLength(5);
+    expect(a['data-placed-segments']).toBe('');
     expect(JSON.parse(a['data-target-rects']!)).toEqual([
       { key: 'district', x: 1, y: 3, w: 10, h: 10 },
     ]);
+  });
+});
+
+describe('H2 placed segments', () => {
+  it('gives each placed segment card the way the sim gets it, and blanks for other targets', () => {
+    const s = devRun(1).state();
+    const card = s.hand[0]!;
+    const a = stateAttributes(
+      {
+        ...s,
+        placed: [
+          {
+            card,
+            target: { kind: 'segment', x: 3, y: 1, reverse: true },
+            segment: { from: { x: 3, y: 3 }, to: { x: 3, y: 0 } },
+          },
+          { card, target: { kind: 'district' } },
+        ],
+      },
+      { speed: 1, paused: false, throughput: 0, targetRects: [], selected: null, cursor: null },
+    );
+    expect(a['data-placed-segments']).toBe('3,3>3,0;');
   });
 });
 
