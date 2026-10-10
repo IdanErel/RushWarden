@@ -31,7 +31,7 @@ import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
-import { fitMap } from './fit.js';
+import { TURN_ALLOWANCE_PX, fitMap } from './fit.js';
 import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
@@ -86,27 +86,31 @@ export function Game(props: GameOptions): preact.JSX.Element {
   // --- Map size: fit the column to the viewport (no page scroll on desktop landscape) --------
   const rootEl = useRef<HTMLDivElement>(null);
   const mapSize = useRef({ width: 0, height: 0 });
-  /** The tallest the controls under the map have been, so placing a card never shrinks it. */
-  const bottomMax = useRef(0);
+  /** Height of the controls under the map at the start of a turn (nothing selected or placed). */
+  const baseline = useRef(0);
   const measureMap = (): { width: number; height: number } => {
     const root = rootEl.current;
     const el = mapEl.current;
-    let other = 0;
-    let bottom = 0;
-    let below = false;
+    let above = 0;
+    let below = 0;
+    let after = false;
     for (const child of Array.from(root?.children ?? [])) {
       if (child === el) {
-        below = true;
+        after = true;
         continue;
       }
       const pos = getComputedStyle(child).position;
       if (pos === 'absolute' || pos === 'fixed') continue;
       const h = (child as HTMLElement).offsetHeight;
-      if (below) bottom += h;
-      else other += h;
+      if (after) below += h;
+      else above += h;
     }
-    bottomMax.current = Math.max(bottomMax.current, bottom);
-    return fitMap(el?.clientWidth ?? 0, window.innerHeight - other - bottomMax.current);
+    const st = run.state();
+    if (st.phase === 'place' && st.placed.length === 0) baseline.current = below;
+    // Room for what a turn adds under the map (a row of placed-card chips, a longer card text),
+    // so the map keeps one size through the turn and taps land where they were aimed.
+    const reserve = Math.max(baseline.current, below) + TURN_ALLOWANCE_PX;
+    return fitMap(el?.clientWidth ?? 0, window.innerHeight - above - reserve);
   };
   const fit = (): void => {
     if (!scene) return;
@@ -115,9 +119,11 @@ export function Game(props: GameOptions): preact.JSX.Element {
     if (next.width === cur.width && next.height === cur.height) return;
     mapSize.current = next;
     scene.resize(next.width, next.height);
+    bump(0); // H5 target rects come from the scene's new fit
   };
-  // After every render (the controls under the map change by phase) and on window resize.
-  useEffect(fit);
+  // Once the scene exists, at the start of every round, and when the window changes size; never
+  // in the middle of a turn.
+  useEffect(fit, [scene, s.round, s.phase === 'place']);
   useEffect(() => {
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
@@ -328,7 +334,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const onMapDown = (e: PointerEvent): void => {
     if (s.phase === 'go') return setFast(true);
     if (s.phase !== 'place' || !scene) return;
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // The canvas, not the map strip: a fitted map is narrower than the column and centred in it.
+    const r = scene.canvas.getBoundingClientRect();
     const tile = scene.tileAtPoint(e.clientX - r.left, e.clientY - r.top);
     if (targets.length > 0) {
       const idx = hitTarget(targets, tile, scene.currentMap);
@@ -457,7 +464,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
             />
             <span class="rw-muted">{t('place.plays', { n: s.playsLeft })}</span>
             <span class="rw-grow" />
-            <button class="rw-go" aria-label={t('go.label')} onClick={go}>
+            {/* Disabled until the scene and the sim worker are up: until then Go would do nothing. */}
+            <button class="rw-go" aria-label={t('go.label')} onClick={go} disabled={!scene}>
               {t('go')}
             </button>
           </div>

@@ -8,6 +8,11 @@ export const MAP_MAX_W = 430;
 /** Below this the map stops shrinking (a 4-inch phone in landscape scrolls rather than vanish). */
 export const MAP_MIN_W = 180;
 const GUTTER = 12;
+/**
+ * Height kept free under the map for what a turn adds below it: a row of placed-card chips
+ * (44 px + 8 px gap) and one more line of card text (20 px).
+ */
+export const TURN_ALLOWANCE_PX = 72;
 
 export function mapHeightFor(width: number): number {
   return Math.round(((width - GUTTER) / 7) * 9 + GUTTER);

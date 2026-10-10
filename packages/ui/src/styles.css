@@ -112,6 +112,10 @@
   padding: 0 24px;
   min-height: 48px !important;
 }
+.rw-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .rw-btn {
   border: 2px solid var(--road);
   background: var(--card);
