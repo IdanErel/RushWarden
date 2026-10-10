@@ -126,10 +126,10 @@ export interface RunState {
   readonly rush: boolean;
   readonly boss: BossCondition | null;
   readonly quota: number;
-  /** Baseline p_slow this round, from the round setup (`DistrictRules.pSlowPermille`). */
-  readonly pSlowPermille: number;
-  /** Segments closed this round (the Parade boss), from the round setup. */
+  /** Segments closed for the round (the Parade boss, ADR-021/ADR-022), from `setupRound`. */
   readonly closedSegments: readonly SegmentId[];
+  /** The round's NaSch p_slow (GDD §3 rule 3) from the district rules `setupRound` returns. */
+  readonly pSlowPermille: number;
 
   // Run-level effects.
   readonly runEffects: readonly Placement[];
@@ -173,13 +173,10 @@ export interface RunEnv {
   }): {
     readonly map: GridMap;
     readonly demandProfile: DemandProfile;
-    /**
-     * Content's district rules for the round. The controller takes `pSlowPermille` from it; the
-     * quota stays the controller's own (it applies the mayor modifier). Absent = p_slow 0.
-     */
-    readonly districtRules?: { readonly pSlowPermille: number };
-    /** Segments closed this round (Parade). Absent = none. */
+    /** Segments closed for the round (Parade). Content's `setupRound` returns them; default none. */
     readonly closedSegments?: readonly SegmentId[];
+    /** The round's district rules; only `pSlowPermille` is read (default 0). */
+    readonly districtRules?: { readonly pSlowPermille: number };
   };
   /** Defaults to `Sim.simulate`. */
   simulate?(input: RoundInput): RoundResult;

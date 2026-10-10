@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Effect, Target } from '@rushwarden/sim';
-import { roundQuota } from '@rushwarden/content';
+import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
 import {
   PHASE1_STARTING_DECK,
   RunController,
@@ -18,6 +17,7 @@ import {
   type RunAction,
   type RunCard,
   type RunConfig,
+  type RunEnv,
   type RunState,
 } from '../src/index.js';
 import { CARDS, CENTER, DISTRICT, EDGE, SEGMENT, fakeEnv } from './run-fixtures.js';
@@ -27,7 +27,7 @@ const toy = (seed = 1, over: Partial<RunConfig> = {}): RunConfig => ({
   ...over,
 });
 
-function must(state: RunState, action: RunAction, env = fakeEnv()): RunState {
+function must(state: RunState, action: RunAction, env: RunEnv = fakeEnv()): RunState {
   const r = step(state, action, env);
   if (!r.ok) throw new Error(r.error);
   return r.state;
@@ -736,5 +736,57 @@ describe('integers only', () => {
       else if (v && typeof v === 'object') for (const x of Object.values(v)) walk(x);
     };
     walk({ ...r.state, config: null, map: null });
+  });
+});
+
+describe('round input: Parade closures and p_slow reach the sim', () => {
+  // The plus map's north arm, between the north edge and the centre: closing it cuts every
+  // north-south trip (there is no other road between edges 0 and 2).
+  const PARADE: SegmentId = { from: { x: 3, y: 1 }, to: { x: 3, y: 2 } };
+  const demand = Array.from({ length: 20 }, (_, i) => ({
+    tick: i * 10,
+    edge: 0,
+    vehicleType: 0 as const,
+    destinationEdge: 2,
+  }));
+  /** A real-sim env: a Parade round closes PARADE, as content's setupRound does (ADR-021). */
+  const realEnv = (pSlowPermille = 0): RunEnv => ({
+    setupRound: ({ boss }) => ({
+      map: emptyMap(),
+      demandProfile: demand,
+      closedSegments: boss === 'parade' ? [PARADE] : [],
+      districtRules: { pSlowPermille },
+    }),
+  });
+  const config = (boss: 'parade' | null): RunConfig =>
+    toy(11, { rushRounds: boss ? [{ round: 1, boss }] : [] });
+
+  it('a Parade round closes its segment, so trips across it never start', () => {
+    const open = must(startRun(config(null), realEnv()).state, { type: 'go' }, realEnv());
+    const parade = startRun(config('parade'), realEnv()).state;
+    expect(parade.closedSegments).toEqual([PARADE]);
+    const input = roundInput(parade);
+    expect(input.districtRules.boss).toBe('parade');
+    expect(input.closedSegments).toEqual([PARADE]);
+    const closed = must(parade, { type: 'go' }, realEnv());
+    expect(open.history[0]!.throughput).toBeGreaterThan(0);
+    expect(closed.history[0]!.throughput).toBe(0);
+    // Rounds without a closure keep their input digest (no closedSegments key at all).
+    expect('closedSegments' in roundInput(startRun(config(null), realEnv()).state)).toBe(false);
+  });
+
+  it("passes the district's p_slow to the sim", () => {
+    const calm = startRun(config(null), realEnv(0)).state;
+    const foggy = startRun(config(null), realEnv(300)).state;
+    expect(roundInput(foggy).districtRules.pSlowPermille).toBe(300);
+    const a = must(calm, { type: 'go' }, realEnv(0)).history[0]!;
+    const b = must(foggy, { type: 'go' }, realEnv(300)).history[0]!;
+    expect(b.finalHash).not.toBe(a.finalHash);
+  });
+
+  it('defaults to no closure and p_slow 0 when setupRound returns neither', () => {
+    const s = startRun(toy(2), fakeEnv()).state;
+    expect(s.closedSegments).toEqual([]);
+    expect(roundInput(s).districtRules.pSlowPermille).toBe(0);
   });
 });

@@ -188,8 +188,8 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     roundSeed,
     map: setup.map,
     demandProfile: setup.demandProfile,
-    pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
     closedSegments: setup.closedSegments ?? [],
+    pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
     rush: rush !== null,
     boss: rush?.boss ?? null,
     quota: roundQuota(state.config.district, round, rush !== null, state.config.quotaPermille),
@@ -235,8 +235,8 @@ export function startRun(config: RunConfig, env: RunEnv): { state: RunState; eve
     roundSeed: 0,
     map: { id: '', tiles: [], edges: [] },
     demandProfile: [],
-    pSlowPermille: 0,
     closedSegments: [],
+    pSlowPermille: 0,
     rush: false,
     boss: null,
     quota: 0,
@@ -412,7 +412,7 @@ export function roundInput(state: RunState): RoundInput {
       quota: state.quota,
       pSlowPermille: state.pSlowPermille,
     },
-    // Omitted when none are closed, so ordinary rounds hash exactly as before.
+    // Only when something is closed, so other rounds keep their input digests.
     ...(state.closedSegments.length > 0 ? { closedSegments: state.closedSegments } : {}),
   };
 }
