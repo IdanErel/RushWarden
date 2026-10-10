@@ -17,7 +17,7 @@ constraint 3; Steam AI disclosure in [steam.md](steam.md)).
 
 ```sh
 pnpm --filter @rushwarden/clip store-assets            # → tools/clip/out/store/*.png + manifest.json
-pnpm --filter @rushwarden/clip store-assets --only steam-header-460x215,itch-cover-630x500
+pnpm --filter @rushwarden/clip store-assets --only steam-header-920x430,itch-cover-630x500
 ```
 
 It takes about 40 s. Set `PW_CHROMIUM_PATH` to use a local Chromium. The output is git-ignored,
@@ -28,41 +28,60 @@ PNGs, and `manifest.json` lists each file's sha256, the frames used, and the Chr
 - Drawing: `tools/clip/page/store.ts`.
 - Driver: `tools/clip/cli/store.ts`.
 
+## Steam sizes and rules
+
+Sizes and rules come from Steamworks' **Graphical Assets** documentation, which replaces the GDD
+§12 table ([ADR-029](../decisions/ADR-029-toy-e2e-ci-and-store-assets.md)):
+
+- Store assets: <https://partner.steamgames.com/doc/store/assets/standard>
+- Library assets: <https://partner.steamgames.com/doc/store/assets/libraryassets>
+
+Both pages were read on 2026-10-10 and agree with the Lead's list. The rules that shape the
+layouts:
+
+- **Capsules:** no text beyond the game's title, and the logo must be legible. The small
+  capsule's logo should nearly fill it.
+- **Library hero:** no text at all. Keep the key content inside the centred 860×380 safe area.
+- **Library logo:** transparent PNG, logotype only.
+- **Page background:** ambient, so it does not compete with the page.
+- **Screenshots:** at least 5, 1920×1080 or larger at 16:9, showing gameplay only, with no
+  marketing copy or written descriptions.
+
 ## What it makes
 
 All frames come from seed 4. "With cards" is the Market Day round with the clip director's plays
 (Delivery Window and Fare Holiday, 155 through against a quota of 60). "No cards" is the same
-round with nothing played, which gridlocks.
+round with nothing played, which gridlocks. The capsules crop the "no cards" map mid-round,
+when the queues are building.
 
-| File                               | Size      | Content                                                                |
-| ---------------------------------- | --------- | ---------------------------------------------------------------------- |
-| `steam-header-460x215.png`         | 460×215   | Map crop (no cards, queues building) + wordmark plate                  |
-| `steam-small-231x87.png`           | 231×87    | Same, wordmark filling the capsule                                     |
-| `steam-main-616x353.png`           | 616×353   | Same                                                                   |
-| `steam-vertical-374x448.png`       | 374×448   | Same, wordmark on two lines                                            |
-| `steam-hero-3840x1240.png`         | 3840×1240 | Map only, rendered at 10× (Steam: no text or logo on the library hero) |
-| `steam-logo-1280x720.png`          | 1280×720  | Wordmark on transparent background (library logo)                      |
-| `steam-screenshot-1-1920x1080.png` | 1920×1080 | "Place the rules": with cards, just after Go                           |
-| `steam-screenshot-2-1920x1080.png` | 1920×1080 | "Watch rush hour": with cards, mid-round                               |
-| `steam-screenshot-3-1920x1080.png` | 1920×1080 | "Beat the quota": with cards, last frame (Quota met)                   |
-| `steam-screenshot-4-1920x1080.png` | 1920×1080 | "Name the jam": no cards, mid-round                                    |
-| `steam-screenshot-5-1920x1080.png` | 1920×1080 | "Gridlock ends it": no cards, last frame (Gridlock)                    |
-| `steam-screenshot-6-1920x1080.png` | 1920×1080 | "Read the demand": round 2, mid-round, heat strips on the edges        |
-| `itch-cover-630x500.png`           | 630×500   | Map crop + two-line wordmark                                           |
+| File                                | Size      | Content                                                    |
+| ----------------------------------- | --------- | ---------------------------------------------------------- |
+| `steam-header-920x430.png`          | 920×430   | Map crop + wordmark plate                                  |
+| `steam-small-462x174.png`           | 462×174   | Same, wordmark nearly filling the capsule                  |
+| `steam-main-1232x706.png`           | 1232×706  | Same                                                       |
+| `steam-vertical-748x896.png`        | 748×896   | Same, wordmark on two lines                                |
+| `steam-background-1438x810.png`     | 1438×810  | Map crop, washed out; no text                              |
+| `steam-library-capsule-600x900.png` | 600×900   | Map crop + two-line wordmark                               |
+| `steam-library-header-920x430.png`  | 920×430   | Same layout as the store header                            |
+| `steam-library-hero-3840x1240.png`  | 3840×1240 | Map only, rendered at 10×; no text                         |
+| `steam-library-logo-1280x720.png`   | 1280×720  | Wordmark on a transparent background                       |
+| `promo-1…6-1920x1080.png`           | 1920×1080 | Captioned clip-HUD images for itch, press and social posts |
+| `itch-cover-630x500.png`            | 630×500   | Map crop + two-line wordmark                               |
+
+The promo images are **not Steam screenshots**: they carry captions, which Steam does not allow.
+Their captions are "Place the rules", "Watch rush hour", "Beat the quota", "Name the jam",
+"Gridlock ends it" and "Read the demand".
 
 No frame is enlarged (the manifest's `maxUpscale` is at most 0.914), so nothing is soft.
 
+## Steam screenshots
+
+Steam screenshots must show real gameplay (ADR-029 point 6). They are captured from the run
+screen (hand, map and HUD) once P1-WEB-01 (#50) puts it in the web build. That capture is a
+follow-up to this file.
+
 ## Checks before upload (Idan)
 
-- [ ] **Sizes.** The sizes are the GDD §12 table. Steam has since changed some capsule sizes;
-      for example, newer Steamworks pages ask for a 920×430 header and a 600×900 library
-      capsule. Check the sizes Steamworks asks for on the day. A new size is one line in
-      `storeAssets()`.
-- [ ] **Screenshots show the clip HUD, not the run screen.** The map is the game's renderer,
-      but the captions around it are the clip tool's. Steam asks for screenshots of actual
-      gameplay. Once P1-WEB-01 puts the run screen in the web build, QA can add screenshots
-      captured from the real build (Playwright at 1920×1080). Until then, Idan decides whether
-      these are close enough for the "Coming soon" page.
 - [ ] **Taste.** Idan reviews the wordmark (a transit-line style on a 4×6 grid, GDD §7) and the
       palette (Old Town).
 - [ ] **Same build.** The images, the GIF and the build on itch come from the same commit
