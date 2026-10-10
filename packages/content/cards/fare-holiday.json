@@ -1,0 +1,47 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "fare-holiday",
+  "name": "Fare Holiday",
+  "cost": 1,
+  "target": "district",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["MASS"],
+  "effects": [
+    {
+      "kind": "spawnModifier",
+      "vehicleType": "bus",
+      "percent": 40
+    },
+    {
+      "kind": "spawnModifier",
+      "vehicleType": "bike",
+      "percent": 40
+    },
+    {
+      "kind": "spawnModifier",
+      "vehicleType": "car",
+      "percent": -20
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "spawnModifier",
+        "vehicleType": "bus",
+        "percent": 60
+      },
+      {
+        "kind": "spawnModifier",
+        "vehicleType": "bike",
+        "percent": 60
+      },
+      {
+        "kind": "spawnModifier",
+        "vehicleType": "car",
+        "percent": -30
+      }
+    ]
+  },
+  "flavor": "Free rides today. The car park looks lonely."
+}

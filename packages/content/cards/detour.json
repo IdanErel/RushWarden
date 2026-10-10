@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "detour",
+  "name": "Detour",
+  "cost": 1,
+  "target": "edge",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["TOLL"],
+  "effects": [
+    {
+      "kind": "reroute",
+      "percent": 50,
+      "to": "adjacent"
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "reroute",
+        "percent": 50,
+        "to": "secondary"
+      }
+    ]
+  },
+  "flavor": "Road closed. Follow the orange signs. All of them."
+}

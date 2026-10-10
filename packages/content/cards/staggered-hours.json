@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "staggered-hours",
+  "name": "Staggered Hours",
+  "cost": 2,
+  "target": "district",
+  "duration": "round",
+  "rarity": "uncommon",
+  "tags": ["TOLL"],
+  "effects": [
+    {
+      "kind": "smoothDemand",
+      "peakPermille": 300
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "smoothDemand",
+        "peakPermille": 400
+      }
+    ]
+  },
+  "flavor": "Some start at eight, some at ten. Nobody is late."
+}

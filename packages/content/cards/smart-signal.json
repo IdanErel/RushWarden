@@ -1,0 +1,34 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "smart-signal",
+  "name": "Smart Signal",
+  "cost": 1,
+  "target": "intersection",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["FLOW"],
+  "effects": [
+    {
+      "kind": "setController",
+      "controller": "signal"
+    },
+    {
+      "kind": "setSignalPhase",
+      "mode": "adaptive"
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "setController",
+        "controller": "signal"
+      },
+      {
+        "kind": "setSignalPhase",
+        "mode": "adaptive",
+        "switchTicksDelta": -2
+      }
+    ]
+  },
+  "flavor": "It counts the cars so you don't have to."
+}
