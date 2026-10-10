@@ -47,6 +47,14 @@ import {
   type MotionPrefs,
 } from '../effects.js';
 import { drawShapes } from './draw.js';
+import {
+  rectToPx,
+  targetKey,
+  targetTileRect,
+  tileFromPoint,
+  type Rect,
+  type TargetMark,
+} from '../targets.js';
 
 export interface ControllerMark {
   readonly x: number;
@@ -67,6 +75,13 @@ export interface TrafficSceneOptions {
   readonly resolution?: number;
   /** GDD §8 reduced-motion mode: no shake, no trails, steady queue outline. */
   readonly reducedMotion?: boolean;
+}
+
+/** A placed card shown on the map: a small badge in its tag colour at the target. */
+export interface PlacedMark {
+  readonly target: TargetMark;
+  /** 0xRRGGBB, e.g. the card's tag colour. */
+  readonly color: number;
 }
 
 /** One drawn vehicle: the shared-context body plus its queue-pulse outline. */
@@ -99,6 +114,13 @@ export class TrafficScene {
   private readonly world = new Container();
   private readonly mapLayer = new Graphics();
   private readonly glyphLayer = new Container();
+  private readonly targetLayer = new Graphics();
+  private readonly ghostLayer = new Graphics();
+  private readonly markLayer = new Graphics();
+  private targets: readonly TargetMark[] = [];
+  private cursor: number | null = null;
+  private ghost: ControllerMark | null = null;
+  private marks: readonly PlacedMark[] = [];
   private readonly heatLayer = new Graphics();
   private readonly heatProgress = new Graphics();
   private readonly trailLayer = new Graphics();
@@ -132,6 +154,9 @@ export class TrafficScene {
       this.heatLayer,
       this.heatProgress,
       this.glyphLayer,
+      this.markLayer,
+      this.targetLayer,
+      this.ghostLayer,
       this.trailLayer,
       this.vehicleLayer,
     );
@@ -224,6 +249,51 @@ export class TrafficScene {
     return this.drawn;
   }
 
+  /**
+   * Highlights the valid targets for the selected card (GDD §8 "tap a card to see a ghost of its
+   * effect on valid targets"), with `cursor` as the keyboard cursor. `ghost` previews a controller
+   * glyph at the cursor at half strength. An empty list clears it.
+   */
+  setTargets(
+    targets: readonly TargetMark[],
+    cursor: number | null = null,
+    ghost: Omit<ControllerMark, 'x' | 'y'> | null = null,
+  ): void {
+    this.targets = targets;
+    this.cursor = cursor !== null && cursor >= 0 && cursor < targets.length ? cursor : null;
+    const at = this.cursor !== null ? targets[this.cursor] : undefined;
+    this.ghost =
+      ghost && at && (at.kind === 'intersection' || at.kind === 'segment')
+        ? { ...ghost, x: at.x, y: at.y }
+        : null;
+    this.drawTargets();
+  }
+
+  /** Badges for the cards placed this round. */
+  setMarks(marks: readonly PlacedMark[]): void {
+    this.marks = marks;
+    this.drawMarks();
+  }
+
+  /** The tile under a point in canvas CSS px, or null outside the grid. */
+  tileAtPoint(px: number, py: number): { x: number; y: number } | null {
+    return tileFromPoint(px, py, this.fit);
+  }
+
+  /** A target's area in canvas CSS px (test hook H5 and touch hit areas). */
+  targetRect(t: TargetMark): Rect | null {
+    const r = targetTileRect(t, this.map);
+    return r ? rectToPx(r, this.fit) : null;
+  }
+
+  get canvas(): HTMLCanvasElement {
+    return this.app.canvas;
+  }
+
+  get currentMap(): GridMap {
+    return this.map;
+  }
+
   get view(): Readonly<ViewFit> {
     return this.fit;
   }
@@ -242,6 +312,8 @@ export class TrafficScene {
     this.drawMap();
     this.drawHeat();
     this.drawGlyphs();
+    this.drawTargets();
+    this.drawMarks();
     this.buildVehicleContexts();
   }
 
@@ -340,6 +412,53 @@ export class TrafficScene {
     for (const { x, y } of intersections(map)) {
       const w = roadWidth(lanesAt(map, x, y)) * T;
       g.rect((x + 0.5) * T - w / 2, (y + 0.5) * T - w / 2, w, w).fill(p.intersection);
+    }
+  }
+
+  private drawTargets(): void {
+    const g = this.targetLayer.clear();
+    this.ghostLayer.clear();
+    const T = this.fit.tilePx;
+    const p = this.palette;
+    this.targets.forEach((t, i) => {
+      const r = targetTileRect(t, this.map);
+      if (!r) return;
+      const on = i === this.cursor;
+      const inset = t.kind === 'district' ? 2 : T * 0.06;
+      g.roundRect(r.x * T + inset, r.y * T + inset, r.w * T - 2 * inset, r.h * T - 2 * inset, 6)
+        .fill({ color: p.glyph, alpha: on ? 0.22 : 0.1 })
+        .stroke({ color: on ? p.outline : p.accent, width: on ? 3 : 2, alpha: on ? 1 : 0.9 });
+    });
+    if (this.ghost) {
+      const { x, y } = this.ghost;
+      const size = roadWidth(lanesAt(this.map, x, y) || 1) * T * 0.78;
+      drawShapes(
+        this.ghostLayer.context,
+        controllerShapes(this.ghost.kind, this.ghost.direction),
+        p,
+        size,
+        (x + 0.5) * T,
+        (y + 0.5) * T,
+      );
+      this.ghostLayer.alpha = 0.55;
+    }
+  }
+
+  private drawMarks(): void {
+    const g = this.markLayer.clear();
+    const T = this.fit.tilePx;
+    const seen = new Map<string, number>();
+    for (const m of this.marks) {
+      const r = targetTileRect(m.target, this.map);
+      if (!r) continue;
+      // Stack badges on the same target side by side.
+      const k = targetKey(m.target);
+      const n = seen.get(k) ?? 0;
+      seen.set(k, n + 1);
+      const rad = Math.max(4, T * 0.09);
+      const cx = r.x * T + rad + 3 + n * (rad * 2 + 2);
+      const cy = r.y * T + rad + 3;
+      g.circle(cx, cy, rad).fill(m.color).stroke({ color: this.palette.outline, width: 1.5 });
     }
   }
 

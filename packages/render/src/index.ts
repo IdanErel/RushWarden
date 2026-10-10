@@ -5,19 +5,7 @@
  * Pure modules (geometry, lanes, interpolation, shapes, palette, fake traffic, worker handlers) have no
  * Pixi or DOM dependency and run in Node; `TrafficScene` and `SimClient` need a browser.
  */
-export * from './geometry.js';
-export * from './lanes.js';
-export * from './interpolate.js';
-export * from './palette.js';
-export * from './shapes.js';
-export * from './effects.js';
-export {
-  FakeTraffic,
-  buildRoute,
-  fakeDemand,
-  type FakeTrafficOptions,
-  type FakeTrafficState,
-} from './fake-traffic.js';
+export * from './core.js';
 export type { WorkerLike } from './worker/protocol.js';
 export { createFakeWorkerHandler } from './worker/fake-handler.js';
 export {
@@ -29,6 +17,7 @@ export {
 export {
   TrafficScene,
   type ControllerMark,
+  type PlacedMark,
   type SceneStats,
   type TrafficSceneOptions,
 } from './pixi/scene.js';

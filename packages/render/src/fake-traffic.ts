@@ -39,6 +39,16 @@ const VMAX: Readonly<Record<VehicleType, number>> = {
   [VehicleType.Bike]: 2,
 };
 
+/** Score value per type, GDD §3 (bus counts 3, truck 2, emergency 5). */
+export const SCORE_VALUE: Readonly<Record<VehicleType, number>> = {
+  [VehicleType.Car]: 1,
+  [VehicleType.Taxi]: 1,
+  [VehicleType.Bus]: 3,
+  [VehicleType.Truck]: 2,
+  [VehicleType.Emergency]: 5,
+  [VehicleType.Bike]: 1,
+};
+
 /** Spawn mix in percent: District 1's (§5) plus taxis and emergency so every type shows. */
 const MIX: readonly (readonly [VehicleType, number])[] = [
   [VehicleType.Car, 55],
@@ -86,6 +96,8 @@ export interface FakeTrafficState {
   done: boolean;
   spawned: number;
   exited: number;
+  /** Sum of score values of exited vehicles. */
+  throughput: number;
   readonly vehicles: Vehicle[];
   /** Route-step key → vehicle id. */
   readonly occupied: Map<number, number>;
@@ -195,6 +207,7 @@ export function init(map: GridMap, seed: number, opts: FakeTrafficOptions = {}):
     done: false,
     spawned: 0,
     exited: 0,
+    throughput: 0,
     vehicles: [],
     occupied: new Map(),
     locks: new Map(),
@@ -252,6 +265,7 @@ export function step(st: FakeTrafficState): FakeTrafficState {
     }
     if (exits) {
       st.exited++;
+      st.throughput += SCORE_VALUE[v.type];
       continue;
     }
     v.v = move;
