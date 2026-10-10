@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CONSENT_KEY,
   INSTALL_ID_KEY,
+  PENDING_DELETE_KEY,
   createIngestClient,
   normalizeLocale,
   offIngestClient,
@@ -184,23 +185,84 @@ describe('createIngestClient', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('keeps the ID (sending off) when the delete request fails, so the player can retry', async () => {
+  it('keeps the ID and a pending flag when the delete request fails', async () => {
     for (const fail of [
       () => Promise.reject(new Error('offline')),
       () => Promise.resolve({ ok: false }),
     ]) {
       const storage = memoryStorage();
       let calls = 0;
-      const { c } = client({
+      const { c, sent } = client({
         storage,
-        fetch: (_u, init) => (init.method === 'DELETE' && ++calls ? fail() : Promise.resolve()),
+        fetch: (url, init) => {
+          if (init.method === 'DELETE') {
+            calls++;
+            return fail();
+          }
+          sent.push({ url, init });
+          return Promise.resolve();
+        },
       });
       expect(await c.deleteData()).toBe(false);
       expect(calls).toBe(1);
       expect(c.install).toBe(INSTALL);
       expect(c.consent).toBe('no');
+      expect(c.deletePending).toBe(true);
       expect(storage.map.get(INSTALL_ID_KEY)).toBe(INSTALL);
+      expect(storage.map.get(PENDING_DELETE_KEY)).toBe('1');
+      // Nothing is sent while the delete is pending, and yes cannot override it.
+      c.setConsent(true);
+      c.setConsent(false);
+      c.track('app_open', {});
+      expect(sent).toEqual([]);
+      expect(c.install).toBe(INSTALL);
     }
+  });
+
+  it('after a reload, keeps the ID of a failed delete and retries until it succeeds', async () => {
+    const storage = memoryStorage();
+    const deletes: string[] = [];
+    let online = false;
+    const fetch = (url: string, init: RequestInit) => {
+      if (init.method !== 'DELETE') return Promise.resolve();
+      deletes.push(url);
+      return online ? Promise.resolve({ ok: true }) : Promise.reject(new Error('offline'));
+    };
+    const first = client({ storage, fetch }).c;
+    expect(await first.deleteData()).toBe(false);
+
+    // Reload while still offline: the ID survives and the start retries.
+    const second = client({ storage, fetch }, false).c;
+    expect(second.install).toBe(INSTALL);
+    expect(second.deletePending).toBe(true);
+    expect(second.consent).toBe('no');
+    await Promise.resolve();
+    expect(deletes).toHaveLength(2);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(storage.map.get(INSTALL_ID_KEY)).toBe(INSTALL);
+
+    // Reload once online: the retry at start deletes on the server, then forgets the ID.
+    online = true;
+    const third = client({ storage, fetch }, false).c;
+    expect(third.install).toBe(INSTALL);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(deletes).toEqual(Array(3).fill(`https://api.rushwarden.com/ingest/${INSTALL}`));
+    expect(third.install).toBeNull();
+    expect(third.deletePending).toBe(false);
+    expect(storage.map.has(INSTALL_ID_KEY)).toBe(false);
+    expect(storage.map.has(PENDING_DELETE_KEY)).toBe(false);
+
+    // And the next reload has nothing left to delete.
+    const fourth = client({ storage, fetch }, false).c;
+    expect(fourth.install).toBeNull();
+    expect(deletes).toHaveLength(3);
+  });
+
+  it('drops a pending flag that has no ID left', () => {
+    const storage = memoryStorage({ [PENDING_DELETE_KEY]: '1' });
+    const { c } = client({ storage }, false);
+    expect(c.deletePending).toBe(false);
+    expect(storage.map.has(PENDING_DELETE_KEY)).toBe(false);
   });
 
   it('the off client sends nothing and has no install ID', async () => {
@@ -208,6 +270,7 @@ describe('createIngestClient', () => {
     offIngestClient.track('app_open', {});
     expect(offIngestClient.install).toBeNull();
     expect(offIngestClient.consent).toBeNull();
+    expect(offIngestClient.deletePending).toBe(false);
     expect(await offIngestClient.deleteData()).toBe(true);
   });
 

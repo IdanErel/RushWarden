@@ -45,7 +45,7 @@ export function startAnalytics(
 ): IngestClient {
   const endpoint = env.VITE_INGEST_URL ?? '';
   if (!endpoint.startsWith('https://')) return offIngestClient;
-  // Second line of defence behind the build check: portal builds collect nothing (ADR-024).
+  // Portal builds collect nothing (ADR-024 point 4, ADR-025 point 3), whatever the build sets.
   if ((NO_ANALYTICS_PORTALS as readonly string[]).includes(portalId)) return offIngestClient;
   return createIngestClient({
     endpoint,

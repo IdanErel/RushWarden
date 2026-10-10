@@ -10,6 +10,11 @@ import {
 export const INSTALL_ID_KEY = 'rushwarden.install';
 /** localStorage key of the player's analytics answer: `yes` or `no` (ADR-025). */
 export const CONSENT_KEY = 'rushwarden.analytics';
+/**
+ * localStorage key set to `1` while a "Delete my data" request has not succeeded yet. The ID is
+ * kept until the server confirms, so the player can retry or email it (ADR-025 point 6).
+ */
+export const PENDING_DELETE_KEY = 'rushwarden.analytics.pendingDelete';
 
 /** The player's analytics answer. `null` = not asked yet, which counts as no (ADR-025). */
 export type Consent = 'yes' | 'no' | null;
@@ -25,14 +30,21 @@ export interface IngestClient {
   /** The stored answer; `null` until the player answers. */
   readonly consent: Consent;
   /**
+   * True while a "Delete my data" request has not succeeded. The ID is kept (nothing is sent) so
+   * the Privacy panel can show it with a retry; the client also retries on every start.
+   */
+  readonly deletePending: boolean;
+  /**
    * Records the player's answer. Yes creates the install ID; no deletes it locally and stops
-   * sending (ADR-025).
+   * sending (ADR-025). While a delete is pending, no keeps the ID and yes is ignored: the delete
+   * must finish first.
    */
   setConsent(yes: boolean): void;
   /**
-   * "Delete my data": calls `DELETE /ingest/:install`, then deletes the local ID and records no.
-   * Resolves false if the request failed; the ID is then kept (sending stays off) so the player can
-   * retry. Resolves true when there was nothing to delete.
+   * "Delete my data": records no (sending stops at once) and a pending delete, calls
+   * `DELETE /ingest/:install`, and only when that succeeds deletes the local ID and the pending
+   * flag. Resolves false if the request failed; the ID and the pending flag then survive reloads,
+   * and the next start retries. Resolves true when there was nothing to delete.
    */
   deleteData(): Promise<boolean>;
 }
@@ -42,6 +54,7 @@ export const offIngestClient: IngestClient = {
   track() {},
   install: null,
   consent: null,
+  deletePending: false,
   setConsent() {},
   deleteData: () => Promise.resolve(true),
 };
@@ -117,14 +130,23 @@ export function createIngestClient(options: IngestClientOptions): IngestClient {
   const locale = normalizeLocale(options.locale);
 
   const stored = read(storage, CONSENT_KEY);
+  const storedId = read(storage, INSTALL_ID_KEY);
+  const validId = storedId && UUID_V4.test(storedId) ? storedId : null;
   let consent: Consent = stored === 'yes' || stored === 'no' ? stored : null;
+  let pending = read(storage, PENDING_DELETE_KEY) === '1' && validId !== null;
   let install: string | null = null;
-  if (consent === 'yes') {
-    const id = read(storage, INSTALL_ID_KEY);
-    install = id && UUID_V4.test(id) ? id : randomUUID();
-    write(storage, INSTALL_ID_KEY, install);
-  } else if (read(storage, INSTALL_ID_KEY) !== null) {
-    write(storage, INSTALL_ID_KEY, null);
+  if (pending) {
+    // A delete that has not succeeded yet: keep the ID (never send with it) and retry below.
+    consent = 'no';
+    install = validId;
+  } else {
+    write(storage, PENDING_DELETE_KEY, null);
+    if (consent === 'yes') {
+      install = validId ?? randomUUID();
+      write(storage, INSTALL_ID_KEY, install);
+    } else if (storedId !== null) {
+      write(storage, INSTALL_ID_KEY, null);
+    }
   }
 
   function request(url: string, init: RequestInit): Promise<unknown> {
@@ -140,14 +162,18 @@ export function createIngestClient(options: IngestClientOptions): IngestClient {
     }
   }
 
-  return {
+  const client: IngestClient = {
     get install() {
       return install;
     },
     get consent() {
       return consent;
     },
+    get deletePending() {
+      return pending;
+    },
     setConsent(yes) {
+      if (pending) return; // The delete must finish first; consent is already no.
       consent = yes ? 'yes' : 'no';
       write(storage, CONSENT_KEY, consent);
       if (yes) {
@@ -161,15 +187,22 @@ export function createIngestClient(options: IngestClientOptions): IngestClient {
     async deleteData() {
       consent = 'no';
       write(storage, CONSENT_KEY, consent);
-      if (install === null) return true;
+      const id = install;
+      if (id === null) return true;
+      pending = true;
+      write(storage, PENDING_DELETE_KEY, '1');
       try {
-        const res = await request(`${options.endpoint}/${install}`, { method: 'DELETE' });
+        const res = await request(`${options.endpoint}/${id}`, { method: 'DELETE' });
         if ((res as { ok?: boolean } | undefined)?.ok === false) return false;
       } catch {
         return false;
       }
-      install = null;
-      write(storage, INSTALL_ID_KEY, null);
+      if (install === id) {
+        install = null;
+        pending = false;
+        write(storage, INSTALL_ID_KEY, null);
+        write(storage, PENDING_DELETE_KEY, null);
+      }
       return true;
     },
     track(event, props) {
@@ -193,4 +226,6 @@ export function createIngestClient(options: IngestClientOptions): IngestClient {
       }).catch(() => undefined); // Analytics must never break the game.
     },
   };
+  if (pending) void client.deleteData();
+  return client;
 }

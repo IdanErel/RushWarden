@@ -65,7 +65,7 @@ describe('startAnalytics', () => {
     });
   });
 
-  it('is off on Poki and CrazyGames even if the URL slipped through (ADR-024 point 4)', () => {
+  it('is off on Poki and CrazyGames even with VITE_INGEST_URL set (ADR-024 point 4)', () => {
     for (const portal of ['poki', 'crazygames'] as const) {
       const sent: unknown[] = [];
       const c = startAnalytics(
