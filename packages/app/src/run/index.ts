@@ -4,7 +4,7 @@
  * `startRun`/`step` directly.
  */
 export * from './types.js';
-export { quotaFor, fundsFor, BASE_QUOTA, RUSH_PERMILLE } from './quota.js';
+export { fundsFor } from './quota.js';
 export { shuffle, draw } from './deck.js';
 export { buildOffer, dominantTag, RARITY_WEIGHTS, OFFER_SIZE, PITY_AFTER_ROUND } from './offers.js';
 export {

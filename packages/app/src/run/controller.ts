@@ -13,7 +13,8 @@ import {
 } from '@rushwarden/sim';
 import { draw, shuffle } from './deck.js';
 import { buildOffer } from './offers.js';
-import { fundsFor, quotaFor } from './quota.js';
+import { roundQuota } from '@rushwarden/content';
+import { fundsFor } from './quota.js';
 import type {
   CostRule,
   DeckCard,
@@ -191,7 +192,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
     rush: rush !== null,
     boss: rush?.boss ?? null,
-    quota: quotaFor(state.config.district, round, rush !== null, state.config.quotaPermille),
+    quota: roundQuota(state.config.district, round, rush !== null, state.config.quotaPermille),
     hand: dealt.drawn,
     drawPile: dealt.drawPile,
     spent: dealt.spent,
