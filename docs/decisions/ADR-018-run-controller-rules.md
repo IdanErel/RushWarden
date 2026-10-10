@@ -62,6 +62,7 @@ changing a rule needs a new ADR.
    is not allowed past a Recount/redraw, so the draw pile is never revealed for free.
 9. **Seeds.** One xoshiro128** stream from the run seed drives shuffles, offers and round seeds.
    Each round's seed is the next uint32 at round start. Map and demand are set up from that seed
-   at round start, so the heat-strip can be shown before placement (§2).
+   at round start, so the heat-strip can be shown before placement (§2). The round setup's `districtRules.pSlowPermille` and `closedSegments` (Parade) are kept
+   in the run state and passed to the sim in `RoundInput`; the quota stays the controller's.
 10. **Win and loss.** Approval 0 ends the run as a loss immediately. Surviving the last round
     (5 in the toy, 12 in a full run, ADR-007) is a win.
