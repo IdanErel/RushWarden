@@ -36,7 +36,8 @@ const SPY_IDS = ['poki', 'crazygames', 'itch'] as const;
 type SpyId = (typeof SPY_IDS)[number];
 
 /** Same `canSellInPortal` answers as the real adapters (GDD §9). */
-const SELLS_IN_PORTAL: Record<SpyId, boolean> = { poki: false, crazygames: true, itch: true };
+// Mirrors each real adapter's canSellInPortal() (ADR-024: no unlock on Poki or CrazyGames).
+const SELLS_IN_PORTAL: Record<SpyId, boolean> = { poki: false, crazygames: false, itch: true };
 
 /** One recorded call, in order. `window.__portalCalls` holds these in hooks builds. */
 export type PortalCall =

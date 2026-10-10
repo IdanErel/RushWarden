@@ -9,7 +9,8 @@ import type { D1Database, D1PreparedStatement } from '../src/ingest/store.js';
  */
 export function fakeD1(): { db: D1Database; raw: DatabaseSync } {
   const raw = new DatabaseSync(':memory:');
-  raw.exec(readFileSync(new URL('../migrations/0001_ingest_events.sql', import.meta.url), 'utf8'));
+  for (const m of ['0001_ingest_events.sql', '0002_daily_rollups.sql'])
+    raw.exec(readFileSync(new URL(`../migrations/${m}`, import.meta.url), 'utf8'));
   const prepare = (sql: string, values: unknown[] = []): D1PreparedStatement => ({
     bind: (...v: unknown[]) => prepare(sql, v),
     run: async () => raw.prepare(sql).run(...(values as never[])),

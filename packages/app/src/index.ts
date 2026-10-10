@@ -9,3 +9,4 @@ export * from './save.js';
 export { flags, type FlagName } from './flags.js';
 export * from './analytics/index.js';
 export * from './run/index.js';
+export { segmentAt, segmentRuns, reverseSegment } from './map/segments.js';
