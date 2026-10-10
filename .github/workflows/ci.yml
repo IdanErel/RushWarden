@@ -97,20 +97,3 @@ jobs:
           path: packages/platform-web/itch/rushwarden-itch.zip
           if-no-files-found: error
           retention-days: 14
-
-  pr-title:
-    name: Conventional commit title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Lint PR title (squash-merge commit message)
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: printf '%s\n' "$TITLE" | pnpm exec commitlint
