@@ -28,11 +28,31 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
 
 ## Lane geometry from the sim (Lead's decision, 2026-10-10)
 
-- `World`, `Link`, `Lane`, `buildWorld` and `locateCell` are exported from `@rushwarden/sim` by
-  #13. The renderer adds `worldLaneLayout(world)` over them once #13 is on `main`.
+- `World`, `Link`, `Lane`, `buildWorld` and `locateCell` are exported from `@rushwarden/sim` (#13,
+  on `main`). `worldLaneLayout(world)` reads them and is the scene's default layout. A lane sits
+  `index + 0.5` lane widths in from the right-hand kerb of the whole road (both directions'
+  lanes), so a one-way road with doubled lanes fills the road. On a turning tile, cells 0–1 follow
+  the entry direction and cells 2–3 the exit direction.
 - Vehicles inside an intersection: the sim names the turn movement. Intersection movement lanes
-  get reserved lane ids after the road lanes (SIM-03), and `locateCell` resolves them. Until
-  SIM-03 lands, the renderer draws a straight line from the approach cell to the exit cell.
+  get reserved lane ids after the road lanes (P1-SIM-02, #23), and `locateCell` resolves them.
+  The renderer draws a box-lane cell on the straight line from the approach lane's last cell to
+  the exit lane's first cell, at `(cell + 1) / (cells + 1)` of the way. It reads the box fields
+  (`intersection`, `entryDir`, `exitDir`) structurally, so the same code works before and after
+  #23; before it, the sim reports no vehicle in a box and the snapshot blend draws the same line.
+- `tileLaneLayout` (per-tile ids) stays only for `FakeTraffic`, which the dev page pairs with it.
+
+## Readability and shape notes (review of #18)
+
+- **Shape alone (§7 accessibility).** Car and taxi share a body, so the taxi also carries a
+  crosswise roof-sign block that sticks out past the stripe ("+" against the car's "−"). The
+  shape test compares geometry only, never fills.
+- **"Readable at 12 px".** Read as: a 1-cell vehicle is at least 12 px long on the 390 px design
+  width (GDD §1 constraint 5), and every shape stays distinguishable there. Narrower phones scale
+  the whole map down with it (a car is about 11.5 px at 360 px); the map does not grow past the
+  width, so the shapes, not a size floor, carry readability below 390 px.
+- **Truck "darker".** Read as darker than the other vehicle bodies (box `truckBox` against the
+  light `vehicleBody`), not darker than the road: on District 1's dark road a dark truck would
+  fall under the 3:1 contrast floor.
 
 ## Consequences
 

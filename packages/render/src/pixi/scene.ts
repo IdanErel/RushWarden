@@ -9,6 +9,7 @@ import {
   GRID_HEIGHT,
   GRID_WIDTH,
   VehicleType,
+  buildWorld,
   type ControllerKind,
   type GridMap,
   type Side,
@@ -26,7 +27,7 @@ import {
   type ViewFit,
 } from '../geometry.js';
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
-import { tileLaneLayout, type LaneLayout } from '../lanes.js';
+import { worldLaneLayout, type LaneLayout } from '../lanes.js';
 import { OLD_TOWN, type Palette } from '../palette.js';
 import { controllerShapes, vehicleShapes } from '../shapes.js';
 import { drawShapes } from './draw.js';
@@ -44,7 +45,7 @@ export interface TrafficSceneOptions {
   readonly width: number;
   readonly height: number;
   readonly palette?: Palette;
-  /** Defaults to the provisional `tileLaneLayout(map)`. */
+  /** Defaults to `worldLaneLayout(buildWorld(map))`, the sim's own lanes. */
   readonly layout?: LaneLayout;
   /** Device pixel ratio; defaults to `window.devicePixelRatio`. */
   readonly resolution?: number;
@@ -79,7 +80,7 @@ export class TrafficScene {
     this.app = app;
     this.map = opts.map;
     this.palette = opts.palette ?? OLD_TOWN;
-    this.buffer = new SnapshotBuffer(opts.layout ?? tileLaneLayout(opts.map));
+    this.buffer = new SnapshotBuffer(opts.layout ?? worldLaneLayout(buildWorld(opts.map)));
     this.fit = fitGrid(opts.width, opts.height);
     this.world.addChild(this.mapLayer, this.glyphLayer, this.vehicleLayer);
     app.stage.addChild(this.world);
@@ -128,7 +129,7 @@ export class TrafficScene {
     this.drawGlyphs();
   }
 
-  setMap(map: GridMap, layout: LaneLayout = tileLaneLayout(map)): void {
+  setMap(map: GridMap, layout: LaneLayout = worldLaneLayout(buildWorld(map))): void {
     this.map = map;
     this.buffer.setLayout(layout);
     this.buffer.reset();

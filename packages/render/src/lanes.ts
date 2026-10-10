@@ -1,12 +1,22 @@
 /**
  * Lane layout: turns a snapshot's (lane, cell) pair into a point on the map.
  *
- * The renderer only depends on the `LaneLayout` interface. `tileLaneLayout` is a PROVISIONAL
- * numbering owned by the renderer until the sim's world (P1-SIM-01) defines real lane ids; at that
- * point the sim needs to expose its lane geometry (see the package README, "Open interface") and
- * `tileLaneLayout` is replaced by an adapter over it. Nothing else in the renderer changes.
+ * The renderer only depends on the `LaneLayout` interface. `worldLaneLayout(world)` reads the
+ * sim's own lanes (`World`, `locateCell`, ADR-012) and is what real snapshots use.
+ * `tileLaneLayout` is the renderer's per-tile numbering, kept only for the fake traffic until the
+ * sim spawns vehicles (ADR-015).
  */
-import { CELLS_PER_TILE, GRID_HEIGHT, GRID_WIDTH, type GridMap, type Side } from '@rushwarden/sim';
+import {
+  CELLS_PER_TILE,
+  GRID_HEIGHT,
+  GRID_WIDTH,
+  SIDES as SIM_SIDES,
+  locateCell,
+  type GridMap,
+  type Lane,
+  type Side,
+  type World,
+} from '@rushwarden/sim';
 import { LANE_WIDTH, SIDES, SIDE_VEC, lanesAt, tileIndex } from './geometry.js';
 
 /** A point on the map in tile units plus the direction of travel there (radians, 0 = east). */
@@ -22,7 +32,7 @@ export interface LaneLayout {
    * pair does not exist on this map (the renderer then hides the vehicle rather than guessing).
    */
   cellPoint(lane: number, cell: number, out: LanePoint): boolean;
-  /** Cells per lane; the renderer uses it only to validate input. */
+  /** Cells per tile along a lane (`CELLS_PER_TILE`). */
   readonly cellsPerLane: number;
 }
 
@@ -67,6 +77,94 @@ export function tileLaneLayout(map: GridMap): LaneLayout {
       out.y = y + 0.5 + dy * along + dx * lateral;
       out.heading = HEADING[dir];
       return true;
+    },
+  };
+}
+
+/** Writes the centre of cell `offset` (0..3) of tile (x, y) for travel `entry` → `exit`. */
+function tileCellPoint(
+  x: number,
+  y: number,
+  entry: Side,
+  exit: Side,
+  offset: number,
+  lateral: number,
+  out: LanePoint,
+): void {
+  // Turning tiles: first half along the entry direction, second half along the exit direction.
+  const dir = entry === exit || offset < CELLS_PER_TILE / 2 ? entry : exit;
+  const [dx, dy] = SIDE_VEC[dir];
+  const along = -0.5 + (offset + 0.5) / CELLS_PER_TILE;
+  // Right of travel is (-dy, dx) in screen axes.
+  out.x = x + 0.5 + dx * along - dy * lateral;
+  out.y = y + 0.5 + dy * along + dx * lateral;
+  out.heading = HEADING[dir];
+}
+
+/**
+ * Intersection box lanes (one per turn movement) are added by P1-SIM-02 (#23) after the road
+ * lanes, with these fields. Read them structurally so this file works before and after #23.
+ */
+interface BoxLaneFields {
+  readonly intersection?: number;
+  readonly entryDir?: number;
+  readonly exitDir?: number;
+}
+
+/**
+ * Lane layout over the sim's world (ADR-012 numbering: lane 0 is the kerb lane, right-hand
+ * traffic; cell 0 upstream; `CELLS_PER_TILE` cells per tile).
+ *
+ * - Road lanes: `locateCell` gives the tile, the cell within it and the travel directions. A lane
+ *   sits `k + 0.5` lane widths in from the right-hand kerb of the whole road, so a one-way road
+ *   whose lanes were doubled fills the road instead of one half of it.
+ * - Intersection box lanes (after #23): drawn on a straight line from the approach lane's last
+ *   cell to the exit lane's first cell (Lead's decision, ADR-015). Before #23 the sim reports no
+ *   vehicle inside a box, and the renderer's blend between those two cells draws the same line.
+ * - Unknown ids return false, so the vehicle is hidden rather than guessed.
+ */
+export function worldLaneLayout(world: World): LaneLayout {
+  const a: LanePoint = { x: 0, y: 0, heading: 0 };
+  const b: LanePoint = { x: 0, y: 0, heading: 0 };
+  const side = (dir: number): Side => SIM_SIDES[dir & 3] ?? 'n';
+
+  function roadPoint(lane: Lane, cell: number, out: LanePoint): boolean {
+    if (!Number.isInteger(cell) || cell < 0 || cell >= lane.cells) return false;
+    const link = world.links[lane.link];
+    if (!link) return false;
+    const total = link.lanes.length + (world.links[link.reverse]?.lanes.length ?? 0);
+    const lateral = (total / 2 - lane.index - 0.5) * LANE_WIDTH;
+    const at = locateCell(world, lane.id, cell);
+    const x = at.tile % GRID_WIDTH;
+    const y = Math.floor(at.tile / GRID_WIDTH);
+    tileCellPoint(x, y, side(at.entryDir), side(at.exitDir), at.offset, lateral, out);
+    return true;
+  }
+
+  function boxPoint(lane: Lane & BoxLaneFields, cell: number, out: LanePoint): boolean {
+    const ix = world.intersections[lane.intersection ?? -1];
+    if (!ix || lane.entryDir === undefined || lane.exitDir === undefined) return false;
+    if (!Number.isInteger(cell) || cell < 0 || cell >= lane.cells) return false;
+    // The approach arrives on the side opposite its direction of travel.
+    const inLink = world.links[ix.inLinks[(lane.entryDir + 2) & 3] ?? -1];
+    const outLink = world.links[ix.outLinks[lane.exitDir] ?? -1];
+    const inLane = world.lanes[inLink?.lanes[0] ?? -1];
+    const outLane = world.lanes[outLink?.lanes[0] ?? -1];
+    if (!inLane || !outLane) return false;
+    if (!roadPoint(inLane, inLane.cells - 1, a) || !roadPoint(outLane, 0, b)) return false;
+    const t = (cell + 1) / (lane.cells + 1);
+    out.x = a.x + (b.x - a.x) * t;
+    out.y = a.y + (b.y - a.y) * t;
+    out.heading = Math.atan2(b.y - a.y, b.x - a.x);
+    return true;
+  }
+
+  return {
+    cellsPerLane: CELLS_PER_TILE,
+    cellPoint(laneId, cell, out) {
+      const lane = world.lanes[laneId] as (Lane & BoxLaneFields) | undefined;
+      if (!lane) return false;
+      return lane.link >= 0 ? roadPoint(lane, cell, out) : boxPoint(lane, cell, out);
     },
   };
 }

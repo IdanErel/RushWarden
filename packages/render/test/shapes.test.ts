@@ -70,10 +70,20 @@ describe('vehicle shapes (GDD §7)', () => {
     expect((b.x1 - b.x0) * cellPx).toBeGreaterThanOrEqual(12);
   });
 
-  it('gives every type a distinct shape signature', () => {
+  it('tells every type apart by shape alone, ignoring colour (§7)', () => {
+    const r = (n: number): string => n.toFixed(2);
     const sig = (t: number): string =>
       vehicleShapes(t)
-        .map((s) => `${s.kind}:${s.fill ?? ''}`)
+        .map((s) => {
+          switch (s.kind) {
+            case 'rect':
+              return `rect:${r(s.x)},${r(s.y)},${r(s.w)},${r(s.h)}`;
+            case 'circle':
+              return `circle:${r(s.x)},${r(s.y)},${r(s.r)}`;
+            case 'poly':
+              return `poly:${s.points.map(r).join(',')}`;
+          }
+        })
         .join('|');
     expect(new Set(TYPES.map(sig)).size).toBe(TYPES.length);
   });

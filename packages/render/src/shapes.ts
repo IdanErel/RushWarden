@@ -87,8 +87,27 @@ function stripe(length: number, fill: Token): Shape {
  */
 export function vehicleShapes(type: number, frame: 0 | 1 = 0): Shape[] {
   switch (type) {
-    case VehicleType.Taxi:
-      return [body(1, 'vehicleBody'), stripe(1, 'taxi')];
+    case VehicleType.Taxi: {
+      // Shape cue, not just colour (§7): a crosswise roof-sign block that sticks out past the
+      // stripe on both sides, so a taxi reads as a "+" where a car reads as a "−".
+      const w = 0.2;
+      const h = BODY_WIDTH * 0.72;
+      return [
+        body(1, 'vehicleBody'),
+        stripe(1, 'taxi'),
+        {
+          kind: 'rect',
+          x: -0.06 - w / 2,
+          y: -h / 2,
+          w,
+          h,
+          r: 0.03,
+          fill: 'taxi',
+          stroke: 'outline',
+          strokeWidth: OUTLINE * 0.8,
+        },
+      ];
+    }
     case VehicleType.Bus: {
       const w = 0.62;
       const h = BODY_WIDTH * 0.5;
