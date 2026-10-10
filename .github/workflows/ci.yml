@@ -82,8 +82,9 @@ jobs:
       - name: Build and check bundle budget
         run: pnpm size
       - run: pnpm --filter @rushwarden/platform-web exec playwright install --with-deps chromium
+      # Fast specs only; the @full toy specs (whole rounds and runs) are in the toy-e2e job (ADR-029).
       - name: E2E (phone and desktop viewports)
-        run: pnpm --filter @rushwarden/platform-web run e2e
+        run: pnpm --filter @rushwarden/platform-web run e2e --grep-invert @full
       - name: Renderer dev-page check (scene, worker playback, readability effects)
         run: pnpm --filter @rushwarden/render run e2e
       - name: Run screen e2e (hooks H2, H3, H5; phone and desktop)
@@ -97,6 +98,26 @@ jobs:
           path: packages/platform-web/itch/rushwarden-itch.zip
           if-no-files-found: error
           retention-days: 14
+
+  toy-e2e:
+    # ADR-029: the toy specs that play whole rounds or runs (tagged @full), on the 390x844
+    # Chromium phone only, in parallel with the web job. WebKit runs them in Nightly.
+    name: Toy e2e, full rounds (phone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the public web build (the e2e preview serves it)
+        run: pnpm --filter @rushwarden/platform-web run build
+      - run: pnpm --filter @rushwarden/platform-web exec playwright install --with-deps chromium
+      - name: Toy e2e (@full, phone)
+        run: pnpm --filter @rushwarden/platform-web run e2e --project phone --grep @full
 
   pr-title:
     name: Conventional commit title
