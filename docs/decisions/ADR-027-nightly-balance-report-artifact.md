@@ -14,3 +14,7 @@ The Phase 1 task table (P1-LEAD-02) says the nightly balance report is "committe
    reviewed change, and the §11 rule that a balance-affecting PR carries its report still holds.
 3. **This replaces the task table's "bot PR".** No bot account or write token is needed, and
    ADR-005 (no self-merge) is unaffected.
+4. **GDD §11 is met.** §11 has the nightly job produce `docs/balance/latest.md`. Every nightly run
+   produces that report as the `latest.md` file in its artifact, and the committed copy is updated
+   on every tuning PR, so this is not a deviation from the brief, only from the task table's
+   delivery mechanism.

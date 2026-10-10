@@ -42,7 +42,7 @@ jobs:
     name: Sim throughput (report only)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Report only: compare numbers only between runs on the same CPU model (ADR-026).
+    # Report only: compare numbers only between runs on the same CPU model (ADR-026, in #37).
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

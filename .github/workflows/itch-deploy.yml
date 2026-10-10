@@ -25,10 +25,13 @@ jobs:
     name: Build and push to itch (draft)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # BUTLER_API_KEY is not in the job env: only the gate and push steps see it, so pnpm install
+    # and the build never have the secret in their environment.
     env:
-      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
       ITCH_GAME: ${{ vars.ITCH_GAME }}
       CHANNEL: ${{ inputs.channel || 'draft' }}
+      # Pinned; bump deliberately. The push step prints `butler -V`.
+      BUTLER_VERSION: 15.21.0
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -47,6 +50,8 @@ jobs:
           retention-days: 14
       - name: Decide whether to push
         id: gate
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           if [ -z "$BUTLER_API_KEY" ]; then
             echo "push=false" >> "$GITHUB_OUTPUT"
@@ -63,13 +68,15 @@ jobs:
         if: steps.gate.outputs.push == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/butler"
-          curl -fsSL -o "$RUNNER_TEMP/butler.zip" https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          curl -fsSL -o "$RUNNER_TEMP/butler.zip" "https://broth.itch.zone/butler/linux-amd64/$BUTLER_VERSION/archive/default"
           unzip -q "$RUNNER_TEMP/butler.zip" -d "$RUNNER_TEMP/butler"
           chmod +x "$RUNNER_TEMP/butler/butler"
           echo "$RUNNER_TEMP/butler" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/butler/butler" -V
       - name: Push to ${{ env.CHANNEL }}
         if: steps.gate.outputs.push == 'true'
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           butler push packages/platform-web/itch/rushwarden-itch.zip "$ITCH_GAME:$CHANNEL" --userversion "${GITHUB_SHA::7}"
           echo "Pushed \`${GITHUB_SHA::7}\` to itch channel \`$ITCH_GAME:$CHANNEL\`." >> "$GITHUB_STEP_SUMMARY"
