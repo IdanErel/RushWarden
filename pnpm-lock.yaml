@@ -84,6 +84,9 @@ importers:
         specifier: workspace:*
         version: link:../sim
     devDependencies:
+      '@rushwarden/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@vitest/coverage-v8':
         specifier: ~4.1.11
         version: 4.1.11(vitest@4.1.11)
@@ -127,9 +130,18 @@ importers:
       '@rushwarden/app':
         specifier: workspace:*
         version: link:../app
+      '@rushwarden/content':
+        specifier: workspace:*
+        version: link:../content
+      '@rushwarden/render':
+        specifier: workspace:*
+        version: link:../render
       '@rushwarden/sim':
         specifier: workspace:*
         version: link:../sim
+      '@rushwarden/ui':
+        specifier: workspace:*
+        version: link:../ui
     devDependencies:
       '@playwright/test':
         specifier: 1.56.1

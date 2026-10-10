@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { emptyMap } from '@rushwarden/sim';
+import { emptyMap, placementError } from '@rushwarden/sim';
+import { fullRunConfig, startRun, type RunEnv } from '@rushwarden/app';
 import {
   ARCHETYPE_TAGS,
   archetypeBot,
   botByName,
+  botContext,
   greedyBot,
   phase1Bots,
   randomBot,
 } from '../src/bots.js';
 import { runOne } from '../src/runner.js';
-import { candidateTargets, spread } from '../src/targets.js';
-import { CARDS } from '../src/data.js';
-import { scoredSpec } from './fixtures.js';
+import { candidateTargets, directedRuns, spread } from '../src/targets.js';
+import { CARDS, CONTENT_ENV } from '../src/data.js';
+import { scoredSpec, scoringSim } from './fixtures.js';
 
 const tagsOf = new Map(CARDS.map((c) => [c.id, c.tags as readonly string[]]));
 
@@ -72,5 +74,40 @@ describe('targets', () => {
   it('spreads evenly and keeps short lists whole', () => {
     expect(spread([1, 2], 3)).toEqual([1, 2]);
     expect(spread([0, 1, 2, 3, 4, 5, 6, 7, 8], 3)).toEqual([0, 3, 6]);
+  });
+
+  it('greedy places One-Way legally on a District 1 map (whole runs, either direction)', () => {
+    // Content's District 1 maps with the scoring stand-in sim, which rewards any legal play.
+    const env: RunEnv = { setupRound: CONTENT_ENV.setupRound, simulate: scoringSim };
+    const config = fullRunConfig({
+      seed: 7,
+      cards: CARDS,
+      startingDeck: Array(12).fill('one-way'),
+    });
+    const state = startRun(config, env).state;
+    const oneWay = CARDS.find((c) => c.id === 'one-way')!;
+    const segments = directedRuns(state.map);
+    expect(segments.length).toBeGreaterThan(0);
+    for (const target of segments) {
+      expect(target.kind === 'segment' && target.from).not.toEqual(
+        target.kind === 'segment' && target.to,
+      );
+      const placement = {
+        cardId: 'one-way',
+        tier: 1 as const,
+        target,
+        effects: oneWay.effects,
+        order: 0,
+      };
+      expect(placementError(state.map, placement)).toBeNull();
+    }
+    const plays = greedyBot.plays(state, botContext(7, 0, env, CARDS));
+    expect(plays.length).toBeGreaterThan(0);
+    const runs = new Set(segments.map((t) => JSON.stringify(t)));
+    for (const a of plays) {
+      expect(a.type).toBe('play');
+      // Only whole runs a player can place: no sub-run stubs.
+      if (a.type === 'play') expect(runs.has(JSON.stringify(a.target))).toBe(true);
+    }
   });
 });

@@ -10,6 +10,7 @@
 import {
   RunController,
   costOf,
+  segmentAt,
   step,
   type DeckCard,
   type RoundOutcome as RunRoundOutcome,
@@ -67,20 +68,8 @@ export function markOf(o: {
   return o.throughput * 10 < o.quota * 11 ? 'near' : 'pass';
 }
 
-/**
- * The straight run of non-intersection road tiles through (x, y), as a sim segment target. A
- * one-way card points from `from` to `to` (west to east, or north to south).
- */
-export function segmentAt(map: GridMap, x: number, y: number): Target {
-  const plain = (a: number, b: number): boolean => isRoad(map, a, b) && !isIntersection(map, a, b);
-  const horizontal = plain(x - 1, y) || plain(x + 1, y) || !(plain(x, y - 1) || plain(x, y + 1));
-  const [dx, dy] = horizontal ? [1, 0] : [0, 1];
-  let [fx, fy] = [x, y];
-  while (plain(fx - dx, fy - dy)) [fx, fy] = [fx - dx, fy - dy];
-  let [tx, ty] = [x, y];
-  while (plain(tx + dx, ty + dy)) [tx, ty] = [tx + dx, ty + dy];
-  return { kind: 'segment', from: { x: fx, y: fy }, to: { x: tx, y: ty } };
-}
+/** The straight run through a tapped tile; shared with the balance bots (ADR-031). */
+export { segmentAt };
 
 export function toSimTarget(t: TargetMark, map: GridMap): Target {
   switch (t.kind) {
