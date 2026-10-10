@@ -1,7 +1,6 @@
-# ADR-0XX: Intersection controllers and the turn pocket
+# ADR-020: Intersection controllers and the turn pocket
 
-Status: Proposed · 2026-10-10 · Sim Engineer (P1-SIM-03). The number is a placeholder until the
-Lead assigns one.
+Status: Proposed · 2026-10-10 · Sim Engineer (P1-SIM-03). Number assigned by the Lead.
 
 GDD §3 rule 5 says "signals by phase; uncontrolled by 'first at line, then rightmost'; roundabouts
 by 'inside has priority, max occupancy 4'; priority(dir) by direction". Rule 2 adds that the gap
@@ -56,8 +55,19 @@ cell". The brief does not give timings, phase layouts or tie-breaks. These are t
    `both`, right turners do the same. The pocket is its own stop line, so a waiting turner no
    longer blocks through traffic. Without a Turn Lane, pockets are unused. `locateCell` draws a
    pocket beside the approach's last tile.
-10. **Renderer data.** `controllerSnapshot(state)` returns `[kind, greenMask, boxCount]` per
-    intersection. It is not yet part of the worker protocol's frames, and the Lead decides how
-    frames carry it.
+10. **Renderer data** (Lead's decision, 2026-10-10; an addendum to ADR-015's playback frames).
+    `controllerSnapshot(state)` returns `[kind, greenMask, boxCount]` per intersection, in
+    intersection order:
+    - `kind` is a `ControllerCode`;
+    - `greenMask` has bit `side` set for each approach on green (signals only; 0 during all-red
+      and for other kinds);
+    - `boxCount` is the number of vehicles whose head is in the box.
+
+    The worker's `frames` message gains an optional field `controllers?: readonly Uint8Array[]`,
+    where `controllers[k]` is the controller snapshot after the same tick as `frames[k]`. Its
+    buffers are transferred with the frames. The sim worker always sends it; it is optional so
+    other producers (Render's `FakeTraffic`) may omit it. Until P1-SIM-05 wires the cards, every
+    intersection is uncontrolled: kind 0 and mask 0, and only `boxCount` moves.
+
 11. **Hash.** The state hash now also covers each vehicle's stop-line arrival tick and every
     intersection's controller kind and signal state. Golden hashes are regenerated (see the PR).

@@ -19,7 +19,7 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `weightedRoute(world, intersection, arrivalSide, d, cost)`                          | Integer Dijkstra over links for taxis (time-weighted costs), no U-turns.                                                     |
 | `locateCell(world, laneId, cell)`                                                   | Tile, offset, travel directions and box quarter of a snapshot's (lane, cell), for the renderer.                              |
 | `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-017).                                                                       |
-| `controllerSnapshot(state)`, `ControllerCode`, `SIGNAL_GREEN_TICKS`, ...            | Per-intersection `[kind, greenMask, boxCount]` for the renderer, and the controller constants (ADR-0XX).                     |
+| `controllerSnapshot(state)`, `ControllerCode`, `SIGNAL_GREEN_TICKS`, ...            | Per-intersection `[kind, greenMask, boxCount]` for the renderer, and the controller constants (ADR-020).                     |
 | `emptyMap`, `sampleInput`, `latticeMap`, `denseInput`                               | Test and golden fixtures: a plus map with 0–6 vehicles, and lattices of 4–12 intersections with 50–150 vehicles.             |
 
 ## Worker protocol (P1-LEAD-01)
@@ -28,7 +28,8 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 ticks: `start {roundId, input}` → `step {roundId, ticks}` (≤ 60) → `frames` replies with
 transferable snapshot buffers, then one `done {result}`. `finish` runs the rest at once, `abort`
 drops the round, and bad input yields `error`. Frames equal a headless `recordFrames` run
-(tested over `worker_threads`).
+(tested over `worker_threads`). Each `frames` message also carries `controllers`, one
+`controllerSnapshot` per frame (`[kind, greenMask, boxCount]` per intersection, ADR-020).
 
 ```ts
 // sim.worker.ts
@@ -92,7 +93,7 @@ bus-stop tile.
 ## Status
 
 P1-SIM-03: vehicles spawn, follow tick rules 1, 2, 4, 5 and 6, and exit with their score.
-Every controller kind and the turn pocket are implemented (`src/controllers.ts`, ADR-0XX); all
+Every controller kind and the turn pocket are implemented (`src/controllers.ts`, ADR-020); all
 intersections start uncontrolled, and cards set them from P1-SIM-05 on. p_slow (rule 3) and the
 gridlock detector follow in P1-SIM-04. `pnpm bench` measures rounds/s.
 
