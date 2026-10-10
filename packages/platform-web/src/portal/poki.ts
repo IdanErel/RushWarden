@@ -1,6 +1,7 @@
 import { withTimeout } from './load-script.js';
 import { browserEnv } from './env.js';
 import {
+  isHttpsUrl,
   prop,
   safeCall,
   type AdapterEnv,
@@ -108,5 +109,20 @@ export class PokiAdapter implements WebPortalAdapter {
 
   canSellInPortal(): boolean {
     return false;
+  }
+
+  /**
+   * Poki requires external links to go through `PokiSDK.openExternalLink` (reviewer-2 on #50).
+   * Without the SDK (blocked, offline, older SDK) it falls back to a plain new tab.
+   */
+  openExternalLink(url: string): void {
+    if (!isHttpsUrl(url)) return;
+    const sdk = this.sdk;
+    const open = prop(sdk, 'openExternalLink');
+    if (sdk && typeof open === 'function') {
+      safeCall(() => (open as (u: string) => unknown).call(sdk, url));
+      return;
+    }
+    this.env.openWindow?.(url);
   }
 }

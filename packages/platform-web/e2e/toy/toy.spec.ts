@@ -5,20 +5,15 @@
  * - Fast specs: every PR, in the `web` CI job, on `phone` and `desktop` (`--grep-invert @full`).
  * - Specs tagged `@full` play whole rounds or runs: every PR, in the `toy-e2e` job, on `phone`.
  * - Everything on `phone-webkit`: in the Nightly workflow.
- *
- * Until P1-WEB-01 mounts the run screen in this package's build, each one reports fixme (see
- * `hasRunScreen` in toy.ts).
  */
 import { expect, test } from '@playwright/test';
 import { SEED_RANGE, findSeed, noCardRun, seedTable, type HeadlessRun } from './headless.js';
 import {
   GLYPH,
-  NEEDS_WIRING,
   TARGET,
   TOY_URL,
   attr,
   gameOnly,
-  hasRunScreen,
   holdRound,
   openToy,
   playNoCards,
@@ -48,21 +43,13 @@ const passSeed = (): number => need('pass-round-1').seed;
 test.describe('toy flow', () => {
   // A 15 s round takes 17–40 s of wall time in headless software WebGL (CI is the slow end).
   test.describe.configure({ timeout: 120_000 });
-  let runScreen = false;
 
-  // Checked once per worker, before the seed scan, so that while the build has no run screen the
-  // specs report fixme straight away instead of scanning seeds first.
-  test.beforeAll(async ({ browser }) => {
+  // The headless seed scan (S1–S3), once per worker.
+  test.beforeAll(() => {
     test.setTimeout(120_000);
-    const page = await browser.newPage();
-    runScreen = await hasRunScreen(page);
-    await page.close();
-    if (runScreen) seedTable();
+    seedTable();
   });
 
-  test.beforeEach(() => {
-    test.fixme(!runScreen, NEEDS_WIRING);
-  });
   test('E2E-01 boot to the run screen', async ({ page }) => {
     const errors = watchErrors(page);
     const failed: string[] = [];
@@ -390,11 +377,7 @@ test.describe('toy flow', () => {
         sandbox="allow-scripts allow-same-origin"></iframe>`,
     );
     const frame = page.frameLocator('#game');
-    await frame.locator('#game-state, #app[data-hash]').first().waitFor({ state: 'attached' });
-    test.fixme(
-      (await frame.locator('#game-state').count()) === 0,
-      'needs P1-WEB-01 (no #game-state)',
-    );
+    await frame.locator('#game-state').waitFor({ state: 'attached' });
     await expect(frame.locator('#game-state')).toHaveAttribute('data-phase', 'place');
     const go = frame.getByRole('button', { name: 'Go: start the rush hour' });
     const box = await go.boundingBox();

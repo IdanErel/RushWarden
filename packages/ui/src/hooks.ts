@@ -16,6 +16,8 @@ export interface UiFlags {
   readonly cursor: number | null;
 }
 
+const xy = (t: { x: number; y: number }): string => `${t.x},${t.y}`;
+
 export function stateAttributes(s: RunState, ui: UiFlags): Record<string, string> {
   return {
     'data-phase': s.phase,
@@ -29,6 +31,10 @@ export function stateAttributes(s: RunState, ui: UiFlags): Record<string, string
     'data-paused': String(ui.paused),
     'data-round-hash': s.last?.hash ?? '',
     'data-placed': s.placed.map((p) => p.card.id).join(','),
+    // Each placed card's segment as the sim gets it, `fx,fy>tx,ty` ('' for other targets).
+    'data-placed-segments': s.placed
+      .map((p) => (p.segment ? `${xy(p.segment.from)}>${xy(p.segment.to)}` : ''))
+      .join(';'),
     'data-selected': ui.selected === null ? '' : String(ui.selected),
     'data-cursor': ui.cursor === null ? '' : String(ui.cursor),
     'data-target-rects': JSON.stringify(

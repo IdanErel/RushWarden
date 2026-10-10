@@ -133,6 +133,19 @@ describe('Effect union v2 validation (ADR-014)', () => {
     ['speed cells', place([{ kind: 'setSpeedLimit', delta: 0, cells: 0 }], seg(3, 0, 3, 3))],
     ['unknown edge target', place([], { kind: 'edge', edge: 42 })],
     ['intersection out of bounds', place([], { kind: 'intersection', tile: { x: 7, y: 0 } })],
+    [
+      'intersection on a plain road tile',
+      place([], { kind: 'intersection', tile: { x: 3, y: 2 } }),
+    ],
+    ['intersection on a block tile', place([], { kind: 'intersection', tile: { x: 0, y: 0 } })],
+    [
+      'intersection as a secondary target off an intersection',
+      place(
+        [],
+        { kind: 'district' },
+        { secondaryTarget: { kind: 'intersection', tile: { x: 1, y: 1 } } },
+      ),
+    ],
     ['diagonal segment', place([], seg(0, 0, 1, 1))],
     [
       'banType target-class off a segment',
@@ -186,5 +199,17 @@ describe('Effect union v2 validation (ADR-014)', () => {
     expect(() => Sim.init({ ...base, cardState: { runEffects: [bad] } })).toThrow(RangeError);
     const good = place([{ kind: 'setBusStopDwell', dwellTicks: 2 }], seg(3, 0, 3, 3));
     expect(Sim.init({ ...base, placements: [good] }).tick).toBe(0);
+  });
+
+  it('refuses an intersection target on a tile that is not one, before Sim.init gets to effects', () => {
+    const p = place([{ kind: 'setController', controller: 'roundabout' }], {
+      kind: 'intersection',
+      tile: { x: 3, y: 2 },
+    });
+    expect(placementError(map, p)).toMatch(/^no intersection at \(3, 2\)/);
+    // Sim.init validates placements first, so the error is the placement one, not effects'.
+    expect(() => Sim.init({ ...sampleInput(1), placements: [p] })).toThrow(
+      /no intersection at \(3, 2\): the tile must be/,
+    );
   });
 });

@@ -25,8 +25,12 @@ import { paradeCandidates, pickParadeSegment, type SegmentId } from './parade.js
 /** Seconds in one Go phase (15). */
 export const ROUND_SECONDS = idiv(ROUND_TICKS, TICKS_PER_SECOND);
 
-/** GDD §2: `base = [26, 34, 42]`. */
-export const BASE_QUOTA: { readonly [D in District]: number } = { 1: 26, 2: 34, 3: 42 };
+/**
+ * Base quota per district. GDD §2 starts at `[26, 34, 42]` and leaves the values to the balance
+ * sim. District 1 is tuned by P1-CON-05 to about 90% of round 1's demand score (ADR-021 item 3);
+ * Districts 2 and 3 keep the GDD values until they have maps and a report.
+ */
+export const BASE_QUOTA: { readonly [D in District]: number } = { 1: 83, 2: 34, 3: 42 };
 /** GDD §2: quota grows 11% per round (`1 + 0.11*(r-1)`), in per-mille. */
 export const ROUND_GROWTH_PERMILLE = 110;
 /** GDD §2: rush rounds have 1.6× demand and quota, in per-mille. */
@@ -38,7 +42,7 @@ export const RUSH_ROUNDS: readonly number[] = [4, 8, 12];
 export type DemandMix = Readonly<Partial<Record<keyof typeof VehicleType, number>>>;
 
 export interface DistrictDemand {
-  /** Vehicles spawned in round 1 before growth and rush; tuned by P1-CON-05. */
+  /** Vehicles spawned in round 1 before growth and rush (tuned by P1-CON-05). */
   readonly baseVehicles: number;
   readonly mix: DemandMix;
   /** Festival boss (GDD §5 "all demand +60%, emergency vehicles appear"): volume and mix. */
@@ -50,14 +54,15 @@ export interface DistrictDemand {
 /**
  * Demand per district. Only District 1 has maps in Phase 1 (ADR-007).
  *
- * `baseVehicles: 28` is a starting value, not a tuned one. With D1's mix, the mean score per
- * vehicle is 1.4 (bus 3, truck 2, car and bike 1), so round 1 can score about 39 against a
- * quota of 26. Demand grows with the quota (11% a round) and the map does not, so congestion
- * rises each round. P1-CON-05 tunes the value from the balance report.
+ * Tuned by P1-CON-05 from the balance report (ADR-021 item 3). With D1's mix the mean score per
+ * vehicle is 1.4 (bus 3, truck 2, car and bike 1), so round 1's 66 vehicles score about 92 when
+ * nothing jams, against a quota of 83. A District 1 map carries nearly all of its demand until it
+ * jams, so the quota sits just under a clean round: a round that jams or gridlocks fails. Demand
+ * grows with the quota (11% a round) and the map does not, so jams get likelier each round.
  */
 export const DISTRICT_DEMAND: { readonly 1: DistrictDemand } = {
   1: {
-    baseVehicles: 28,
+    baseVehicles: 66,
     mix: { Car: 700, Bus: 150, Truck: 100, Bike: 50 },
     // +60% on top of the rush round's 1.6×; emergency vehicles take 5% from cars (D3's share).
     festival: {
@@ -69,13 +74,14 @@ export const DISTRICT_DEMAND: { readonly 1: DistrictDemand } = {
 };
 
 /**
- * Relative spawn weight per second of the round: a rush-hour peak around seconds 4–7 that tails
- * off, because a vehicle spawned in the last seconds rarely reaches a sink before the round ends.
+ * Relative spawn weight per second of the round: a sharp rush-hour peak in seconds 1–5, then a
+ * trickle. The peak is what jams a map, so cards that clear junctions decide the round; with a
+ * flat curve the maps absorb about a third more vehicles before they jam (P1-CON-05).
  */
-export const SECOND_WEIGHTS: readonly number[] = [2, 4, 6, 8, 9, 10, 10, 9, 8, 7, 5, 4, 3, 2, 1];
+export const SECOND_WEIGHTS: readonly number[] = [10, 16, 18, 14, 10, 6, 3, 1, 1, 1, 1, 1, 1, 1, 1];
 
-/** Each edge gets a seeded weight in [1, 3] per round, so some edges run hot (§2 heat-strip). */
-export const EDGE_WEIGHT_MAX = 3;
+/** Each edge gets a seeded weight in [1, 5] per round, so some edges run hot (§2 heat-strip). */
+export const EDGE_WEIGHT_MAX = 5;
 
 /** GDD §5 Market Day: "+2 truck spawns/s", on top of the rush round's demand. */
 export const MARKET_DAY_TRUCKS_PER_SECOND = 2;
@@ -91,8 +97,8 @@ export const SEED_SALTS = { map: 0x6d617073, demand: 0x64656d64, parade: 0x70617
 
 /**
  * `quota = base[d] * (1 + 0.11*(r-1)) * rushMult` (GDD §2) in per-mille integers, rounded half
- * up, the same reading as the run controller (ADR-018 item 5). `quotaPermille` is a mayor
- * modifier (1000 = none).
+ * up (ADR-018 item 5), with the tuned `BASE_QUOTA`. The single quota source (ADR-021 item 2).
+ * `quotaPermille` is a mayor modifier (1000 = none).
  */
 export function roundQuota(
   district: District,
@@ -107,6 +113,29 @@ export function roundQuota(
     quotaPermille;
   const den = 1_000_000_000;
   return idiv(num + idiv(den, 2), den);
+}
+
+/**
+ * ADR-030: the itch toy's 5 rounds sample District 1's 12-round curve instead of replaying rounds
+ * 1–5. Toy round `i` plays D1 round `TOY_ROUNDS[i - 1]`: that round's quota, demand, rush and
+ * boss. Tuned by P1-CON-05 against the toy targets in ADR-030.
+ */
+export const TOY_ROUNDS: readonly number[] = [4, 8, 12, 8, 12];
+
+/**
+ * The toy's rush rounds as run-controller data (`RunConfig.rushRounds`): each toy round whose D1
+ * round is a rush round, with that round's §5 boss.
+ */
+export function toyRushRounds(
+  rounds: readonly number[] = TOY_ROUNDS,
+): { readonly round: number; readonly boss: BossCondition }[] {
+  const out: { round: number; boss: BossCondition }[] = [];
+  rounds.forEach((d1Round, i) => {
+    const k = RUSH_ROUNDS.indexOf(d1Round);
+    const boss = DISTRICT_DEMAND[1].bosses[k];
+    if (k >= 0 && boss) out.push({ round: i + 1, boss });
+  });
+  return out;
 }
 
 /**

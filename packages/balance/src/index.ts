@@ -14,7 +14,13 @@ export {
   type BotContext,
 } from './bots.js';
 export { runOne, runSeeds, seedSet, canonical, type RunRecord, type RunSpec } from './runner.js';
-export { renderReport, gateCriterion2, summarizeDeck, type ReportMeta } from './report.js';
+export {
+  renderReport,
+  gateCriterion2,
+  summarizeDeck,
+  draftedDelta,
+  type ReportMeta,
+} from './report.js';
 export {
   runJob,
   splitJobs,

@@ -23,10 +23,13 @@ function testMap(): GridMap {
   const tiles: MapTile[] = [];
   for (let y = 0; y < GRID_HEIGHT; y++) {
     for (let x = 0; x < GRID_WIDTH; x++) {
+      // A north-south road with a stub each side at y = 4, so (3, 4) is an intersection (3+ road
+      // neighbours), which the sim's placement check requires of intersection targets.
+      const road = x === 3 || (y === 4 && (x === 2 || x === 4));
       tiles.push(
-        x !== 3
-          ? { kind: 'block' }
-          : { kind: 'road', lanes: 1, ...(y === 4 ? { busStop: true } : {}) },
+        road
+          ? { kind: 'road', lanes: 1, ...(x === 3 && y === 3 ? { busStop: true } : {}) }
+          : { kind: 'block' },
       );
     }
   }

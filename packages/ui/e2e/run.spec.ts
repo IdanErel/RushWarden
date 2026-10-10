@@ -160,6 +160,21 @@ test('about and privacy: install ID to copy, policy link from config, sound togg
   );
 });
 
+test('a portal link opener takes the privacy link instead of a new tab (Poki)', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/?seed=1&extlink=1&privacy=https%3A%2F%2Fexample.com%2Fprivacy');
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('button', { name: 'About and privacy' }).click();
+  const pages = context.pages().length;
+  await page.getByRole('link', { name: 'Privacy policy' }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { linkCalls: string[] }).linkCalls))
+    .toEqual(['https://example.com/privacy']);
+  expect(context.pages()).toHaveLength(pages);
+});
+
 test('Go before the scene is up is held, not dropped', async ({ page }) => {
   await page.goto('/?seed=3');
   // Space as soon as the run screen is mounted, before the Pixi scene and the worker are

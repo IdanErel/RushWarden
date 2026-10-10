@@ -11,6 +11,8 @@
   "place.noTargets": "Can’t play this now (energy or plays).",
   "place.plays": "{n, plural, one {# play left} other {# plays left}}",
   "place.undo": "Undo {name}",
+  "place.flip": "Flip {name} direction",
+  "place.hint.direction": "Tap a highlighted road; the arrow shows the way traffic will go. ⇄ (or R) turns it round.",
   "card.label": "{name}, cost {cost}, {tags}. {text}",
   "go": "Go",
   "go.label": "Go: start the rush hour",

@@ -2,7 +2,8 @@ import { NullPortalAdapter } from '@rushwarden/app';
 import { CrazyGamesAdapter } from './crazygames.js';
 import { ItchAdapter } from './itch.js';
 import { PokiAdapter } from './poki.js';
-import type { WebAdapterOptions, WebPortalAdapter } from './types.js';
+import { browserEnv } from './env.js';
+import { isHttpsUrl, type WebAdapterOptions, type WebPortalAdapter } from './types.js';
 
 export { CrazyGamesAdapter, CRAZYGAMES_SDK_URL } from './crazygames.js';
 export { ItchAdapter } from './itch.js';
@@ -11,9 +12,12 @@ export { DEFAULT_SHARE_URL, PORTAL_FLAGS, parsePortalFlag, type PortalFlag } fro
 export { loadScript, withTimeout, SDK_TIMEOUT_MS } from './load-script.js';
 export type { AdapterEnv, WebAdapterOptions, WebPortalAdapter } from './types.js';
 
-/** `NullPortalAdapter` with the web-only `loadingFinished` hook. */
+/** `NullPortalAdapter` with the web-only hooks; links open in a plain new tab. */
 class NoPortalAdapter extends NullPortalAdapter implements WebPortalAdapter {
   loadingFinished(): void {}
+  openExternalLink(url: string): void {
+    if (isHttpsUrl(url)) browserEnv().openWindow?.(url);
+  }
 }
 
 /**

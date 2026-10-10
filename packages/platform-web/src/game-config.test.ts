@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { startRun, toyRunConfig } from '@rushwarden/app';
 import { loadCards, roundQuota, setupRound, startingDeck } from '@rushwarden/content';
 import { isPortalBuild, uiConfigFor } from './game-config.js';
+import { PokiAdapter } from './portal/poki.js';
 
 const POLICY = 'https://rushwarden.com/privacy';
-const portal = (id: 'none' | 'itch' | 'poki' | 'crazygames') => ({
+const portal = (id: 'none' | 'itch' | 'poki' | 'crazygames', opened: string[] = []) => ({
   id,
   shareUrl: () => `https://share.example/${id}`,
+  openExternalLink: (url: string) => void opened.push(url),
 });
 
 describe('uiConfigFor', () => {
@@ -24,6 +26,39 @@ describe('uiConfigFor', () => {
   it('shows no link until a policy https URL is set', () => {
     expect(uiConfigFor({}, portal('none')).privacyUrl).toBe('');
     expect(uiConfigFor({ VITE_PRIVACY_URL: 'http://x' }, portal('none')).privacyUrl).toBe('');
+  });
+
+  it("sends outbound links through the portal adapter's openExternalLink, on every build", () => {
+    for (const id of ['none', 'itch', 'poki', 'crazygames'] as const) {
+      const opened: string[] = [];
+      const config = uiConfigFor({ VITE_PRIVACY_URL: POLICY }, portal(id, opened));
+      config.openExternalLink?.(config.privacyUrl);
+      expect(opened, id).toEqual([POLICY]);
+    }
+  });
+
+  it("the Poki build's privacy link reaches PokiSDK.openExternalLink", async () => {
+    const calls: string[] = [];
+    const env = {
+      global: {
+        PokiSDK: {
+          init: async () => undefined,
+          gameLoadingFinished: () => undefined,
+          gameplayStart: () => undefined,
+          gameplayStop: () => undefined,
+          shareableURL: async () => 'https://poki.com/en/g/rushwarden',
+          openExternalLink: (u: string) => void calls.push(u),
+        },
+      },
+      loadScript: async () => undefined,
+      timeoutMs: 50,
+      openWindow: (u: string) => void calls.push(`tab:${u}`),
+    };
+    const poki = new PokiAdapter({ shareUrl: 'https://rushwarden.com/', env });
+    await poki.init();
+    const config = uiConfigFor({ VITE_PRIVACY_URL: POLICY }, poki);
+    config.openExternalLink?.(config.privacyUrl);
+    expect(calls).toEqual([POLICY]);
   });
 
   it("uses the portal adapter's share link", () => {
