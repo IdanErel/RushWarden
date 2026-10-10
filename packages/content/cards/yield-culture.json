@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "yield-culture",
+  "name": "Yield Culture",
+  "cost": 2,
+  "target": "district",
+  "duration": "round",
+  "rarity": "uncommon",
+  "tags": ["CHAOS"],
+  "effects": [
+    {
+      "kind": "yieldRule",
+      "fasterTicks": 1
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "yieldRule",
+        "fasterTicks": 2
+      }
+    ]
+  },
+  "flavor": "After you. No, after you. No, really, go."
+}

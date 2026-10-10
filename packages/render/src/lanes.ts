@@ -101,6 +101,20 @@ function tileCellPoint(
   out.heading = HEADING[dir];
 }
 
+/**
+ * Lane layout over the sim's world (ADR-012 numbering: lane 0 is the kerb lane, right-hand
+ * traffic; cell 0 upstream; `CELLS_PER_TILE` cells per tile). Dispatches on `Lane.kind`:
+ *
+ * - Road lanes: `locateCell` gives the tile, the cell within it and the travel directions. A lane
+ *   sits `index + 0.5` lane widths in from the right-hand kerb of the whole road, so a one-way
+ *   road whose lanes were doubled fills the road instead of one half of it.
+ * - Box lanes (#23): each cell is drawn at the centre of the box quarter the sim puts it in
+ *   (`locateCell(...).quadrant`: right turns use 1 quarter, straight 2, left 3). The heading
+ *   points from the previous point (the approach lane's last cell or the previous quarter) to the
+ *   next (the next quarter or the exit lane's first cell).
+ * - Turn pockets (#27): beside the approach's last cell, half a lane inside its innermost lane.
+ * - Unknown ids return false, so the vehicle is hidden rather than guessed.
+ */
 export function worldLaneLayout(world: World): LaneLayout {
   const a: LanePoint = { x: 0, y: 0, heading: 0 };
   const b: LanePoint = { x: 0, y: 0, heading: 0 };
@@ -116,8 +130,12 @@ export function worldLaneLayout(world: World): LaneLayout {
 
   function roadPoint(lane: Lane, cell: number, out: LanePoint): boolean {
     if (!Number.isInteger(cell) || cell < 0 || cell >= lane.cells) return false;
-    if (!world.links[lane.link]) return false;
-    const lateral = kerbLateral(lane.link) - lane.index * LANE_WIDTH;
+    const link = world.links[lane.link];
+    if (!link) return false;
+    // A turn pocket sits beside the approach's last cell, half a lane inside its innermost lane
+    // (on the centre line of a two-lane road); `locateCell` gives that cell.
+    const inward = lane.kind === 'pocket' ? link.lanes.length - 0.5 : lane.index;
+    const lateral = kerbLateral(lane.link) - inward * LANE_WIDTH;
     const at = locateCell(world, lane.id, cell);
     const x = at.tile % GRID_WIDTH;
     const y = Math.floor(at.tile / GRID_WIDTH);
@@ -158,7 +176,7 @@ export function worldLaneLayout(world: World): LaneLayout {
     cellPoint(laneId, cell, out) {
       const lane = world.lanes[laneId];
       if (!lane) return false;
-      return lane.link >= 0 ? roadPoint(lane, cell, out) : boxPoint(lane, cell, out);
+      return lane.kind === 'box' ? boxPoint(lane, cell, out) : roadPoint(lane, cell, out);
     },
   };
 }

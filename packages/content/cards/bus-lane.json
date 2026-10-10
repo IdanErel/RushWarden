@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "bus-lane",
+  "name": "Bus Lane",
+  "cost": 2,
+  "target": "segment",
+  "duration": "round",
+  "rarity": "uncommon",
+  "tags": ["MASS"],
+  "effects": [
+    {
+      "kind": "reserveLane",
+      "vehicleTypes": ["bus", "bike"]
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "reserveLane",
+        "vehicleTypes": ["bus", "bike"]
+      },
+      {
+        "kind": "setSpeedLimit",
+        "delta": 1,
+        "max": 2,
+        "types": ["bike"]
+      }
+    ]
+  },
+  "flavor": "Paint is cheap. Priorities are not."
+}
