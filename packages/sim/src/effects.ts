@@ -27,6 +27,7 @@ import {
   GRID_HEIGHT,
   GRID_WIDTH,
   ROUND_TICKS,
+  VehicleType,
   type ControllerKind,
   type DemandEvent,
   type DemandProfile,
@@ -548,14 +549,16 @@ export function configureTraffic(
           break;
         }
         case 'reserveLane': {
-          const allowed = typeMask(e.vehicleTypes);
+          // Emergency vehicles keep their section 3 override and may always use a reserved lane.
+          const allowed = typeMask(e.vehicleTypes) | (1 << VehicleType.Emergency);
           for (const link of linksThrough(w, tiles)) {
             const lanes = w.links[link]!.lanes;
             if (lanes.length >= 2) {
               t.laneAllowed ??= new Uint8Array(w.lanes.length);
               t.laneAllowed[lanes[0]!] = allowed;
             } else if (lanes.length === 1) {
-              // The only lane is reserved: other types lose the road (they route around it).
+              // The only lane is reserved: other types lose the road and route around it
+              // (Lead's decision, ADR-023 point 19).
               for (let vt = 0; vt < VEHICLE_TYPE_COUNT; vt++)
                 if (!(allowed & (1 << vt))) mask(vt)[link] = 1;
             }

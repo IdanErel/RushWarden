@@ -89,9 +89,14 @@ refunded." ADR-014 fixed the `Effect` union. This ADR records how the sim applie
 19. **`reserveLane`** (Bus Lane):
     - On links with 2 or more lanes, the kerb lane is reserved for the listed types. Others spawn
       and turn into the other lanes.
-    - **On a 1-lane link, the only lane is reserved, so other types lose the road and route
-      around it** ("cars lose it"). On District 1's 1-lane maps that makes Bus Lane a car ban.
-      This is a design question for the Lead and Content.
+    - **On a 1-lane link, the only lane is reserved.** Cars, taxis and trucks lose the road and
+      route around the segment; trips with no other route never start.
+      - This is the **Lead's decision (2026-10-10)**: take the literal GDD reading, "one lane
+        reserved for buses and bikes; cars lose it".
+      - On District 1's 1-lane maps, Bus Lane is therefore a ban on cars, taxis and trucks.
+      - **Flagged for the balance report.** Content may propose a change after the BAL-02 data.
+    - Emergency vehicles keep their §3 override ("others yield; ignores signals") and may always
+      use a reserved lane.
 20. **`banType`** closes links to the type for routing (spawn BFS and taxi re-routes):
     - `target`: the segment's links;
     - `target-class`: every link of the placed segment's road class;

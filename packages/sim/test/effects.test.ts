@@ -274,6 +274,10 @@ describe('segment primitives', () => {
       );
     expect([...lanesUsed(Car)].some((l) => closedIds.includes(l))).toBe(false);
     expect([...lanesUsed(Bus)].some((l) => closedIds.includes(l))).toBe(true);
+    // Lead's ruling (ADR-023 point 19): cars, taxis and trucks lose it; emergency keeps its override.
+    for (const vt of [Taxi, Truck])
+      expect([...lanesUsed(vt)].some((l) => closedIds.includes(l))).toBe(false);
+    expect([...lanesUsed(VehicleType.Emergency)].some((l) => closedIds.includes(l))).toBe(true);
     expect(Sim.simulate(input([ev(0, 0, 1, Car)], [busLane])).exited).toBe(1);
   });
 
