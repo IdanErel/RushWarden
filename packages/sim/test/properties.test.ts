@@ -160,6 +160,26 @@ function runChecked(input: RoundInput): SimState {
     expect(t.spawned).toBeGreaterThanOrEqual(prevSpawned);
     expect(t.spawned).toBeLessThanOrEqual(t.demand.length);
     prevSpawned = t.spawned;
+    // The grant's per-intersection head lists hold exactly the vehicles whose head is on a stop
+    // line (the last cell of an approach or pocket), each once.
+    const listed = new Set<number>();
+    for (let ix = 0; ix < w.intersections.length; ix++)
+      for (let e = t.lineStart[ix]!; e < t.lineStart[ix]! + t.headCount[ix]!; e++) {
+        const j = t.headAt[e]!;
+        if (listed.has(j) || !alive.has(j))
+          throw new Error(`tick ${s.tick}: bad head list entry ${j}`);
+        listed.add(j);
+        const lane = w.lanes[t.lane[j]!]!;
+        expect(t.cell[j]).toBe(lane.cells - 1);
+        expect(t.laneEndIx[lane.id]).toBe(ix);
+      }
+    for (const i of alive) {
+      const lane = w.lanes[t.lane[i]!]!;
+      const atStopLine =
+        lane.kind !== 'box' && t.laneEndIx[lane.id] !== NONE && t.cell[i] === lane.cells - 1;
+      expect(listed.has(i)).toBe(atStopLine);
+      expect(t.atLine[i] !== NONE).toBe(atStopLine);
+    }
     // Every occupied cell belongs to a vehicle.
     let occupied = 0;
     for (let p = 0; p < t.occ.length; p++) if (t.occ[p] !== 0) occupied++;
