@@ -1,3 +1,5 @@
+import { idiv } from './math.js';
+
 /**
  * 64-bit state hash (GDD section 3: RoundResult carries "a 64-bit hash of the final state").
  * Two independent 32-bit lanes of a murmur3-style mix, rendered as 16 lowercase hex characters.
@@ -64,14 +66,21 @@ export class Hasher {
 
 /**
  * Feeds an arbitrary JSON-like value with sorted object keys, so two structurally equal inputs
- * hash equally regardless of key order. Non-integer numbers are rejected: the sim is integer-only.
+ * hash equally regardless of key order. Non-integer and unsafe numbers are rejected: the sim is
+ * integer-only.
  */
 export function hashValue(h: Hasher, v: unknown): Hasher {
   if (v === null || v === undefined) return h.int(0);
   switch (typeof v) {
-    case 'number':
-      if (!Number.isInteger(v)) throw new TypeError(`non-integer number in sim input: ${v}`);
-      return h.int(1).int(v);
+    case 'number': {
+      if (!Number.isSafeInteger(v)) throw new TypeError(`non-integer number in sim input: ${v}`);
+      // Low and high 32-bit words, so values outside int32 (uint32 seeds) never collide.
+      const lo = v >>> 0;
+      return h
+        .int(1)
+        .int(lo)
+        .int(idiv(v - lo, 0x100000000));
+    }
     case 'boolean':
       return h.int(2).bool(v);
     case 'string':
@@ -83,9 +92,14 @@ export function hashValue(h: Hasher, v: unknown): Hasher {
         for (let i = 0; i < arr.length; i++) hashValue(h, arr[i]);
         return h;
       }
-      const keys = Object.keys(v as object).sort();
+      // Keys holding `undefined` are skipped, so `{a: undefined}` hashes like `{}`, as it would
+      // after a JSON round trip (the leaderboard verifier receives JSON).
+      const obj = v as Record<string, unknown>;
+      const keys = Object.keys(obj)
+        .filter((k) => obj[k] !== undefined)
+        .sort();
       h.int(5).int(keys.length);
-      for (const k of keys) hashValue(h.str(k), (v as Record<string, unknown>)[k]);
+      for (const k of keys) hashValue(h.str(k), obj[k]);
       return h;
     }
     default:

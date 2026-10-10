@@ -14,3 +14,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 005 | Review and merge mechanics with one GitHub identity     | Accepted        |
 | 006 | Phase 1 Steam wishlist gate needs Steamworks in Phase 1 | Proposed (Idan) |
 | 007 | Phase 1 scope                                           | Accepted        |
+| 008 | The game is named Rushwarden                            | Accepted        |

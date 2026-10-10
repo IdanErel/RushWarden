@@ -51,8 +51,14 @@ describe('JsonSaveStore', () => {
     expect((await s.load()).settings).toEqual({ music: 5 });
     b.data.set('rushwarden-save', '{nope');
     expect((await s.load()).installId).toBe('uuid-1');
+    expect(b.data.get('rushwarden-save.backup')).toBe('{nope');
     b.data.set('rushwarden-save', JSON.stringify({ version: 99 }));
     expect((await s.load()).version).toBe(1);
+    expect(b.data.get('rushwarden-save.backup')).toBe('{"version":99}');
+    b.data.set('rushwarden-save', 'null');
+    expect((await s.load()).installId).toBe('uuid-1');
+    expect(b.data.get('rushwarden-save.backup')).toBe('null');
+    b.data.delete('rushwarden-save.backup');
     await s.clear();
     expect(b.data.size).toBe(0);
   });
@@ -67,6 +73,24 @@ describe('JsonSaveStore', () => {
     const doc = await s.load();
     expect(doc.version).toBe(2);
     expect(doc.slices).toEqual({ migrated: true });
+  });
+
+  it('parks the save when a migration throws', async () => {
+    const b = new MemoryBackend();
+    const raw = JSON.stringify({ version: 1, installId: 'a', settings: {}, slices: {} });
+    b.data.set('rushwarden-save', raw);
+    const s = new JsonSaveStore(
+      b,
+      id,
+      [
+        () => {
+          throw new Error('boom');
+        },
+      ],
+      2,
+    );
+    expect((await s.load()).installId).toBe('uuid-1');
+    expect(b.data.get('rushwarden-save.backup')).toBe(raw);
   });
 
   it('requires one migration per version step', () => {

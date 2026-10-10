@@ -24,6 +24,16 @@ describe('Hasher', () => {
       hashValue(new Hasher(), [1, 2]).digest(),
     );
     expect(() => hashValue(new Hasher(), { x: 0.5 })).toThrow(TypeError);
+    expect(() => hashValue(new Hasher(), 2 ** 60)).toThrow(TypeError);
+    expect(hashValue(new Hasher(), { a: undefined, b: 1 }).digest()).toBe(
+      hashValue(new Hasher(), { b: 1 }).digest(),
+    );
+    expect(hashValue(new Hasher(), 0x100000000).digest()).not.toBe(
+      hashValue(new Hasher(), 0).digest(),
+    );
+    expect(hashValue(new Hasher(), -1).digest()).not.toBe(
+      hashValue(new Hasher(), 0xffffffff).digest(),
+    );
     expect(() => hashValue(new Hasher(), () => 1)).toThrow(TypeError);
   });
 });

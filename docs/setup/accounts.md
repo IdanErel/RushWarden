@@ -17,7 +17,7 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
 | 3   | itch.io                                          | Free                               | Phase 1 gate                              | 3-minute toy build          |
 | 4   | Steamworks                                       | US$100 per app (recoupable)        | Phase 1 if ADR-006 kept, else Phase 2     | Wishlists, Next Fest        |
 | 5   | Poki for Developers, CrazyGames Developer Portal | Free                               | Phase 1 gate                              | Player-fit test             |
-| 6   | Cloudflare                                       | Free tier                          | Phase 3 (Pages for the site sooner)       | Daily, leaderboard, license |
+| 6   | Cloudflare                                       | Free tier                          | Phase 1 (toy session metrics), else 3     | Daily, leaderboard, license |
 | 7   | Stripe                                           | Per-transaction fees               | Phase 3                                   | Web unlock                  |
 | 8   | Apple Developer Program                          | US$99/yr                           | Phase 3 (sandbox IAP)                     | iOS build, IAP              |
 | 9   | Google Play Console                              | US$25 once                         | Phase 3; start early (14-day tester rule) | Android, IAP                |

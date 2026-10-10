@@ -29,10 +29,8 @@ jobs:
         run: pnpm lint
       - name: Typecheck
         run: pnpm typecheck
-      - name: Unit tests (with coverage gates)
+      - name: Unit tests with coverage gates, including golden hashes on Node
         run: pnpm test
-      - name: Golden hashes (Node)
-        run: pnpm golden
 
   golden-browsers:
     name: Golden hashes (Chromium, WebKit, Firefox)

@@ -53,6 +53,8 @@ export class MemoryBackend implements SaveBackend {
 }
 
 const KEY = 'rushwarden-save';
+/** Where an unreadable, newer or unmigratable save is parked instead of being overwritten. */
+export const BACKUP_KEY = 'rushwarden-save.backup';
 
 /** Default `SaveStore` over any backend, with forward migrations. */
 export class JsonSaveStore implements SaveStore {
@@ -73,22 +75,39 @@ export class JsonSaveStore implements SaveStore {
     return { version: this.version, installId: this.newInstallId(), settings: {}, slices: {} };
   }
 
+  /**
+   * A save we cannot use is never silently lost (GDD §11 P0 "lost save"): its raw text is
+   * copied to BACKUP_KEY before a fresh document is returned.
+   */
+  private async rescue(raw: string): Promise<SaveData> {
+    await this.backend.write(BACKUP_KEY, raw);
+    return this.fresh();
+  }
+
   async load(): Promise<SaveData> {
     const raw = await this.backend.read(KEY);
     if (raw === null) return this.fresh();
     let doc: Record<string, unknown>;
     try {
-      doc = JSON.parse(raw) as Record<string, unknown>;
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return this.rescue(raw);
+      }
+      doc = parsed as Record<string, unknown>;
     } catch {
-      return this.fresh();
+      return this.rescue(raw);
     }
     let v = typeof doc['version'] === 'number' ? doc['version'] : 0;
-    if (v < 1 || v > this.version) return this.fresh();
-    while (v < this.version) {
-      const m = this.migrations[v - 1];
-      if (!m) return this.fresh();
-      doc = { ...m(doc), version: v + 1 };
-      v += 1;
+    if (v < 1 || v > this.version) return this.rescue(raw);
+    try {
+      while (v < this.version) {
+        const m = this.migrations[v - 1];
+        if (!m) return this.rescue(raw);
+        doc = { ...m(doc), version: v + 1 };
+        v += 1;
+      }
+    } catch {
+      return this.rescue(raw);
     }
     return doc as unknown as SaveData;
   }
