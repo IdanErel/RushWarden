@@ -159,3 +159,13 @@ test('about and privacy: install ID to copy, policy link from config, sound togg
     'https://example.com/privacy',
   );
 });
+
+test('Go before the scene is up is held, not dropped', async ({ page }) => {
+  await page.goto('/?seed=3');
+  // Space as soon as the run screen is mounted, before the Pixi scene and the worker are
+  // normally up: the round still starts.
+  await state(page).waitFor({ state: 'attached' });
+  await page.keyboard.press(' ');
+  await expect(state(page)).toHaveAttribute('data-phase', 'go');
+  await expect(page.getByRole('button', { name: 'Go: start the rush hour' })).toHaveCount(0);
+});
