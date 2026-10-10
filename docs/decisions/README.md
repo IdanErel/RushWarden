@@ -36,3 +36,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 027 | Nightly balance report is an artifact                   | Accepted (Lead) |
 | 028 | Clip tool: replay rendering, determinism, captions, CI  | Accepted        |
 | 029 | Toy e2e in CI, E2E-18 tracking, store-asset rules       | Accepted (Lead) |
+| 031 | One-Way targets and direction                           | Accepted (Lead) |

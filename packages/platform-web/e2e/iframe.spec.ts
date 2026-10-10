@@ -10,8 +10,9 @@ test('web build boots inside a cross-origin, sandboxed iframe', async ({ page, b
     `<iframe id="game" src="${baseURL}/" width="390" height="844"
       sandbox="allow-scripts allow-same-origin"></iframe>`,
   );
-  const app = page.frameLocator('#game').locator('#app');
-  await expect(app).toContainText('sim ok');
-  await expect(app).toHaveAttribute('data-portal', 'none');
+  const game = page.frameLocator('#game');
+  await expect(game.locator('#app')).toHaveAttribute('data-portal', 'none');
+  await expect(game.locator('.rw-map canvas')).toBeVisible();
+  await expect(game.getByRole('button', { name: 'Go: start the rush hour' })).toBeVisible();
   expect(errors).toEqual([]);
 });

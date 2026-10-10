@@ -20,7 +20,24 @@ import {
   type RunEnv,
   type RunState,
 } from '@rushwarden/app';
-import { candidateTargets, spread } from './targets.js';
+import { candidateTargets, directedRuns, spread } from './targets.js';
+
+/**
+ * The candidate targets for a card's effects: `setOneWay` without a direction gets every run in
+ * both directions (`directedRuns`, ADR-031); other cards get `candidateTargets`.
+ */
+function targetsFor(
+  map: RoundInput['map'],
+  kind: RunCard['target'],
+  effects: readonly Placement['effects'][number][],
+): Target[] {
+  if (
+    kind === 'segment' &&
+    effects.some((e) => e.kind === 'setOneWay' && e.direction === undefined)
+  )
+    return directedRuns(map);
+  return candidateTargets(map)[kind];
+}
 
 /** GDD §11 drafter bots. A bot only chooses actions; the run controller enforces the rules. */
 export interface Bot {
@@ -64,18 +81,19 @@ function legalPlays(
   ctx: BotContext,
   allTargets: boolean,
 ): { handIndex: number; target: Target }[] {
-  const targets = candidateTargets(state.map);
   const out: { handIndex: number; target: Target }[] = [];
   state.hand.forEach((card, handIndex) => {
     const def = ctx.cards.get(card.id);
     if (!def || costOf(state, card) > state.energy) return;
-    const list = allTargets ? targets[def.target] : spread(targets[def.target], ctx.targetsPerKind);
+    const effects = resolveTier(def, card.tier).effects;
+    const targets = targetsFor(state.map, def.target, effects);
+    const list = allTargets ? targets : spread(targets, ctx.targetsPerKind);
     for (const target of list) {
       const placement: Placement = {
         cardId: def.id,
         tier: card.tier,
         target,
-        effects: resolveTier(def, card.tier).effects,
+        effects,
         order: state.plays.length,
       };
       if (placementError(state.map, placement) === null) out.push({ handIndex, target });
@@ -129,7 +147,7 @@ function offerScore(state: RunState, ctx: BotContext, id: string): number {
   const effects = resolveTier(def, 1).effects;
   const base = roundInput({ ...state, plays: [] });
   let best = -1;
-  for (const target of spread(candidateTargets(state.map)[def.target], ctx.targetsPerKind)) {
+  for (const target of spread(targetsFor(state.map, def.target, effects), ctx.targetsPerKind)) {
     const placement: Placement = { cardId: id, tier: 1, target, effects, order: 0 };
     if (placementError(state.map, placement) !== null) continue;
     best = Math.max(best, simulate(ctx.env, { ...base, placements: [placement] }).throughput);

@@ -26,7 +26,7 @@
   "about.title": "About and privacy",
   "about.body": "Rushwarden keeps your progress on this device. When analytics are on, it sends gameplay events tagged with a random install ID and nothing else about you. Quote the ID below to ask us to delete that data.",
   "about.installId": "Install ID",
-  "about.installIdOff": "Analytics are off in this build, so there is no install ID.",
+  "about.installIdOff": "No install ID: stats are off, or you have not said yes to them.",
   "about.copy": "Copy install ID",
   "about.copied": "Copied",
   "about.privacy": "Privacy policy",
