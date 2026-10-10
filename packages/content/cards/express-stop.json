@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "express-stop",
+  "name": "Express Stop",
+  "cost": 1,
+  "target": "segment",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["MASS"],
+  "effects": [
+    {
+      "kind": "addBusStop",
+      "dwellTicks": 2
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "addBusStop",
+        "dwellTicks": 1
+      }
+    ]
+  },
+  "flavor": "Tap on, tap off, keep moving."
+}

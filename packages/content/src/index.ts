@@ -41,6 +41,7 @@ export {
 export { cardText, effectText, signed } from './text.js';
 export { type JsonSchema, type SchemaError, validateSchema } from './json-schema.js';
 export { CARD_FILES } from './cards.js';
+export { PHASE1_BLOCKED, PHASE1_CARD_IDS, type Phase1CardId } from './phase1.js';
 
 let cache: readonly CardDef[] | undefined;
 
