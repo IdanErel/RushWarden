@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "turn-lane",
+  "name": "Turn Lane",
+  "cost": 1,
+  "target": "intersection",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["FLOW"],
+  "effects": [
+    {
+      "kind": "addTurnLane",
+      "turns": "left"
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "addTurnLane",
+        "turns": "both"
+      }
+    ]
+  },
+  "flavor": "Turning left no longer ruins everyone's day."
+}

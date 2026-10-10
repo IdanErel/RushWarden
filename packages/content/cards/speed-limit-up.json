@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "speed-limit-up",
+  "name": "Speed Limit Up",
+  "cost": 1,
+  "target": "segment",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["FLOW"],
+  "effects": [
+    {
+      "kind": "setSpeedLimit",
+      "delta": 1,
+      "types": ["car", "taxi", "bus", "emergency", "bike"]
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "setSpeedLimit",
+        "delta": 1
+      }
+    ]
+  },
+  "flavor": "The signs were always a suggestion. Now they agree."
+}
