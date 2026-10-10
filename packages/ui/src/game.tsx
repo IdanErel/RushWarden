@@ -304,53 +304,58 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const onMapUp = (): void => setFast(false);
 
   // --- Keyboard -------------------------------------------------------------------------------
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-      const a = keyAction(s.phase, e.key, menu !== 'none');
-      if (!a) return;
-      e.preventDefault();
-      switch (a.type) {
-        case 'select':
-          if (s.phase === 'result') setOfferCursor(a.index);
-          else select(a.index);
-          break;
-        case 'cursor':
-          if (s.phase === 'result') {
-            const n = s.offer?.length ?? 0;
-            if (n) setOfferCursor((c) => (c + (a.dir === 'e' ? 1 : n - 1)) % n);
-          } else if (scene && targets.length)
-            setCursor(moveCursor(targets, cursor, a.dir, scene.currentMap));
-          break;
-        case 'confirm':
-          if (s.phase === 'place' && cursor !== null) placeAt(cursor);
-          else if (s.phase === 'result') {
-            if (s.offer) pick(offerCursor);
-            else next();
-          } else if (s.phase === 'end') retry();
-          break;
-        case 'go':
-          go();
-          break;
-        case 'undo':
-          if (selected !== null) {
-            setSelected(null);
-            setCursor(null);
-          } else undo();
-          break;
-        case 'pause':
-          if (menu !== 'none') resume();
-          else pause();
-          break;
-        case 'skip':
-          if (s.offer) pick(null);
+  // The listener is added once and calls this render's handler. Re-adding it in a useEffect left a
+  // gap after each render (effects run after paint) where a key reached the previous render's
+  // handler: a second "1" right after the first re-selected card 1 instead of deselecting it.
+  const onKey = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  onKey.current = (e: KeyboardEvent): void => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const a = keyAction(s.phase, e.key, menu !== 'none');
+    if (!a) return;
+    e.preventDefault();
+    switch (a.type) {
+      case 'select':
+        if (s.phase === 'result') setOfferCursor(a.index);
+        else select(a.index);
+        break;
+      case 'cursor':
+        if (s.phase === 'result') {
+          const n = s.offer?.length ?? 0;
+          if (n) setOfferCursor((c) => (c + (a.dir === 'e' ? 1 : n - 1)) % n);
+        } else if (scene && targets.length)
+          setCursor(moveCursor(targets, cursor, a.dir, scene.currentMap));
+        break;
+      case 'confirm':
+        if (s.phase === 'place' && cursor !== null) placeAt(cursor);
+        else if (s.phase === 'result') {
+          if (s.offer) pick(offerCursor);
           else next();
-          break;
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+        } else if (s.phase === 'end') retry();
+        break;
+      case 'go':
+        go();
+        break;
+      case 'undo':
+        if (selected !== null) {
+          setSelected(null);
+          setCursor(null);
+        } else undo();
+        break;
+      case 'pause':
+        if (menu !== 'none') resume();
+        else pause();
+        break;
+      case 'skip':
+        if (s.offer) pick(null);
+        else next();
+        break;
+    }
+  };
+  useEffect(() => {
+    const listener = (e: KeyboardEvent): void => onKey.current(e);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
 
   // --- Test hooks (H2, H5) --------------------------------------------------------------------
   const hookAttrs = props.testHooks
