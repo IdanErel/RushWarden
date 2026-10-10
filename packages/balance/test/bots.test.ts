@@ -11,7 +11,7 @@ import {
   randomBot,
 } from '../src/bots.js';
 import { runOne } from '../src/runner.js';
-import { candidateTargets, directedSegments, spread } from '../src/targets.js';
+import { candidateTargets, directedRuns, spread } from '../src/targets.js';
 import { CARDS, CONTENT_ENV } from '../src/data.js';
 import { scoredSpec, scoringSim } from './fixtures.js';
 
@@ -76,7 +76,7 @@ describe('targets', () => {
     expect(spread([0, 1, 2, 3, 4, 5, 6, 7, 8], 3)).toEqual([0, 3, 6]);
   });
 
-  it('greedy places One-Way legally on a District 1 map (directed two-tile segments)', () => {
+  it('greedy places One-Way legally on a District 1 map (whole runs, either direction)', () => {
     // Content's District 1 maps with the scoring stand-in sim, which rewards any legal play.
     const env: RunEnv = { setupRound: CONTENT_ENV.setupRound, simulate: scoringSim };
     const config = fullRunConfig({
@@ -86,7 +86,7 @@ describe('targets', () => {
     });
     const state = startRun(config, env).state;
     const oneWay = CARDS.find((c) => c.id === 'one-way')!;
-    const segments = directedSegments(state.map);
+    const segments = directedRuns(state.map);
     expect(segments.length).toBeGreaterThan(0);
     for (const target of segments) {
       expect(target.kind === 'segment' && target.from).not.toEqual(
@@ -103,9 +103,11 @@ describe('targets', () => {
     }
     const plays = greedyBot.plays(state, botContext(7, 0, env, CARDS));
     expect(plays.length).toBeGreaterThan(0);
+    const runs = new Set(segments.map((t) => JSON.stringify(t)));
     for (const a of plays) {
       expect(a.type).toBe('play');
-      if (a.type === 'play') expect(a.target.kind).toBe('segment');
+      // Only whole runs a player can place: no sub-run stubs.
+      if (a.type === 'play') expect(runs.has(JSON.stringify(a.target))).toBe(true);
     }
   });
 });

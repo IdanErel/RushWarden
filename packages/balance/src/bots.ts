@@ -20,11 +20,11 @@ import {
   type RunEnv,
   type RunState,
 } from '@rushwarden/app';
-import { candidateTargets, directedSegments, spread } from './targets.js';
+import { candidateTargets, directedRuns, spread } from './targets.js';
 
 /**
- * The candidate targets for a card's effects: `setOneWay` without a direction needs a two-tile
- * directed segment, so it gets `directedSegments` instead of the single-tile segments.
+ * The candidate targets for a card's effects: `setOneWay` without a direction gets every run in
+ * both directions (`directedRuns`, ADR-031); other cards get `candidateTargets`.
  */
 function targetsFor(
   map: RoundInput['map'],
@@ -35,7 +35,7 @@ function targetsFor(
     kind === 'segment' &&
     effects.some((e) => e.kind === 'setOneWay' && e.direction === undefined)
   )
-    return directedSegments(map);
+    return directedRuns(map);
   return candidateTargets(map)[kind];
 }
 
