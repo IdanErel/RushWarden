@@ -9,6 +9,7 @@
  */
 import { SNAPSHOT_HEADER, SNAPSHOT_STRIDE, TICKS_PER_SECOND } from '@rushwarden/sim';
 import type { LaneLayout, LanePoint } from './lanes.js';
+import { VEHICLE_LENGTH } from './shapes.js';
 
 /** One vehicle ready to draw, in tile units. */
 export interface VehiclePose {
@@ -61,6 +62,8 @@ export class SnapshotBuffer {
   private readonly prevIndex = new Map<number, number>();
   private readonly a: LanePoint = { x: 0, y: 0, heading: 0 };
   private readonly b: LanePoint = { x: 0, y: 0, heading: 0 };
+  private readonly ta: LanePoint = { x: 0, y: 0, heading: 0 };
+  private readonly tb: LanePoint = { x: 0, y: 0, heading: 0 };
 
   constructor(
     private layout: LaneLayout,
@@ -125,22 +128,38 @@ export class SnapshotBuffer {
     for (let i = 0; i < n; i++) {
       const o = SNAPSHOT_HEADER + i * SNAPSHOT_STRIDE;
       const id = word(curr, o);
-      if (!this.layout.cellPoint(word(curr, o + 1), word(curr, o + 2), this.b)) continue;
+      const type = word(curr, o + 4);
+      const lane = word(curr, o + 1);
+      const cell = word(curr, o + 2);
+      if (!this.layout.cellPoint(lane, cell, this.b)) continue;
+      // Multi-cell vehicles (bus, truck) point from their tail cell to their head cell, so the
+      // body follows the path through a turn instead of swinging out on the head's heading.
+      const back = (VEHICLE_LENGTH[type as keyof typeof VEHICLE_LENGTH] ?? 1) - 1;
+      const bodyB = back > 0 && this.layout.backPoint(lane, cell, back, this.tb);
       let x = this.b.x;
       let y = this.b.y;
+      let tx = bodyB ? this.tb.x : 0;
+      let ty = bodyB ? this.tb.y : 0;
       let heading = this.b.heading;
       const po = prev ? this.prevIndex.get(id) : undefined;
       if (prev && po !== undefined && t < 1) {
-        if (this.layout.cellPoint(word(prev, po + 1), word(prev, po + 2), this.a)) {
+        const pl = word(prev, po + 1);
+        const pc = word(prev, po + 2);
+        if (this.layout.cellPoint(pl, pc, this.a)) {
           const dx = this.b.x - this.a.x;
           const dy = this.b.y - this.a.y;
           if (dx * dx + dy * dy <= MAX_BLEND_TILES * MAX_BLEND_TILES) {
             x = this.a.x + dx * t;
             y = this.a.y + dy * t;
             heading = lerpAngle(this.a.heading, this.b.heading, t);
+            if (bodyB && this.layout.backPoint(pl, pc, back, this.ta)) {
+              tx = this.ta.x + (this.tb.x - this.ta.x) * t;
+              ty = this.ta.y + (this.tb.y - this.ta.y) * t;
+            }
           }
         }
       }
+      if (bodyB && (x !== tx || y !== ty)) heading = Math.atan2(y - ty, x - tx);
       let pose = out[w];
       if (!pose) {
         pose = { id: 0, type: 0, x: 0, y: 0, heading: 0, speed: 0 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyMap } from '@rushwarden/sim';
+import { CELLS_PER_TILE, VehicleType, buildWorld, emptyMap } from '@rushwarden/sim';
 import {
   SnapshotBuffer,
   TICK_MS,
@@ -7,7 +7,9 @@ import {
   snapshotCount,
   type VehiclePose,
 } from '../src/interpolate.js';
-import { tileLaneId, tileLaneLayout } from '../src/lanes.js';
+import { tileLaneId, tileLaneLayout, worldLaneLayout } from '../src/lanes.js';
+import { connections, isIntersection, lanesAt, roadWidth } from '../src/geometry.js';
+import { VEHICLE_LENGTH } from '../src/shapes.js';
 import { snap } from './helpers.js';
 
 const N = tileLaneId(3, 2, 'n', 0);
@@ -114,5 +116,78 @@ describe('lerpAngle', () => {
     expect(lerpAngle(Math.PI - 0.1, -Math.PI + 0.1, 0.5)).toBeCloseTo(Math.PI);
     expect(lerpAngle(-Math.PI + 0.1, Math.PI - 0.1, 0.5)).toBeCloseTo(-Math.PI);
     expect(lerpAngle(0, Math.PI / 2, 0.5)).toBeCloseTo(Math.PI / 4);
+  });
+});
+
+describe('multi-cell vehicles through a turn (body follows the path)', () => {
+  const map = emptyMap();
+  const world = buildWorld(map);
+  const layout = worldLaneLayout(world);
+
+  /** True when (x, y) in tile units is on asphalt: inside a road band or an intersection box. */
+  function onRoad(x: number, y: number): boolean {
+    const tx = Math.floor(x);
+    const ty = Math.floor(y);
+    const lanes = lanesAt(map, tx, ty);
+    if (lanes === 0) return false;
+    const half = roadWidth(lanes) / 2 + 0.02;
+    const dx = Math.abs(x - tx - 0.5);
+    const dy = Math.abs(y - ty - 0.5);
+    // Intersection tiles: the box square, plus the road bands running into it.
+    if (isIntersection(map, tx, ty) && dx <= half && dy <= half) return true;
+    const sides = connections(map, tx, ty);
+    const horizontal = sides.includes('e') || sides.includes('w');
+    const vertical = sides.includes('n') || sides.includes('s');
+    return (horizontal && dy <= half) || (vertical && dx <= half);
+  }
+
+  it('keeps a truck and a bus on the road at every step of every turn', () => {
+    const cellLen = 1 / CELLS_PER_TILE;
+    const out: VehiclePose[] = [];
+    for (const lane of world.lanes.filter((l) => l.kind === 'box')) {
+      const ix = world.intersections[lane.intersection]!;
+      const outLink = world.links[ix.outLinks[lane.exitDir]!]!;
+      // The head's path: through the box, then the first cells of the exit lane.
+      const path: [number, number][] = [];
+      for (let c = 0; c < lane.cells; c++) path.push([lane.id, c]);
+      for (let c = 0; c < 3; c++) path.push([outLink.lanes[0]!, c]);
+      for (const type of [VehicleType.Truck, VehicleType.Bus]) {
+        const len = VEHICLE_LENGTH[type];
+        for (let k = 1; k < path.length; k++) {
+          const b = new SnapshotBuffer(layout);
+          const [pl, pc] = path[k - 1]!;
+          const [cl, cc] = path[k]!;
+          b.push(snap(1, [[1, pl, pc, 1, type]]), 0);
+          b.push(snap(2, [[1, cl, cc, 1, type]]), 100);
+          for (const at of [100, 100 + TICK_MS / 2, 100 + TICK_MS]) {
+            b.sample(at, out);
+            const p = out[0]!;
+            // Head cell centre, body middle and tail cell centre, as the scene draws them.
+            for (let i = 0; i < len; i++) {
+              const x = p.x - Math.cos(p.heading) * i * cellLen;
+              const y = p.y - Math.sin(p.heading) * i * cellLen;
+              expect(onRoad(x, y), `type ${type} lane ${cl}:${cc} t=${at} body ${i}`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('points a long vehicle from its tail cell to its head cell', () => {
+    const lane = world.lanes.find((l) => l.kind === 'box' && l.cells === 1)!;
+    const b = new SnapshotBuffer(layout);
+    b.push(snap(1, [[1, lane.id, 0, 1, VehicleType.Truck]]), 0);
+    const out: VehiclePose[] = [];
+    b.sample(0, out);
+    const head = { x: 0, y: 0, heading: 0 };
+    const tail = { x: 0, y: 0, heading: 0 };
+    layout.cellPoint(lane.id, 0, head);
+    expect(layout.backPoint(lane.id, 0, 2, tail)).toBe(true);
+    expect(out[0]!.heading).toBeCloseTo(Math.atan2(head.y - tail.y, head.x - tail.x));
+    // A car (1 cell) keeps the lane's own heading.
+    b.push(snap(2, [[1, lane.id, 0, 1, VehicleType.Car]]), 50);
+    b.sample(1000, out);
+    expect(out[0]!.heading).toBeCloseTo(head.heading);
   });
 });
