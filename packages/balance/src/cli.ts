@@ -13,7 +13,10 @@ import { seedSet } from './runner.js';
  * Runs every Phase 1 bot on seeds 1..N and writes the Markdown report (default
  * `docs/balance/latest.md`). Defaults match ADR-010 point 2: 10,000 full District 1 runs per bot.
  */
+// `pnpm run report -- --seeds 10` passes the `--` through to the script; drop it.
+const argv = process.argv.slice(2);
 const { values } = parseArgs({
+  args: argv[0] === '--' ? argv.slice(1) : argv,
   options: {
     seeds: { type: 'string', default: '10000' },
     workers: { type: 'string', default: String(availableParallelism()) },
