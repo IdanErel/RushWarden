@@ -1,7 +1,7 @@
 # Store and community copy (Phase 1)
 
 > **DRAFT.** None of this is final. `[GIF]` means the Market Day clip,
-> `tools/clip/out/rushwarden-s4-r5.gif` (`pnpm clip --spec tools/clip/clips/market-day.json`, or
+> `tools/clip/out/rushwarden-s11-r5.gif` (`pnpm clip --spec tools/clip/clips/market-day.json`, or
 > the `rushwarden-clips-<sha>` artifact of the Clip workflow). The store images are in
 > [assets.md](assets.md). Idan edits the voice (GDD §12) and
 > posts everything himself; the team never posts (§13).
@@ -82,16 +82,18 @@ languages other than English. Sound stays out of the copy until the audio task s
   tool supports it.
 - Length 6–15 s, looping cleanly. The seed is recorded next to the file so it can be reproduced.
 
-**Status (P1-QA-02):** `pnpm clip` renders it (`tools/clip`, ADR-028). The current pick is seed 4.
-`clips/market-day.json` gives a 17 s clip in which Delivery Window and Fare Holiday carry Market
-Day to 155 through, against a quota of 60. `clips/market-day-none.json` is the same round with no
-cards, which gridlocks at 0:12 with 29 through. CI uploads both as MP4 and GIF on every push to
+**Status (P1-QA-02):** `pnpm clip` renders it (`tools/clip`, ADR-028). The current pick is seed 11
+(`MARKET_DAY_SEED` in `tools/clip/src/director.ts`, re-picked after the CON-05 tuning and ADR-031).
+`clips/market-day.json` gives a 17 s clip on map d1-05 (mirrored) in which One-Way carries Market
+Day to 237 through, against a quota of 191. `clips/market-day-none.json` is the same round with no
+cards, which gridlocks at 0:08 with 44 through. The clip tests pin both outcomes, so a content change
+that breaks them fails CI; the fix is a new seed there and here. CI uploads both as MP4 and GIF on every push to
 `main`. Only 9:16 exists so far; a square or 16:9 crop comes with the Steam and itch assets
 (rest of P1-QA-03).
 
 ## Before Idan posts: checklist
 
-- [ ] The GIF (`rushwarden-s4-r5.gif`) is placed in every `[GIF]` slot, from the same commit as the build.
+- [ ] The GIF (`rushwarden-s11-r5.gif`) is placed in every `[GIF]` slot, from the same commit as the build.
 - [ ] The share strip is replaced with a real one from the build. The example's glyphs are
       hand-computed; only a real strip guarantees each glyph means what §5 says (🟨 = passed
       under 110%).

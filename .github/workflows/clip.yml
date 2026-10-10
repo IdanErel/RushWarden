@@ -47,9 +47,9 @@ jobs:
       - run: pnpm --filter @rushwarden/clip exec playwright install --with-deps chromium
       - name: Determinism check (two renders, different worker counts, byte-identical)
         run: pnpm --filter @rushwarden/clip run e2e
-      - name: Render the Market Day clip (seed 4, director's cards)
+      - name: Render the Market Day clip (MARKET_DAY_SEED, director's cards)
         run: pnpm clip --spec tools/clip/clips/market-day.json
-      - name: Render the Market Day jam (seed 4, no cards)
+      - name: Render the Market Day jam (MARKET_DAY_SEED, no cards)
         run: pnpm clip --spec tools/clip/clips/market-day-none.json
       - name: Hashes to the job summary
         run: |

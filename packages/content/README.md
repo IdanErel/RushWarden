@@ -59,18 +59,20 @@ profile, the heat-strip, the quota, the sim's `DistrictRules`
 and `closedSegments` (Parade). The argument matches
 `RunEnv.setupRound`, so `{ setupRound }` can be passed to the run controller as is.
 
-- **Volume:** `baseVehicles` (28 in D1) grows 11% a round with the quota and ×1.6 on rush rounds.
-  28 is a starting value; P1-CON-05 tunes it from the balance report.
+- **Volume:** `baseVehicles` (66 in D1, tuned by P1-CON-05) grows 11% a round with the quota and
+  ×1.6 on rush rounds.
 - **Mix:** exact per-round counts from GDD §5's per-mille mix (D1: 70% car, 15% bus, 10% truck,
   5% bike), with leftovers going to the largest remainders.
-- **Timing:** `SECOND_WEIGHTS` is a rush-hour curve over the 15 seconds. Each edge gets a seeded
-  weight of 1–3 per round, so some edges run hot. Destinations are uniform over the other edges.
+- **Timing:** `SECOND_WEIGHTS` is a rush-hour curve that peaks in seconds 1–5. Each edge gets a
+  seeded weight of 1–5 per round, so some edges run hot. Destinations are uniform over the other edges.
   An edge never spawns twice in one tick.
 - **Bosses** (GDD §5): Market Day adds 2 trucks every second. Parade returns one seeded
   `closedSegments` entry and picks only from maps where a closure leaves every edge connected.
   Festival adds 60% more vehicles, 5% of them emergency vehicles.
 - **Heat-strip** (GDD §2): spawns per edge per second, plus the max for scaling.
-- **Quota:** `roundQuota` is GDD §2's formula in per-mille integers, rounded half up (ADR-018).
+- **Quota:** `roundQuota` is GDD §2's formula in per-mille integers, rounded half up (ADR-018),
+  and the single quota source. District 1's base is tuned to 83 (P1-CON-05); D2 and D3 keep 34
+  and 42.
 
 The model, the seed salts and the boss rules are in
 [ADR-021](../../docs/decisions/ADR-021-demand-model.md).
