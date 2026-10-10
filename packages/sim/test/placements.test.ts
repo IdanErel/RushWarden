@@ -152,8 +152,23 @@ describe('Effect union v2 validation (ADR-014)', () => {
     ],
     ['costModifier delta not integer', place([{ kind: 'costModifier', cards: 'all', delta: 0.5 }])],
     ['segment out of bounds', place([], seg(0, 0, 0, 9))],
+    ['segment over a block tile', place([], seg(2, 4, 2, 5))],
+    [
+      'setBusStopDwell on a segment crossing blocks',
+      place([{ kind: 'setBusStopDwell', dwellTicks: 2 }], seg(2, 1, 3, 1)),
+    ],
   ])('rejects: %s', (_name, p) => {
     expect(placementError(map, p)).not.toBeNull();
+  });
+
+  it('segmentTiles checks road tiles when given the map', () => {
+    const s = seg(3, 0, 3, 3) as Extract<Target, { kind: 'segment' }>;
+    expect(segmentTiles(s, map)).toHaveLength(4);
+    expect(segmentTiles(seg(2, 4, 3, 4) as Extract<Target, { kind: 'segment' }>, map)).toHaveLength(
+      2,
+    );
+    expect(segmentTiles(seg(1, 0, 3, 0) as Extract<Target, { kind: 'segment' }>, map)).toBeNull();
+    expect(segmentTiles(seg(1, 0, 3, 0) as Extract<Target, { kind: 'segment' }>)).toHaveLength(3);
   });
 
   it('walks segments in either direction', () => {

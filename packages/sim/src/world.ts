@@ -77,11 +77,23 @@ export interface Link {
 /** A lane: `cells` cells along its link, cell 0 upstream. Ids fit in a snapshot's Uint16. */
 export interface Lane {
   readonly id: number;
+  /** The link this lane belongs to, or -1 for an intersection box lane. */
   readonly link: number;
-  /** 0 = kerb (rightmost) lane. */
+  /** 0 = kerb (rightmost) lane. Box lanes: 0. */
   readonly index: number;
   readonly cells: number;
+  /** Box lanes: the intersection index; road lanes: -1. */
+  readonly intersection: number;
+  /** Box lanes: `Turn` of the movement; road lanes: -1. */
+  readonly turn: number;
+  /** Box lanes: direction of travel entering and leaving the box; road lanes: -1. */
+  readonly entryDir: number;
+  readonly exitDir: number;
 }
+
+/** Movement through an intersection box. Box lanes are 1 (right), 2 (straight) or 3 (left) cells. */
+export const Turn = { Right: 0, Straight: 1, Left: 2 } as const;
+export type Turn = (typeof Turn)[keyof typeof Turn];
 
 export interface Intersection {
   readonly index: number;
@@ -135,6 +147,23 @@ export interface World {
   readonly exitLink: Int16Array;
   /** BFS routes computed on first use, keyed `origin * edges.length + destination`. */
   readonly routeCache: Map<number, Route | null>;
+  /** Lanes `[0, roadLanes)` are road lanes; the rest are intersection box lanes. */
+  readonly roadLanes: number;
+  /** Box lane for a movement: `[intersection * 16 + inSide * 4 + outSide]`, or -1. */
+  readonly movementLane: Int32Array;
+  /** Flat lane-cell index of each lane's cell 0 (length lanes + 1): `laneCellBase[lane] + cell`. */
+  readonly laneCellBase: Int32Array;
+  /**
+   * Physical cell of each flat lane cell. Road lane cells are their own physical cells; every
+   * intersection box has 4 physical quadrant cells (NE, SE, SW, NW) shared by its box lanes, so
+   * crossing movements can never occupy the same space.
+   */
+  readonly cellPhys: Int32Array;
+  readonly physCells: number;
+  /** Link of each physical cell, or -1 for box quadrants. */
+  readonly physLink: Int16Array;
+  /** 1 on the flat lane cell where buses stop: the downstream cell of each bus-stop tile. */
+  readonly stopCell: Uint8Array;
 }
 
 /** Thrown for maps that break the topology rules. Extends RangeError like other input errors. */
@@ -354,10 +383,85 @@ export function buildWorld(map: GridMap): World {
     const ids: number[] = [];
     for (let k = 0; k < lanesPerDir[first]!; k++) {
       ids.push(lanes.length);
-      lanes.push({ id: lanes.length, link: l.id, index: k, cells: l.cells });
+      lanes.push({
+        id: lanes.length,
+        link: l.id,
+        index: k,
+        cells: l.cells,
+        intersection: NONE,
+        turn: NONE,
+        entryDir: NONE,
+        exitDir: NONE,
+      });
     }
     return { ...l, reverse, lanes: ids };
   });
+  const roadLanes = lanes.length;
+
+  // Box lanes, one per movement (no U-turns): intersections in order, in-sides then out-sides n e s w.
+  const movementLane = new Int32Array(intersections.length * 16).fill(NONE);
+  for (const ix of intersections) {
+    for (let inSide = 0; inSide < 4; inSide++) {
+      if (ix.inLinks[inSide] === NONE) continue;
+      const heading = opposite(inSide);
+      for (let outSide = 0; outSide < 4; outSide++) {
+        if (outSide === inSide || ix.outLinks[outSide] === NONE) continue;
+        const turn =
+          outSide === heading
+            ? Turn.Straight
+            : outSide === ((heading + 1) & 3)
+              ? Turn.Right
+              : Turn.Left;
+        movementLane[ix.index * 16 + inSide * 4 + outSide] = lanes.length;
+        lanes.push({
+          id: lanes.length,
+          link: NONE,
+          index: 0,
+          cells: turn + 1,
+          intersection: ix.index,
+          turn,
+          entryDir: heading,
+          exitDir: outSide,
+        });
+      }
+    }
+  }
+
+  // Flat lane cells and their physical cells.
+  const laneCellBase = new Int32Array(lanes.length + 1);
+  for (let i = 0; i < lanes.length; i++) laneCellBase[i + 1] = laneCellBase[i]! + lanes[i]!.cells;
+  const flatCells = laneCellBase[lanes.length]!;
+  const cellPhys = new Int32Array(flatCells);
+  const stopCell = new Uint8Array(flatCells);
+  const roadCells = laneCellBase[roadLanes]!;
+  const physCells = roadCells + intersections.length * 4;
+  const physLink = new Int16Array(physCells).fill(NONE);
+  for (let i = 0; i < lanes.length; i++) {
+    const lane = lanes[i]!;
+    const base = laneCellBase[i]!;
+    if (lane.link !== NONE) {
+      const link = links[lane.link]!;
+      for (let c = 0; c < lane.cells; c++) {
+        cellPhys[base + c] = base + c;
+        physLink[base + c] = lane.link;
+        const tile = map.tiles[link.tiles[idiv(c, CELLS_PER_TILE)]!]!;
+        if (
+          tile.kind === 'road' &&
+          tile.busStop === true &&
+          c % CELLS_PER_TILE === CELLS_PER_TILE - 1
+        ) {
+          stopCell[base + c] = 1;
+        }
+      }
+    } else {
+      // Quadrants clockwise from NE = 0. Entering heading h, the vehicle is on the right-hand half:
+      // first quadrant (h + 1) & 3, then counter-clockwise toward the far side for straight and left.
+      const q0 = (lane.entryDir + 1) & 3;
+      for (let c = 0; c < lane.cells; c++) {
+        cellPhys[base + c] = roadCells + lane.intersection * 4 + ((q0 + 4 - c) & 3);
+      }
+    }
+  }
 
   return {
     mapId: map.id,
@@ -377,6 +481,13 @@ export function buildWorld(map: GridMap): World {
     edgeIndexById,
     exitLink,
     routeCache: new Map(),
+    roadLanes,
+    movementLane,
+    laneCellBase,
+    cellPhys,
+    physCells,
+    physLink,
+    stopCell,
   };
 }
 
@@ -459,6 +570,10 @@ export function edgeIndex(world: World, id: number): number {
   return i;
 }
 
+const bfsParent = new Int16Array(TILE_COUNT);
+const bfsParentDir = new Int8Array(TILE_COUNT);
+const bfsQueue = new Int16Array(TILE_COUNT);
+
 function bfsRoute(world: World, origin: number, destination: number): Route | null {
   // Indices were checked by `route`.
   const o = world.edges[origin]!;
@@ -466,9 +581,10 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
   if (origin === destination) throw new RangeError(`route from edge ${o.id} to itself`);
   if (world.links[o.spawnLink]!.lanes.length === 0) return null;
 
-  const parent = new Int16Array(TILE_COUNT).fill(NONE);
-  const parentDir = new Int8Array(TILE_COUNT);
-  const queue = new Int16Array(TILE_COUNT);
+  // Scratch buffers are module-level: the sim is single-threaded and BFS never re-enters.
+  const parent = bfsParent.fill(NONE);
+  const parentDir = bfsParentDir;
+  const queue = bfsQueue;
   let head = 0;
   let tail = 0;
   queue[tail++] = o.tile;
@@ -535,9 +651,15 @@ export function weightedRoute(
   cost: (link: number) => number,
 ): number[] | null {
   const n = world.links.length;
-  const dist = new Int32Array(n).fill(-1);
-  const prev = new Int32Array(n).fill(NONE);
-  const done = new Uint8Array(n);
+  if (dist.length < n) {
+    dist = new Int32Array(n * 2);
+    prev = new Int32Array(n * 2);
+    done = new Uint8Array(n * 2);
+  }
+  dist.fill(-1, 0, n);
+  prev.fill(NONE, 0, n);
+  done.fill(0, 0, n);
+  heapLen = 0;
   const relax = (link: number, base: number, p: number): void => {
     if (world.links[link]!.lanes.length === 0) return;
     const c = cost(link);
@@ -547,6 +669,7 @@ export function weightedRoute(
     if (dist[link] === -1 || nd < dist[link]!) {
       dist[link] = nd;
       prev[link] = p;
+      heapPush(nd * HEAP_LINKS + link);
     }
   };
   const start = world.intersections[from];
@@ -555,12 +678,11 @@ export function weightedRoute(
     const l = start.outLinks[dir]!;
     if (l !== NONE && dir !== arrivalSide) relax(l, 0, NONE);
   }
-  for (;;) {
-    let best = NONE;
-    for (let l = 0; l < n; l++) {
-      if (!done[l] && dist[l] !== -1 && (best === NONE || dist[l]! < dist[best]!)) best = l;
-    }
-    if (best === NONE) return null;
+  while (heapLen > 0) {
+    // Keys are dist * HEAP_LINKS + link, so the minimum is the lowest distance, then link id.
+    const key = heapPop();
+    const best = key % HEAP_LINKS;
+    if (done[best] || idiv(key, HEAP_LINKS) !== dist[best]) continue; // stale entry
     done[best] = 1;
     const link = world.links[best]!;
     if (link.to.kind === 'edge') {
@@ -576,17 +698,73 @@ export function weightedRoute(
       if (l !== NONE && dir !== arrived && !done[l]) relax(l, dist[best]!, best);
     }
   }
+  return null;
 }
 
-/** Where a lane cell is: its tile, the cell's offset within the tile (0 = upstream), and the travel directions there. For the renderer. */
+/** Heap key stride: link ids stay below this (a 7×9 map has well under 256 links). */
+const HEAP_LINKS = 4096;
+let dist = new Int32Array(256);
+let prev = new Int32Array(256);
+let done = new Uint8Array(256);
+let heap = new Int32Array(256);
+let heapLen = 0;
+
+function heapPush(key: number): void {
+  if (heapLen === heap.length) {
+    const grown = new Int32Array(heap.length * 2);
+    grown.set(heap);
+    heap = grown;
+  }
+  let i = heapLen++;
+  while (i > 0) {
+    const parent = (i - 1) >> 1;
+    if (heap[parent]! <= key) break;
+    heap[i] = heap[parent]!;
+    i = parent;
+  }
+  heap[i] = key;
+}
+
+function heapPop(): number {
+  const top = heap[0]!;
+  const last = heap[--heapLen]!;
+  let i = 0;
+  for (;;) {
+    let c = 2 * i + 1;
+    if (c >= heapLen) break;
+    if (c + 1 < heapLen && heap[c + 1]! < heap[c]!) c++;
+    if (heap[c]! >= last) break;
+    heap[i] = heap[c]!;
+    i = c;
+  }
+  heap[i] = last;
+  return top;
+}
+
+/**
+ * Where a lane cell is, for the renderer: its tile, the cell's offset within the tile
+ * (0 = upstream), and the travel directions there. For an intersection box lane, `offset` is the
+ * step along the turn path and `quadrant` the box quarter the vehicle is in (0 NE, 1 SE, 2 SW,
+ * 3 NW): right turns use 1 quarter, straight 2, left 3, starting in the right-hand quarter of the
+ * approach. Road cells have `quadrant` -1.
+ */
 export function locateCell(
   world: World,
   laneId: number,
   cell: number,
-): { tile: number; offset: number; entryDir: number; exitDir: number } {
+): { tile: number; offset: number; entryDir: number; exitDir: number; quadrant: number } {
   const lane = world.lanes[laneId];
   if (!lane || !Number.isInteger(cell) || cell < 0 || cell >= lane.cells) {
     throw new RangeError(`no cell ${cell} on lane ${laneId}`);
+  }
+  if (lane.link === NONE) {
+    return {
+      tile: world.intersections[lane.intersection]!.tile,
+      offset: cell,
+      entryDir: lane.entryDir,
+      exitDir: lane.exitDir,
+      quadrant: (lane.entryDir + 5 - cell) & 3,
+    };
   }
   const link = world.links[lane.link]!;
   const k = idiv(cell, CELLS_PER_TILE);
@@ -595,5 +773,6 @@ export function locateCell(
     offset: cell - k * CELLS_PER_TILE,
     entryDir: link.entryDirs[k]!,
     exitDir: link.exitDirs[k]!,
+    quadrant: NONE,
   };
 }

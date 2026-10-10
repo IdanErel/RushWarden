@@ -20,3 +20,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 012 | World topology rules for maps                           | Proposed        |
 | 013 | Web portal adapters never call portal ad APIs           | Proposed (Idan) |
 | 014 | Effect union v2                                         | Accepted        |
+| 017 | Vehicles, intersection boxes and tick mechanics         | Proposed        |

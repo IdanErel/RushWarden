@@ -83,10 +83,58 @@ function checkInvariants(w: World): void {
     }
     expect(l.lanes.length === 1 || l.lanes.length === 2).toBe(true);
     l.lanes.forEach((id, i) => {
-      expect(w.lanes[id]).toEqual({ id, link: l.id, index: i, cells: l.cells });
+      expect(w.lanes[id]).toEqual({
+        id,
+        link: l.id,
+        index: i,
+        cells: l.cells,
+        intersection: -1,
+        turn: -1,
+        entryDir: -1,
+        exitDir: -1,
+      });
+      expect(id).toBeLessThan(w.roadLanes);
     });
   }
   w.lanes.forEach((lane, i) => expect(lane.id).toBe(i));
+  // Box lanes: one per movement without U-turns; 1/2/3 cells for right/straight/left; each cell
+  // a distinct quadrant of its own intersection's box.
+  const roadCells = w.laneCellBase[w.roadLanes]!;
+  expect(w.physCells).toBe(roadCells + 4 * w.intersections.length);
+  for (const ix of w.intersections) {
+    for (let a = 0; a < 4; a++) {
+      for (let b = 0; b < 4; b++) {
+        const id = w.movementLane[ix.index * 16 + a * 4 + b]!;
+        const exists = a !== b && ix.inLinks[a]! >= 0 && ix.outLinks[b]! >= 0;
+        expect(id >= 0).toBe(exists);
+        if (!exists) continue;
+        const lane = w.lanes[id]!;
+        expect(lane.link).toBe(-1);
+        expect(lane.intersection).toBe(ix.index);
+        expect(lane.entryDir).toBe(opposite(a));
+        expect(lane.exitDir).toBe(b);
+        expect(lane.cells).toBe(lane.turn + 1);
+        const turn = b === opposite(a) ? 1 : b === ((opposite(a) + 1) & 3) ? 0 : 2;
+        expect(lane.turn).toBe(turn);
+        const quads = new Set<number>();
+        for (let c = 0; c < lane.cells; c++) {
+          const p = w.cellPhys[w.laneCellBase[id]! + c]!;
+          expect(p - roadCells - ix.index * 4).toBeGreaterThanOrEqual(0);
+          expect(p - roadCells - ix.index * 4).toBeLessThan(4);
+          expect(w.physLink[p]).toBe(-1);
+          expect(locateCell(w, id, c).quadrant).toBe(p - roadCells - ix.index * 4);
+          quads.add(p);
+        }
+        expect(quads.size).toBe(lane.cells);
+      }
+    }
+  }
+  // Road cells are their own physical cells, tagged with their link.
+  for (let id = 0; id < w.roadLanes; id++) {
+    const base = w.laneCellBase[id]!;
+    expect(w.cellPhys[base]).toBe(base);
+    expect(w.physLink[base]).toBe(w.lanes[id]!.link);
+  }
   for (const ix of w.intersections) {
     expect(ix.approaches === 3 || ix.approaches === 4).toBe(true);
     expect(ix.inLinks.filter((l) => l >= 0)).toHaveLength(ix.approaches);
@@ -155,7 +203,8 @@ describe('buildWorld on the plus map', () => {
 
   it('makes one link per direction per arm, 4 cells per tile per lane', () => {
     expect(w.links).toHaveLength(8);
-    expect(w.lanes).toHaveLength(8);
+    expect(w.roadLanes).toBe(8);
+    expect(w.lanes).toHaveLength(8 + 4 * 3);
     const north = w.links[w.edges[0]!.spawnLink]!;
     expect(north.tiles).toEqual([0, 1, 2, 3].map((y) => tileIndex(3, y)));
     expect(north.cells).toBe(16);
@@ -180,14 +229,28 @@ describe('buildWorld on the plus map', () => {
       offset: 0,
       entryDir: 2,
       exitDir: 2,
+      quadrant: -1,
     });
     expect(locateCell(w, lane, 5)).toEqual({
       tile: tileIndex(3, 1),
       offset: 1,
       entryDir: 2,
       exitDir: 2,
+      quadrant: -1,
     });
     expect(() => locateCell(w, lane, 16)).toThrow(RangeError);
+    // Box lane: north arm heading south, turning left (east): 3 cells in the intersection tile.
+    const left = w.movementLane[0 * 16 + 0 * 4 + 1]!;
+    expect(w.lanes[left]!.turn).toBe(2);
+    // Heading south, it enters on its right-hand (west) side: NW (3), then SW (2), and leaves east
+    // from SE (1), where eastbound traffic drives.
+    expect([0, 1, 2].map((c) => locateCell(w, left, c).quadrant)).toEqual([3, 2, 1]);
+    expect(locateCell(w, left, 2)).toMatchObject({
+      tile: tileIndex(3, 4),
+      offset: 2,
+      entryDir: 2,
+      exitDir: 1,
+    });
     expect(() => locateCell(w, 99, 0)).toThrow(RangeError);
   });
 
