@@ -8,9 +8,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --coverage"
   },
-  "dependencies": {}
+  "devDependencies": {
+    "@vitest/coverage-v8": "~4.1.11",
+    "vitest": "~4.1.11"
+  }
 }
