@@ -196,6 +196,40 @@ importers:
         specifier: ~4.1.11
         version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@22.20.5)(jiti@2.6.1)(lightningcss@1.33.0))
 
+  tools/clip:
+    dependencies:
+      '@rushwarden/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+      '@rushwarden/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@rushwarden/render':
+        specifier: workspace:*
+        version: link:../../packages/render
+      '@rushwarden/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
+      pixi.js:
+        specifier: ~8.21.0
+        version: 8.21.0
+    devDependencies:
+      '@playwright/test':
+        specifier: 1.56.1
+        version: 1.56.1
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      '@vitest/coverage-v8':
+        specifier: ~4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      vite:
+        specifier: ~7.3.7
+        version: 7.3.7(@types/node@22.20.5)(jiti@2.6.1)(lightningcss@1.33.0)
+      vitest:
+        specifier: ~4.1.11
+        version: 4.1.11(@types/node@22.20.5)(@vitest/coverage-v8@4.1.11)(vite@7.3.7(@types/node@22.20.5)(jiti@2.6.1)(lightningcss@1.33.0))
+
   tools/golden:
     dependencies:
       '@rushwarden/sim':

@@ -57,6 +57,18 @@ the start of a road lane. Both ends are interpolated between snapshots like the 
 drives a truck and a bus through every movement on the plus map and checks that the head,
 middle and tail stay on the road.
 
+**Follow-up (P1 truck-diagonal):** in real District 1 rounds a truck often leaves a box 2 cells
+in one tick. Blending its head and tail in straight lines between two snapshots still cut the
+box corner, up to 0.2 tiles past the asphalt, and past the start of the exit lane `backPoint`
+extended straight back instead of into the box the truck came out of. Now, when a bus or truck
+moves within one lane or into the next one, `SnapshotBuffer` slides its head and tail along the
+cells it drives through, measured in path distance, rather than across the chord. It also
+remembers each vehicle's previous lane, so the body follows that lane back past the start of the
+current one. The straight body is centred on the path's midpoint, so in a bend it overhangs both
+ends equally. Any other move (a re-route, an id reuse) falls back to the straight blend. A test
+plays 30 real District 1 rounds through the worker handler and checks every body cell of every
+bus and truck at every quarter tick.
+
 ## Readability and shape notes (review of #18)
 
 - **Shape alone (§7 accessibility).** Car and taxi share a body, so the taxi also carries a
