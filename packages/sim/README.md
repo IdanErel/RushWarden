@@ -19,6 +19,8 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `weightedRoute(world, intersection, arrivalSide, d, cost)`                          | Integer Dijkstra over links for taxis (time-weighted costs), no U-turns.                                                     |
 | `locateCell(world, laneId, cell)`                                                   | Tile, offset, travel directions and box quarter of a snapshot's (lane, cell), for the renderer.                              |
 | `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-017).                                                                       |
+| `controllerSnapshot(state)`, `ControllerCode`, `SIGNAL_GREEN_TICKS`, ...            | Per-intersection `[kind, greenMask, boxCount]` for the renderer, and the controller constants (ADR-020).                     |
+| `emptyMap`, `sampleInput`, `latticeMap`, `denseInput`                               | Test and golden fixtures: a plus map with 0–6 vehicles, and lattices of 4–12 intersections with 50–150 vehicles.             |
 
 ## Worker protocol (P1-LEAD-01)
 
@@ -26,7 +28,8 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 ticks: `start {roundId, input}` → `step {roundId, ticks}` (≤ 60) → `frames` replies with
 transferable snapshot buffers, then one `done {result}`. `finish` runs the rest at once, `abort`
 drops the round, and bad input yields `error`. Frames equal a headless `recordFrames` run
-(tested over `worker_threads`).
+(tested over `worker_threads`). Each `frames` message also carries `controllers`, one
+`controllerSnapshot` per frame (`[kind, greenMask, boxCount]` per intersection, ADR-020).
 
 ```ts
 // sim.worker.ts
@@ -77,10 +80,11 @@ Snapshots are `[tick, count, ...count × (id, lane, cell, speed, type)]`, listed
 update order: (lane, cell) descending at the start of the tick. `id` is the spawn index and
 `cell` is the head cell.
 
-| Lane ids                          | What                                                                                                                        |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `0 .. world.roadLanes - 1`        | Road lanes: `world.lanes[id].link` is the link, 4 cells per tile, cell 0 upstream.                                          |
-| `world.roadLanes .. lanes.length` | Intersection box lanes, one per movement. 1/2/3 cells for right/straight/left; `locateCell` gives the quarter (0 NE..3 NW). |
+| Lane ids                                   | What                                                                                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `0 .. world.roadLanes - 1`                 | Road lanes: `world.lanes[id].link` is the link, 4 cells per tile, cell 0 upstream.                                          |
+| `world.roadLanes .. world.pocketLanes - 1` | Intersection box lanes, one per movement. 1/2/3 cells for right/straight/left; `locateCell` gives the quarter (0 NE..3 NW). |
+| `world.pocketLanes .. lanes.length - 1`    | Turn pockets (Turn Lane), 1 cell per approach, used only when placed; `locateCell` gives the approach's last tile.          |
 
 Vehicle table (§3): car 1/3/1, taxi 1/3/1, bus 2/2/3, truck 3/2/2, emergency 1/4/5, bike 1/2/1
 (length / vmax / score). Bikes move at 1 without a bike lane, and buses stand 4 ticks at each
@@ -88,8 +92,10 @@ bus-stop tile.
 
 ## Status
 
-P1-SIM-02: vehicles spawn, follow tick rules 1, 2, 4 and 6, and exit with their score.
-Controllers (rule 5) follow in P1-SIM-03; p_slow (rule 3) and the gridlock detector in P1-SIM-04.
+P1-SIM-03: vehicles spawn, follow tick rules 1, 2, 4, 5 and 6, and exit with their score.
+Every controller kind and the turn pocket are implemented (`src/controllers.ts`, ADR-020); all
+intersections start uncontrolled, and cards set them from P1-SIM-05 on. p_slow (rule 3) and the
+gridlock detector follow in P1-SIM-04. `pnpm bench` measures rounds/s.
 
 Any change to
 the exported types is an interface change (GDD section 13, rule 6).

@@ -8,11 +8,21 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src test dev e2e",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --coverage",
+    "dev": "vite",
+    "dev:build": "vite build",
+    "e2e": "playwright test"
   },
   "dependencies": {
-    "@rushwarden/sim": "workspace:*"
+    "@rushwarden/sim": "workspace:*",
+    "pixi.js": "~8.21.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@vitest/coverage-v8": "~4.1.11",
+    "vite": "~7.3.7",
+    "vitest": "~4.1.11"
   }
 }

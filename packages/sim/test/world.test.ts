@@ -88,6 +88,7 @@ function checkInvariants(w: World): void {
         link: l.id,
         index: i,
         cells: l.cells,
+        kind: 'road',
         intersection: -1,
         turn: -1,
         entryDir: -1,
@@ -96,11 +97,11 @@ function checkInvariants(w: World): void {
       expect(id).toBeLessThan(w.roadLanes);
     });
   }
+  expect(w.links.length).toBeLessThanOrEqual(2 * GRID_WIDTH * GRID_HEIGHT);
   w.lanes.forEach((lane, i) => expect(lane.id).toBe(i));
   // Box lanes: one per movement without U-turns; 1/2/3 cells for right/straight/left; each cell
   // a distinct quadrant of its own intersection's box.
   const roadCells = w.laneCellBase[w.roadLanes]!;
-  expect(w.physCells).toBe(roadCells + 4 * w.intersections.length);
   for (const ix of w.intersections) {
     for (let a = 0; a < 4; a++) {
       for (let b = 0; b < 4; b++) {
@@ -109,6 +110,9 @@ function checkInvariants(w: World): void {
         expect(id >= 0).toBe(exists);
         if (!exists) continue;
         const lane = w.lanes[id]!;
+        expect(lane.kind).toBe('box');
+        expect(id).toBeGreaterThanOrEqual(w.roadLanes);
+        expect(id).toBeLessThan(w.pocketLanes);
         expect(lane.link).toBe(-1);
         expect(lane.intersection).toBe(ix.index);
         expect(lane.entryDir).toBe(opposite(a));
@@ -128,6 +132,39 @@ function checkInvariants(w: World): void {
         expect(quads.size).toBe(lane.cells);
       }
     }
+  }
+  // Turn pockets: one per approach, 1 cell, its own physical cell, a stop-line cell.
+  for (const ix of w.intersections) {
+    for (let a = 0; a < 4; a++) {
+      const id = w.pocketLane[ix.index * 4 + a]!;
+      expect(id >= 0).toBe(ix.inLinks[a]! >= 0);
+      if (id < 0) continue;
+      expect(id).toBeGreaterThanOrEqual(w.pocketLanes);
+      expect(w.lanes[id]).toMatchObject({
+        kind: 'pocket',
+        link: ix.inLinks[a],
+        cells: 1,
+        intersection: ix.index,
+        entryDir: opposite(a),
+      });
+      const flat = w.laneCellBase[id]!;
+      expect(w.lineCell[flat]).toBe(1);
+      expect(w.physLink[w.cellPhys[flat]!]).toBe(ix.inLinks[a]);
+      expect(locateCell(w, id, 0)).toMatchObject({ offset: CELLS_PER_TILE - 1, quadrant: -1 });
+    }
+  }
+  expect(w.lanes.length - w.pocketLanes).toBe(
+    w.intersections.reduce((s, i) => s + i.approaches, 0),
+  );
+  expect(w.physCells).toBe(
+    roadCells + 4 * w.intersections.length + (w.lanes.length - w.pocketLanes),
+  );
+  // Stop lines: the last cell of every lane that arrives at an intersection.
+  for (let id = 0; id < w.roadLanes; id++) {
+    const lane = w.lanes[id]!;
+    const atIx = w.links[lane.link]!.to.kind === 'intersection';
+    expect(w.lineCell[w.laneCellBase[id]! + lane.cells - 1]).toBe(atIx ? 1 : 0);
+    expect(w.lineCell[w.laneCellBase[id]!]).toBe(0);
   }
   // Road cells are their own physical cells, tagged with their link.
   for (let id = 0; id < w.roadLanes; id++) {
@@ -204,7 +241,8 @@ describe('buildWorld on the plus map', () => {
   it('makes one link per direction per arm, 4 cells per tile per lane', () => {
     expect(w.links).toHaveLength(8);
     expect(w.roadLanes).toBe(8);
-    expect(w.lanes).toHaveLength(8 + 4 * 3);
+    expect(w.pocketLanes).toBe(8 + 4 * 3);
+    expect(w.lanes).toHaveLength(8 + 4 * 3 + 4);
     const north = w.links[w.edges[0]!.spawnLink]!;
     expect(north.tiles).toEqual([0, 1, 2, 3].map((y) => tileIndex(3, y)));
     expect(north.cells).toBe(16);
