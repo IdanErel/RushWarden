@@ -1,6 +1,6 @@
 # ADR-021: Round demand model, seed salts and District 1 bosses
 
-Status: Proposed · 2026-10-10 · Content Designer (P1-CON-04; the Lead asked for this ADR)
+Status: Accepted · Lead (proposed by Content Designer)
 
 GDD §2, §3 and §5 fix the demand mix, the quota formula, the rush multiplier, the heat-strip and
 the boss names. They leave open how many vehicles a round spawns, when and where they spawn, how
