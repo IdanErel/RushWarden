@@ -416,9 +416,6 @@ test.describe('toy flow', () => {
 
   test('E2E-18 landscape desktop fits without clipping', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop project only');
-    // A tracked bug, not a skip: at 1280×720 the run screen stays a portrait column and the hand
-    // is below the fold (§8). render-ui removes this line in its fix PR.
-    test.fixme(true, 'landscape layout pending render-ui fix (Lead, ADR-029)');
     for (const size of [
       { width: 1280, height: 720 },
       { width: 1920, height: 1080 },
