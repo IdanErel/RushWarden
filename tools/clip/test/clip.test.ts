@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Sim } from '@rushwarden/sim';
 import { buildClip, clipMeta, frameTime, hudAt, outcomeOf, record } from '../src/clip.ts';
-import { planRun } from '../src/director.ts';
+import { MARKET_DAY_SEED, planRun } from '../src/director.ts';
 
 describe('clip model', () => {
   it('records the same round the headless sim plays (zero desync, GDD §1)', () => {
-    const { input } = planRun({ seed: 4 });
+    const { input } = planRun({ seed: MARKET_DAY_SEED });
     const rec = record(input);
     const headless = Sim.simulate(input);
     expect(rec.result.finalHash).toBe(headless.finalHash);
@@ -17,7 +17,7 @@ describe('clip model', () => {
   });
 
   it('ends the jam clip on the gridlock tick with the gridlock outcome', () => {
-    const clip = buildClip({ seed: 4, plays: 'none' });
+    const clip = buildClip({ seed: MARKET_DAY_SEED, plays: 'none' });
     expect(clip.recording.result.gridlocked).toBe(true);
     expect(clip.timeline.toTick).toBe(clip.recording.result.ticks);
     expect(outcomeOf(clip)).toBe('gridlock');
@@ -30,7 +30,7 @@ describe('clip model', () => {
   });
 
   it('passes the Market Day round with the director cards', () => {
-    const clip = buildClip({ seed: 4 });
+    const clip = buildClip({ seed: MARKET_DAY_SEED });
     expect(outcomeOf(clip)).toBe('pass');
     expect(clip.cards.map((c) => c.tag).every((t) => t.length > 0)).toBe(true);
     expect(hudAt(clip, 0)).toMatchObject({ district: 'Old Town', round: 5, throughput: 0 });
@@ -38,7 +38,7 @@ describe('clip model', () => {
 
   it('honours timeline options and keeps frames out of the metadata', () => {
     const clip = buildClip(
-      { seed: 4 },
+      { seed: MARKET_DAY_SEED },
       { fromTick: 100, toTick: 140, fps: 10, leadMs: 0, holdMs: 0 },
     );
     expect(clip.frames).toBe(20);
@@ -50,10 +50,17 @@ describe('clip model', () => {
   });
 
   it('marks a missed quota as a fail', () => {
-    const clip = buildClip({ seed: 4, plays: 'none' });
+    const clip = buildClip({ seed: MARKET_DAY_SEED, plays: 'none' });
     const notLocked = {
       ...clip,
-      recording: { ...clip.recording, result: { ...clip.recording.result, gridlocked: false } },
+      recording: {
+        ...clip.recording,
+        result: {
+          ...clip.recording.result,
+          gridlocked: false,
+          throughput: clip.plan.quota - 1,
+        },
+      },
     };
     expect(outcomeOf(notLocked)).toBe('fail');
   });

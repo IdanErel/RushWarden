@@ -1,6 +1,6 @@
 /**
  * P1-QA-02 acceptance: "Deterministic output from a seed." Renders a short piece of the jam clip
- * (seed 4, no cards: Market Day gridlocks at tick 241) twice, with a different number of browsers,
+ * (`MARKET_DAY_SEED`, no cards: Market Day gridlocks) twice, with a different number of browsers,
  * and checks the pixels and both encodes are byte-identical, the video is 9:16, and the round the
  * browser rendered is the round Node simulates (same final hash).
  */
@@ -12,6 +12,7 @@ import { expect, test } from '@playwright/test';
 import { parseArgs } from '../cli/args.ts';
 import { buildPage, renderClip } from '../cli/render.ts';
 import { buildClip } from '../src/clip.ts';
+import { MARKET_DAY_SEED } from '../src/director.ts';
 
 function probe(file: string): { width: number; height: number; frames: number } {
   const r = spawnSync(
@@ -37,13 +38,16 @@ function probe(file: string): { width: number; height: number; frames: number } 
 test('a seeded clip renders identically twice, at 9:16, from the same round as Node', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'rw-clip-'));
   try {
+    // The last ~2 s before the gridlock tick, whatever the seed's round is.
+    const jam = buildClip({ seed: MARKET_DAY_SEED, plays: 'none' }).recording.result;
+    const from = jam.ticks - 21;
     const argv = [
       '--seed',
-      '4',
+      String(MARKET_DAY_SEED),
       '--plays',
       'none',
       '--from',
-      '220',
+      String(from),
       '--fps',
       '10',
       '--lead',
@@ -68,11 +72,11 @@ test('a seeded clip renders identically twice, at 9:16, from the same round as N
     expect(b.sha256.gif).toBe(a.sha256.gif);
 
     const node = buildClip(
-      { seed: 4, plays: 'none' },
-      { fromTick: 220, fps: 10, leadMs: 200, holdMs: 600 },
+      { seed: MARKET_DAY_SEED, plays: 'none' },
+      { fromTick: from, fps: 10, leadMs: 200, holdMs: 600 },
     );
     expect(a.meta.result.finalHash).toBe(node.recording.result.finalHash);
-    expect(a.meta.result).toMatchObject({ gridlocked: true, ticks: 241 });
+    expect(a.meta.result).toMatchObject({ gridlocked: true, ticks: jam.ticks });
     expect(a.meta.frames).toBe(node.frames);
 
     const mp4 = probe(a.files.mp4 ?? '');

@@ -8,7 +8,7 @@
  * frames in headless Chromium and runs the operations on a 2D canvas.
  */
 import { OLD_TOWN } from '@rushwarden/render';
-import type { ClipSpec } from './director.js';
+import { MARKET_DAY_SEED, type ClipSpec } from './director.js';
 import { GLYPH_H, textRects, textWidth } from './font.js';
 
 export interface Box {
@@ -78,21 +78,21 @@ export interface StoreAsset {
 const P = OLD_TOWN;
 
 /**
- * Frames used. All from the Market Day clips the clip tool already renders (seed 4): with the
+ * Frames used. All from the Market Day clips the clip tool already renders (`MARKET_DAY_SEED`): with the
  * greedy plays (`clips/market-day.json`) and with no cards (`clips/market-day-none.json`), plus
  * round 2 of the same run for a calmer map.
  */
 export const SHOTS: readonly Shot[] = [
-  { id: 'go', spec: { seed: 4 }, at: 0.08, scale: 2.5 },
-  { id: 'flow', spec: { seed: 4 }, at: 0.55, scale: 2.5 },
-  { id: 'met', spec: { seed: 4 }, at: 1, scale: 2.5 },
-  { id: 'jam', spec: { seed: 4, plays: 'none' }, at: 0.55, scale: 2.5 },
-  { id: 'gridlock', spec: { seed: 4, plays: 'none' }, at: 1, scale: 2.5 },
-  { id: 'calm', spec: { seed: 4, round: 2 }, at: 0.5, scale: 2.5 },
+  { id: 'go', spec: { seed: MARKET_DAY_SEED }, at: 0.08, scale: 2.5 },
+  { id: 'flow', spec: { seed: MARKET_DAY_SEED }, at: 0.55, scale: 2.5 },
+  { id: 'met', spec: { seed: MARKET_DAY_SEED }, at: 1, scale: 2.5 },
+  { id: 'jam', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 0.55, scale: 2.5 },
+  { id: 'gridlock', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 1, scale: 2.5 },
+  { id: 'calm', spec: { seed: MARKET_DAY_SEED, round: 2 }, at: 0.5, scale: 2.5 },
   // Capsules up to 1438 px wide (page background, main capsule) are cut from the map alone.
-  { id: 'jam-hi', spec: { seed: 4, plays: 'none' }, at: 0.55, scale: 5 },
+  { id: 'jam-hi', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 0.55, scale: 5 },
   // The library hero is 3840 px wide and cut from the map alone, so it needs a bigger render.
-  { id: 'hero', spec: { seed: 4, plays: 'none' }, at: 0.55, scale: 10 },
+  { id: 'hero', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 0.55, scale: 10 },
 ];
 
 /** Index of the frame a shot grabs, for a clip of `frames` frames. */
@@ -324,7 +324,7 @@ function frameOf(frames: ReadonlyMap<string, ShotFrame>, id: string): ShotFrame 
 }
 
 /**
- * Where capsules and the hero centre their crop of the map: the upper arterial of the seed 4
+ * Where capsules and the hero centre their crop of the map: the upper arterial of the Old Town
  * map, where the Market Day queues build (the lower half is quiet).
  */
 export const MAP_FOCUS = { x: 0.5, y: 0.28 } as const;
