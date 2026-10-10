@@ -54,7 +54,8 @@ or where the tool runs in CI. This ADR fixes those details. The tool lives in `t
    throughput filling a bar towards the quota mark, with the clock. The clip has a 0.5 s lead on
    the pre-Go map and a 1.5 s hold on the result: "Quota met", "Quota missed" or "Gridlock".
 6. **CI.** A separate `Clip` workflow (`.github/workflows/clip.yml`) runs on PRs that touch
-   `packages/{sim,render,ui,app}`, `tools/clip` or the lockfile, and on every push to `main`.
+   `packages/{sim,render,ui,app,content}`, `tools/clip` or the lockfile, and on every push to
+   `main`.
    It has a 15-minute timeout. It installs ffmpeg with apt when the image lacks it, runs the
    determinism e2e, and renders the two Market Day clips. The MP4, GIF and sidecars are uploaded
    as a 14-day artifact. It is a separate workflow because GitHub Actions can path-filter

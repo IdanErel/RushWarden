@@ -2,7 +2,7 @@ name: Clip
 
 # P1-QA-02 clip tool (ADR-028): checks a seeded clip renders byte-identically, then renders the
 # Market Day clips (with cards, and the no-card jam) as 9:16 MP4 + GIF artifacts. Its own
-# workflow so it can be path-filtered (Lead's decision): PRs touching what a clip draws, and
+# workflow so it can be path-filtered (Lead's decision): PRs touching what a clip shows, and
 # every push to main.
 on:
   pull_request:
@@ -11,6 +11,7 @@ on:
       - 'packages/render/**'
       - 'packages/ui/**'
       - 'packages/app/**'
+      - 'packages/content/**'
       - 'tools/clip/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/clip.yml'
