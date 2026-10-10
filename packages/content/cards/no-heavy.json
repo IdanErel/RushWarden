@@ -18,9 +18,7 @@
       {
         "kind": "banType",
         "vehicleType": "truck",
-        "scope": {
-          "roadClass": "local"
-        }
+        "scope": "target-class"
       }
     ]
   },

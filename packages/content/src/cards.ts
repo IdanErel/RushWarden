@@ -13,6 +13,7 @@ import fareHoliday from '../cards/fare-holiday.json' with { type: 'json' };
 import noHeavy from '../cards/no-heavy.json' with { type: 'json' };
 import oneWay from '../cards/one-way.json' with { type: 'json' };
 import overtime from '../cards/overtime.json' with { type: 'json' };
+import pilotProgram from '../cards/pilot-program.json' with { type: 'json' };
 import recount from '../cards/recount.json' with { type: 'json' };
 import removeSignal from '../cards/remove-signal.json' with { type: 'json' };
 import roundabout from '../cards/roundabout.json' with { type: 'json' };
@@ -34,6 +35,7 @@ export const CARD_FILES: readonly CardFile[] = [
   { source: 'no-heavy.json', data: noHeavy },
   { source: 'one-way.json', data: oneWay },
   { source: 'overtime.json', data: overtime },
+  { source: 'pilot-program.json', data: pilotProgram },
   { source: 'recount.json', data: recount },
   { source: 'remove-signal.json', data: removeSignal },
   { source: 'roundabout.json', data: roundabout },

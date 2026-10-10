@@ -48,8 +48,9 @@ const TARGETS: Record<TargetKind, Target> = {
 };
 
 describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
-  it('lists 20 cards, 4 per archetype', () => {
+  it('lists 20 cards, 4 per archetype, all bundled', () => {
     expect(new Set(PHASE1_CARD_IDS).size).toBe(20);
+    expect(PHASE1_BLOCKED).toEqual({});
     const bundled = PHASE1_CARD_IDS.filter((id) => PHASE1_BLOCKED[id] === undefined).map(getCard);
     for (const card of bundled) expect(card.tags).toHaveLength(1);
   });
@@ -199,7 +200,7 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
       'common',
       'CHAOS',
       'Trucks are banned from this segment and route around it.',
-      'Trucks are banned from every local (1-lane) road in the district and route around them.',
+      'Trucks are banned from every road in the district of the same class (local or arterial) as this segment and route around them.',
     ],
     [
       'remove-signal',
@@ -236,6 +237,15 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
       'TEMPO',
       'Redraw your hand.',
       'Keep 1 card, then redraw the rest of your hand.',
+    ],
+    [
+      'pilot-program',
+      'district',
+      1,
+      'common',
+      'TEMPO',
+      'The next card you play this round costs 0.',
+      'The next 2 cards you play this round cost 0.',
     ],
   ];
   it.each(GDD)(

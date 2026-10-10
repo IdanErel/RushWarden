@@ -9,14 +9,14 @@
   "tags": ["MASS"],
   "effects": [
     {
-      "kind": "addBusStop",
+      "kind": "setBusStopDwell",
       "dwellTicks": 2
     }
   ],
   "upgrade": {
     "effects": [
       {
-        "kind": "addBusStop",
+        "kind": "setBusStopDwell",
         "dwellTicks": 1
       }
     ]
