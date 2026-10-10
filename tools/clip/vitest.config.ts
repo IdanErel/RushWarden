@@ -5,6 +5,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
+    // The director and clip-model tests play whole rounds; the default 5 s flakes under a parallel
+    // `pnpm test` on a loaded machine (the same fix as golden and content in this PR).
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
