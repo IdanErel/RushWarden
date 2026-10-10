@@ -27,6 +27,24 @@ function median(xs: readonly number[]): number {
   return s[(s.length - 1) >> 1] ?? 0;
 }
 
+/** The value at `permille` of the way through the sorted list (nearest rank, rounded down). */
+function quantile(xs: readonly number[], permille: number): number {
+  if (xs.length === 0) return 0;
+  const s = xs.slice().sort((a, b) => a - b);
+  return s[Math.floor(((s.length - 1) * permille) / 1000)] ?? 0;
+}
+
+function quotaRange(qs: readonly number[]): string {
+  if (qs.length === 0) return 'n/a';
+  const lo = qs.reduce((m, x) => Math.min(m, x), Infinity);
+  const hi = qs.reduce((m, x) => Math.max(m, x), -Infinity);
+  return lo === hi ? String(lo) : `${lo}–${hi}`;
+}
+
+function maxRoundOf(records: readonly RunRecord[]): number {
+  return records.reduce((m, r) => Math.max(m, r.rounds), 0);
+}
+
 function table(head: string[], rows: string[][]): string {
   return [
     `| ${head.join(' | ')} |`,
@@ -128,6 +146,53 @@ export function renderReport(
     "Watch time is simulated Go-phase time at 1× only; §11's 10–15 minute run length also includes placement time, measured with players.",
   );
 
+  // Throughput vs quota per round.
+  out.push('', '## Throughput vs quota per round', '');
+  out.push(
+    'All bots together, over the runs that reached the round. Ratio = throughput ÷ quota per round played; pass = throughput ≥ quota.',
+    '',
+  );
+  const perRound = Array.from({ length: maxRoundOf(records) }, (_, i) => {
+    const t: number[] = [];
+    const q: number[] = [];
+    const ratio: number[] = [];
+    let passed = 0;
+    for (const r of records) {
+      const tr = r.throughputs[i];
+      const qr = r.quotas[i];
+      if (tr === undefined || qr === undefined) continue;
+      t.push(tr);
+      q.push(qr);
+      ratio.push(qr === 0 ? 0 : Math.round((tr * 1000) / qr));
+      if (tr >= qr) passed++;
+    }
+    return { round: i + 1, t, q, ratio, passed };
+  });
+  out.push(
+    table(
+      [
+        'Round',
+        'Rounds played',
+        'Quota',
+        'Median throughput',
+        'Median ratio',
+        'p10 ratio',
+        'p90 ratio',
+        'Pass rate',
+      ],
+      perRound.map((r) => [
+        String(r.round),
+        String(r.t.length),
+        quotaRange(r.q),
+        String(median(r.t)),
+        pct(median(r.ratio), 1000),
+        pct(quantile(r.ratio, 100), 1000),
+        pct(quantile(r.ratio, 900), 1000),
+        pct(r.passed, r.t.length),
+      ]),
+    ),
+  );
+
   // Drafted win-rate delta per card.
   const baseWins = records.filter((r) => r.win).length;
   const base = rate(baseWins, records.length);
@@ -203,7 +268,7 @@ export function renderReport(
   );
 
   // Round of death.
-  const maxRound = Math.max(0, ...records.map((r) => r.rounds));
+  const maxRound = maxRoundOf(records);
   out.push('', '## Round-of-death histogram (lost runs)', '');
   out.push(
     table(

@@ -69,11 +69,21 @@ describe('jobs and parallel scheduling', () => {
         const exec = async (j: Parameters<typeof runJob>[0]) => {
           const delay = 5 - (n++ % 5);
           await new Promise((r) => setTimeout(r, delay));
-          return runJob(j);
+          // Replays the serial records: this checks scheduling and ordering, not the runs
+          // themselves (real content runs are too slow to replay 6 times under coverage).
+          return serial.filter((r) => r.bot === j.bot && j.seeds.includes(r.seed));
         };
         const got = await runJobs(splitJobs(BOTS, seeds, 'toy', 3, chunk), concurrency, exec, BOTS);
         expect(got).toEqual(serial);
       }
+    // And one real parallel pass: chunked jobs played for real give the serial records.
+    const real = await runJobs(
+      splitJobs(BOTS, seeds, 'toy', 3, 3),
+      4,
+      async (j) => runJob(j),
+      BOTS,
+    );
+    expect(real).toEqual(serial);
   });
 
   it('reports progress per job', async () => {

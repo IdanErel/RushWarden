@@ -93,9 +93,25 @@ describe('report', () => {
     const md = buildReport(zero, { preset: 'toy', seeds: 1, commit: 'x' });
     expect(md).toContain('> [!WARNING]');
     expect(md).toContain('Every round scored 0 throughput');
-    expect(md).toContain('Pre-tuning content');
+    expect(md).toContain('known to be too easy');
+    expect(md).toContain('#45');
     expect(md).toContain('5-round runs');
     expect(roundsOf('full')).toBe(12);
+  });
+
+  it('reports throughput against quota per round over the runs that reached it', () => {
+    const rs = [
+      record({ bot: 'random', seed: 1, rounds: 2, throughputs: [30, 20], quotas: [20, 40] }),
+      record({ bot: 'random', seed: 2, rounds: 1, throughputs: [10], quotas: [20] }),
+    ];
+    const md = renderReport(
+      rs,
+      { district: 1, rounds: 12, seeds: 2, bots: ['random'], commit: 'x', warnings: [] },
+      new Map(),
+    );
+    expect(md).toContain('## Throughput vs quota per round');
+    expect(md).toContain('| 1 | 2 | 20 | 10 | 50.0% | 50.0% | 50.0% | 50.0% |');
+    expect(md).toContain('| 2 | 1 | 40 | 20 | 50.0% | 50.0% | 50.0% | 0.0% |');
   });
 
   it('summarizes decks as counts in id order', () => {

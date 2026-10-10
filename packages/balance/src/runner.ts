@@ -29,6 +29,8 @@ export interface RunRecord {
   /** Every card offered, in order (repeats counted). */
   readonly offered: readonly string[];
   readonly throughputs: readonly number[];
+  /** The quota of each round played, in order (same length as `throughputs`). */
+  readonly quotas: readonly number[];
 }
 
 export interface RunSpec {
@@ -89,6 +91,7 @@ export function runOne(spec: RunSpec, seed: number): RunRecord {
     drafted,
     offered,
     throughputs: state.history.map((h) => h.throughput),
+    quotas: state.history.map((h) => h.quota),
   };
 }
 

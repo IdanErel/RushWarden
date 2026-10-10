@@ -7,7 +7,8 @@ import { CARDS } from './data.js';
 
 /** Known caveats about the data the report is built on; each line becomes a warning in its header. */
 export const TUNING_WARNINGS: readonly string[] = [
-  'Pre-tuning content: quotas, demand and score values are the first-pass numbers from #28 and are being tuned in CON-05. Win rates near 100% mean the quotas are too low for the delivered throughput, not that the archetypes are balanced; do not judge gate criterion 2 from this report.',
+  'The current toy is known to be too easy. Quotas, demand and score values are the first-pass numbers from #28 and are being tuned in CON-05; win rates near 100% mean the quotas are too low for the delivered throughput (see the throughput vs quota table), not that the archetypes are balanced. Do not judge gate criterion 2 from this report.',
+  "Parade closures and p_slow: #45 wires them into `roundInput` on main. This branch already carries the same wiring (d6fbfdd, from review of #29), so the Parade round (round 8) here plays with its closure; District 1's base p_slow is 0 in content today. On main, Parade closures and the district p_slow do nothing until #45 merges, so main's Parade and p_slow round numbers will change when it does.",
 ];
 
 export const BOT_NAMES: readonly string[] = phase1Bots().map((b) => b.name);

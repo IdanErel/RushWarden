@@ -57,6 +57,7 @@ export function record(over: Partial<RunRecord> & Pick<RunRecord, 'bot' | 'seed'
     drafted: [],
     offered: [],
     throughputs: [],
+    quotas: [],
     ...over,
   };
 }
