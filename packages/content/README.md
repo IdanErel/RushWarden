@@ -52,7 +52,8 @@ traits (D1: 4–6 intersections, 2 bus stops, every edge reachable from every ot
 
 `setupRound({ round, seed, rush?, boss?, district? })` gives the run controller one round, as a
 pure function of its arguments. It returns the map (a seeded pick from the bank), the demand
-profile, the heat-strip, the quota and the sim's `DistrictRules`. The argument matches
+profile, the heat-strip, the quota, the sim's `DistrictRules`
+and `closedSegments` (Parade). The argument matches
 `RunEnv.setupRound`, so `{ setupRound }` can be passed to the run controller as is.
 
 - **Volume:** `baseVehicles` (28 in D1) grows 11% a round with the quota and ×1.6 on rush rounds.
@@ -62,13 +63,14 @@ profile, the heat-strip, the quota and the sim's `DistrictRules`. The argument m
 - **Timing:** `SECOND_WEIGHTS` is a rush-hour curve over the 15 seconds. Each edge gets a seeded
   weight of 1–3 per round, so some edges run hot. Destinations are uniform over the other edges.
   An edge never spawns twice in one tick.
-- **Market Day** (GDD §5): +2 trucks in every second, on top of the rush demand. Other bosses
-  throw until they are built (`SUPPORTED_BOSSES`).
+- **Bosses** (GDD §5): Market Day adds 2 trucks every second. Parade returns one seeded
+  `closedSegments` entry and picks only from maps where a closure leaves every edge connected.
+  Festival adds 60% more vehicles, 5% of them emergency vehicles.
 - **Heat-strip** (GDD §2): spawns per edge per second, plus the max for scaling.
 - **Quota:** `roundQuota` is GDD §2's formula in per-mille integers, rounded half up (ADR-018).
 
-The map pick and the demand use the round seed XOR a fixed salt each, so they never share a
-stream with the sim's own PRNG.
+The model, the seed salts and the boss rules are in
+[ADR-021](../../docs/decisions/ADR-021-demand-model.md).
 
 ## Public API
 

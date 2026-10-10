@@ -1,4 +1,10 @@
-import { type DemandProfile, type RoundInput, Sim, VehicleType } from '@rushwarden/sim';
+import {
+  type DemandProfile,
+  type RoundInput,
+  segmentTiles,
+  Sim,
+  VehicleType,
+} from '@rushwarden/sim';
 import { describe, expect, it } from 'vitest';
 import {
   DISTRICT_DEMAND,
@@ -13,6 +19,12 @@ import {
   SECOND_WEIGHTS,
   setupRound,
   setupRoundFrom,
+  edgesConnectedWithout,
+  interiorSegments,
+  paradeCandidates,
+  pickParadeSegment,
+  rowsToGridMap,
+  SEED_SALTS,
 } from '../src/index.js';
 
 const maps = districtMaps(1);
@@ -62,6 +74,9 @@ describe('demand volume and mix (GDD §5)', () => {
     expect(roundVehicles(1, 2, false)).toBe(31);
     expect(roundVehicles(1, 4, true)).toBe(60);
     expect(roundVehicles(1, 12, true)).toBe(99);
+    // Festival: +60% on top of rush (28 * 2.21 * 1.6 * 1.6 = 158.4).
+    expect(roundVehicles(1, 12, true, 'festival')).toBe(158);
+    expect(roundVehicles(1, 4, true, 'market-day')).toBe(60);
   });
 
   it('splits counts exactly by the per-mille mix, leftovers to the largest remainders', () => {
@@ -230,8 +245,9 @@ describe('setupRound', () => {
   });
 
   it('refuses what Phase 1 does not have yet, and bad arguments', () => {
-    expect(() => setupRound({ round: 8, seed: 1 })).toThrow('boss "parade" is not implemented yet');
-    expect(() => setupRound({ round: 12, seed: 1 })).toThrow('boss "festival"');
+    expect(() => setupRound({ round: 4, rush: true, boss: 'convoy', seed: 1 })).toThrow(
+      'boss "convoy" is not implemented yet',
+    );
     expect(() => setupRound({ district: 2, round: 1, seed: 1 })).toThrow('District 2');
     expect(() => setupRound({ round: 1, rush: false, boss: 'market-day', seed: 1 })).toThrow(
       'needs a rush round',
@@ -247,5 +263,124 @@ describe('setupRound', () => {
       (m) => m[0]!,
     );
     expect(s.map).toBe(map);
+  });
+});
+
+describe('Festival (GDD §5: all demand +60%, emergency vehicles appear)', () => {
+  it('spawns 1.6× the rush demand with 5% emergency vehicles taken from cars', () => {
+    const args = { map, district: 1 as const, round: 12, rush: true, seed: 77 };
+    const plain = generateDemand({ ...args, boss: null });
+    const fest = generateDemand({ ...args, boss: 'festival' });
+    expect(plain).toHaveLength(99);
+    expect(fest).toHaveLength(158);
+    expect(typeCounts(fest)).toEqual(
+      Object.fromEntries(mixCounts(158, DISTRICT_DEMAND[1].festival.mix)),
+    );
+    expect(typeCounts(fest)[VehicleType.Emergency]).toBe(8);
+    expect(typeCounts(plain)[VehicleType.Emergency]).toBeUndefined();
+  });
+
+  it('is the default round 12 boss and Sim.init accepts it', () => {
+    const s = setupRound({ round: 12, seed: 5 });
+    expect(s.districtRules.boss).toBe('festival');
+    expect(s.closedSegments).toEqual([]);
+    expect(() => Sim.init(inputFor(s, 5))).not.toThrow();
+  });
+});
+
+describe('Parade (GDD §5: one segment closed)', () => {
+  it('tree-shaped maps have no closable segment; the rest do', () => {
+    const none = maps.filter((m) => paradeCandidates(m).length === 0).map((m) => m.id);
+    expect(none.map((id) => id.slice(0, 5)).filter((t, i, all) => all.indexOf(t) === i)).toEqual([
+      'd1-02',
+      'd1-05',
+      'd1-09',
+      'd1-10',
+    ]);
+    expect(maps.length - none.length).toBe(24);
+  });
+
+  it('Parade rounds only pick maps with a closable segment', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const s = setupRound({ round: 8, seed });
+      expect(paradeCandidates(s.map).length).toBeGreaterThan(0);
+      expect(s.closedSegments).toHaveLength(1);
+    }
+  });
+
+  it('candidates are straight runs of non-intersection road tiles between two intersections', () => {
+    for (const m of maps) {
+      for (const seg of interiorSegments(m)) {
+        expect(seg.from.x === seg.to.x || seg.from.y === seg.to.y).toBe(true);
+        const tiles = segmentTiles(seg);
+        expect(tiles).not.toBeNull();
+        for (const t of tiles!) expect(m.tiles[t.y * 7 + t.x]!.kind).toBe('road');
+        const inter = new Set(
+          m.tiles.flatMap((t, i) => {
+            const x = i % 7;
+            const y = (i - x) / 7;
+            const n = [
+              [x, y - 1],
+              [x + 1, y],
+              [x, y + 1],
+              [x - 1, y],
+            ].filter(
+              ([a, b]) =>
+                a! >= 0 && a! < 7 && b! >= 0 && b! < 9 && m.tiles[b! * 7 + a!]!.kind === 'road',
+            );
+            return t.kind === 'road' && n.length >= 3 ? [`${x},${y}`] : [];
+          }),
+        );
+        for (const t of tiles!) expect(inter.has(`${t.x},${t.y}`)).toBe(false);
+        expect(seg.from.y * 7 + seg.from.x).toBeLessThanOrEqual(seg.to.y * 7 + seg.to.x);
+        const edgeTiles = new Set(m.edges.map((e) => `${e.tile.x},${e.tile.y}`));
+        expect(edgeTiles.has(`${seg.from.x},${seg.from.y}`)).toBe(false);
+        expect(edgeTiles.has(`${seg.to.x},${seg.to.y}`)).toBe(false);
+      }
+    }
+  });
+
+  it('rejects a closure that would disconnect the edges', () => {
+    // A closure covering an edge's only road disconnects it.
+    const e = map.edges[0]!;
+    const cut = { kind: 'segment' as const, from: e.tile, to: e.tile };
+    expect(edgesConnectedWithout(map, cut)).toBe(false);
+    expect(edgesConnectedWithout({ ...map, edges: [] }, cut)).toBe(true);
+  });
+
+  it('round 8 returns one seeded closed segment and keeps the plain rush demand', () => {
+    const s = setupRound({ round: 8, seed: 21 });
+    expect(s.districtRules).toMatchObject({ rush: true, boss: 'parade' });
+    expect(s.closedSegments).toHaveLength(1);
+    expect(paradeCandidates(s.map)).toContainEqual(s.closedSegments[0]);
+    expect(s.closedSegments[0]).toEqual(pickParadeSegment(s.map, (21 ^ SEED_SALTS.parade) >>> 0));
+    expect(s.demandProfile).toHaveLength(roundVehicles(1, 8, true));
+    expect(setupRound({ round: 8, seed: 21 })).toEqual(s);
+    expect(() => Sim.init(inputFor(s, 21))).not.toThrow();
+  });
+
+  it('non-Parade rounds close nothing; the pick varies with the seed', () => {
+    expect(setupRound({ round: 7, seed: 21 }).closedSegments).toEqual([]);
+    const picks = new Set(
+      Array.from({ length: 50 }, (_, i) => JSON.stringify(pickParadeSegment(map, i))),
+    );
+    expect(picks.size).toBeGreaterThan(1);
+  });
+
+  it('throws on a map with no closable segment', () => {
+    const rows = [
+      '...#...',
+      '...#...',
+      '...#...',
+      '...#...',
+      '...#...',
+      '...#...',
+      '...#...',
+      '...#...',
+      '...#...',
+    ];
+    const straight = rowsToGridMap('straight', rows);
+    expect(paradeCandidates(straight)).toEqual([]);
+    expect(() => pickParadeSegment(straight, 1)).toThrow('no segment a Parade can close');
   });
 });

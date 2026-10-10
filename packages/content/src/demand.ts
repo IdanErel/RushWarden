@@ -20,6 +20,7 @@ import {
   VehicleType,
 } from '@rushwarden/sim';
 import type { District } from './maps.js';
+import { paradeCandidates, pickParadeSegment, type SegmentId } from './parade.js';
 
 /** Seconds in one Go phase (15). */
 export const ROUND_SECONDS = idiv(ROUND_TICKS, TICKS_PER_SECOND);
@@ -40,6 +41,8 @@ export interface DistrictDemand {
   /** Vehicles spawned in round 1 before growth and rush; tuned by P1-CON-05. */
   readonly baseVehicles: number;
   readonly mix: DemandMix;
+  /** Festival boss (GDD §5 "all demand +60%, emergency vehicles appear"): volume and mix. */
+  readonly festival: { readonly demandPermille: number; readonly mix: DemandMix };
   /** GDD §5 rush-round bosses for rounds 4, 8 and 12. */
   readonly bosses: readonly [BossCondition, BossCondition, BossCondition];
 }
@@ -56,6 +59,11 @@ export const DISTRICT_DEMAND: { readonly 1: DistrictDemand } = {
   1: {
     baseVehicles: 28,
     mix: { Car: 700, Bus: 150, Truck: 100, Bike: 50 },
+    // +60% on top of the rush round's 1.6×; emergency vehicles take 5% from cars (D3's share).
+    festival: {
+      demandPermille: 1600,
+      mix: { Car: 650, Bus: 150, Truck: 100, Bike: 50, Emergency: 50 },
+    },
     bosses: ['market-day', 'parade', 'festival'],
   },
 };
@@ -72,12 +80,14 @@ export const EDGE_WEIGHT_MAX = 3;
 /** GDD §5 Market Day: "+2 truck spawns/s", on top of the rush round's demand. */
 export const MARKET_DAY_TRUCKS_PER_SECOND = 2;
 
-/** Bosses `setupRound` can produce; the others need work outside P1-CON-04. */
-export const SUPPORTED_BOSSES: readonly BossCondition[] = ['market-day'];
+/** Bosses `setupRound` can produce: District 1's three (GDD §5). */
+export const SUPPORTED_BOSSES: readonly BossCondition[] = ['market-day', 'parade', 'festival'];
 
-/** Salts so the map pick, the demand and the sim's own PRNG use different streams. */
-const MAP_SALT = 0x6d617073;
-const DEMAND_SALT = 0x64656d64;
+/**
+ * Salts XORed into the round seed so the map pick, the demand, the Parade closure and the sim's
+ * own PRNG (which uses the round seed as is) never share a stream (ADR-021).
+ */
+export const SEED_SALTS = { map: 0x6d617073, demand: 0x64656d64, parade: 0x70617264 } as const;
 
 /**
  * `quota = base[d] * (1 + 0.11*(r-1)) * rushMult` (GDD §2) in per-mille integers, rounded half
@@ -99,13 +109,24 @@ export function roundQuota(
   return idiv(num + idiv(den, 2), den);
 }
 
-/** Vehicles in a round's base demand (Market Day trucks come on top). Rounded half up. */
-export function roundVehicles(district: 1, round: number, rush: boolean): number {
+/**
+ * Vehicles in a round's demand before Market Day trucks (which come on top), rounded half up:
+ * `base * (1 + 0.11*(r-1)) * rush * festival`.
+ */
+export function roundVehicles(
+  district: 1,
+  round: number,
+  rush: boolean,
+  boss: BossCondition | null = null,
+): number {
+  const d = DISTRICT_DEMAND[district];
   const num =
-    DISTRICT_DEMAND[district].baseVehicles *
+    d.baseVehicles *
     (1000 + ROUND_GROWTH_PERMILLE * (round - 1)) *
-    (rush ? RUSH_PERMILLE : 1000);
-  return idiv(num + 500_000, 1_000_000);
+    (rush ? RUSH_PERMILLE : 1000) *
+    (boss === 'festival' ? d.festival.demandPermille : 1000);
+  const den = 1_000_000_000;
+  return idiv(num + idiv(den, 2), den);
 }
 
 const TYPE_ORDER = Object.keys(VehicleType) as (keyof typeof VehicleType)[];
@@ -202,15 +223,16 @@ export interface DemandArgs {
  */
 export function generateDemand(a: DemandArgs): DemandProfile {
   if (a.map.edges.length < 2) throw new RangeError(`map ${a.map.id} needs at least 2 edges`);
-  const prng = createPrng((a.seed ^ DEMAND_SALT) >>> 0);
+  const prng = createPrng((a.seed ^ SEED_SALTS.demand) >>> 0);
   const edges = a.map.edges.map((e) => e.id);
   const edgeWeights = edges.map(() => 1 + nextInt(prng, EDGE_WEIGHT_MAX));
   const spawner = new Spawner(prng, edges, edgeWeights);
 
+  const d = DISTRICT_DEMAND[a.district];
   const types: VehicleType[] = [];
   for (const [type, count] of mixCounts(
-    roundVehicles(a.district, a.round, a.rush),
-    DISTRICT_DEMAND[a.district].mix,
+    roundVehicles(a.district, a.round, a.rush, a.boss),
+    a.boss === 'festival' ? d.festival.mix : d.mix,
   )) {
     for (let i = 0; i < count; i++) types.push(type);
   }
@@ -274,11 +296,16 @@ export interface RoundSetup {
   /** GDD §2 quota with no mayor modifier. */
   readonly quota: number;
   readonly districtRules: DistrictRules;
+  /**
+   * Segments closed this round: one on a Parade round, else none. The sim honours it from
+   * P1-SIM-04/05; until then it has no effect.
+   */
+  readonly closedSegments: readonly SegmentId[];
 }
 
 /**
  * `setupRound` with the map bank and picker passed in (the index binds the bundled ones).
- * Sets up one round from its seed: map, demand, heat-strip, quota and district rules.
+ * Sets up one round from its seed: map, demand, heat-strip, quota, district rules and closures.
  */
 export function setupRoundFrom(
   args: SetupRoundArgs,
@@ -306,7 +333,11 @@ export function setupRoundFrom(
       `boss "${boss}" is not implemented yet (supported: ${SUPPORTED_BOSSES.join(', ')})`,
     );
   }
-  const map = pick(maps(district), (seed ^ MAP_SALT) >>> 0);
+  // A Parade needs a segment it can close without cutting off an edge; tree-shaped maps have
+  // none, so Parade rounds pick from the maps that do (ADR-021).
+  const bank = maps(district);
+  const pool = boss === 'parade' ? bank.filter((m) => paradeCandidates(m).length > 0) : bank;
+  const map = pick(pool, (seed ^ SEED_SALTS.map) >>> 0);
   const demandProfile = generateDemand({ map, district, round, rush, boss, seed });
   const quota = roundQuota(district, round, rush);
   return {
@@ -315,5 +346,7 @@ export function setupRoundFrom(
     heatStrip: heatStrip(map, demandProfile),
     quota,
     districtRules: { district, round, rush, boss, quota, pSlowPermille: 0 },
+    closedSegments:
+      boss === 'parade' ? [pickParadeSegment(map, (seed ^ SEED_SALTS.parade) >>> 0)] : [],
   };
 }

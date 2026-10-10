@@ -85,6 +85,7 @@ export {
   RUSH_PERMILLE,
   RUSH_ROUNDS,
   SECOND_WEIGHTS,
+  SEED_SALTS,
   setupRoundFrom,
   SUPPORTED_BOSSES,
   type DemandArgs,
@@ -95,6 +96,13 @@ export {
   type RoundSetup,
   type SetupRoundArgs,
 } from './demand.js';
+export {
+  edgesConnectedWithout,
+  interiorSegments,
+  paradeCandidates,
+  pickParadeSegment,
+  type SegmentId,
+} from './parade.js';
 export { MAP_FILES } from './map-files.js';
 
 let cache: readonly CardDef[] | undefined;
