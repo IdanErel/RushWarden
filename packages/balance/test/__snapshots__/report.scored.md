@@ -56,7 +56,7 @@ All bots together, over the runs that reached the round. Ratio = throughput ÷ q
 
 ## Cards: drafted win-rate delta and pick rate
 
-Win rate over all runs: 85.7%. Delta = for each bot, the win rate of its runs that drafted the card minus the win rate of its runs that did not, averaged over bots weighted by drafting runs (bots with no runs on one side are left out); §11 limits: +12 / −8 points.
+Win rate over all runs: 85.7%. Delta = for each bot, the win rate of its runs that drafted the card minus that bot's win rate over all its runs (its baseline), averaged over bots weighted by drafting runs; §11 limits: +12 / −8 points.
 
 | Card            | Tags  | Offered | Picked | Pick rate | Runs drafting | Win rate drafted | Delta (pts) | Within limits |
 | --------------- | ----- | ------- | ------ | --------- | ------------- | ---------------- | ----------- | ------------- |

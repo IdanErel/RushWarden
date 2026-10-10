@@ -22,9 +22,9 @@ const signedPts = (permille: number): string =>
 const rate = (wins: number, n: number): number => (n === 0 ? 0 : Math.round((wins * 1000) / n));
 
 /**
- * Per-bot drafted delta in per-mille: for each bot with runs both drafting and not drafting the
- * card, (win rate drafted) − (win rate not drafted), averaged weighted by its drafting runs. Null
- * when no bot has runs on both sides.
+ * Per-bot drafted delta in per-mille (GDD §11 "minus baseline", with each bot's own baseline): for
+ * each bot, (win rate of its runs that drafted the card) − (win rate of all its runs), averaged
+ * weighted by its drafting runs. Null when no run drafted the card.
  */
 export function draftedDelta(
   byBot: ReadonlyMap<string, readonly RunRecord[]>,
@@ -34,11 +34,10 @@ export function draftedDelta(
   let weight = 0;
   for (const rs of byBot.values()) {
     const yes = rs.filter((r) => r.drafted.includes(id));
-    const no = rs.filter((r) => !r.drafted.includes(id));
-    if (yes.length === 0 || no.length === 0) continue;
+    if (yes.length === 0) continue;
     const d =
       (yes.filter((r) => r.win).length * 1000) / yes.length -
-      (no.filter((r) => r.win).length * 1000) / no.length;
+      (rs.filter((r) => r.win).length * 1000) / rs.length;
     sum += d * yes.length;
     weight += yes.length;
   }
@@ -218,15 +217,15 @@ export function renderReport(
   );
 
   // Drafted win-rate delta per card, per bot (ADR-019 point 5): each bot's runs that drafted the
-  // card against the same bot's runs that did not, weighted by the drafting runs. Pooling all bots
-  // against one baseline would credit a card with the strength of the bots that draft it.
+  // card against that bot's own baseline, weighted by the drafting runs. Pooling all bots against
+  // one baseline would credit a card with the strength of the bots that draft it.
   const baseWins = records.filter((r) => r.win).length;
   const byBot = new Map<string, RunRecord[]>();
   for (const r of records) byBot.set(r.bot, [...(byBot.get(r.bot) ?? []), r]);
   const cards = [...cardTags.keys()].sort();
   out.push('', '## Cards: drafted win-rate delta and pick rate', '');
   out.push(
-    `Win rate over all runs: ${pct(baseWins, records.length)}. Delta = for each bot, the win rate of its runs that drafted the card minus the win rate of its runs that did not, averaged over bots weighted by drafting runs (bots with no runs on one side are left out); §11 limits: +12 / −8 points.`,
+    `Win rate over all runs: ${pct(baseWins, records.length)}. Delta = for each bot, the win rate of its runs that drafted the card minus that bot's win rate over all its runs (its baseline), averaged over bots weighted by drafting runs; §11 limits: +12 / −8 points.`,
     '',
   );
   out.push(
