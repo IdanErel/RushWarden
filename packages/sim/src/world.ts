@@ -20,6 +20,7 @@ import {
   GRID_WIDTH,
   type ControllerKind,
   type GridMap,
+  type SegmentId,
   type Side,
 } from './types.js';
 
@@ -600,10 +601,18 @@ function stepLink(world: World, tile: number, dir: number): number {
  * when one-way roads make it unreachable. Ties go to the first direction in n, e, s, w order.
  * Cached per world, since the network is fixed for the round.
  */
-export function route(world: World, origin: number, destination: number): Route | null {
+export function route(
+  world: World,
+  origin: number,
+  destination: number,
+  closed: Uint8Array | null = null,
+): Route | null {
   if (!world.edges[origin] || !world.edges[destination]) {
     throw new RangeError(`edge index out of range: ${origin} -> ${destination}`);
   }
+  // Closures are per round, so those routes are never stored in the shared world cache; the
+  // round's traffic caches them instead.
+  if (closed) return bfsRoute(world, origin, destination, closed);
   const key = origin * world.edges.length + destination;
   const cached = world.routeCache.get(key);
   if (cached !== undefined) return cached;
@@ -628,12 +637,18 @@ const bfsParent = new Int16Array(TILE_COUNT);
 const bfsParentDir = new Int8Array(TILE_COUNT);
 const bfsQueue = new Int16Array(TILE_COUNT);
 
-function bfsRoute(world: World, origin: number, destination: number): Route | null {
+function bfsRoute(
+  world: World,
+  origin: number,
+  destination: number,
+  closed: Uint8Array | null = null,
+): Route | null {
   // Indices were checked by `route`.
   const o = world.edges[origin]!;
   const d = world.edges[destination]!;
   if (origin === destination) throw new RangeError(`route from edge ${o.id} to itself`);
   if (world.links[o.spawnLink]!.lanes.length === 0) return null;
+  if (closed && closed[o.spawnLink]) return null;
 
   // Scratch buffers are module-level: the sim is single-threaded and BFS never re-enters.
   const parent = bfsParent.fill(NONE);
@@ -646,7 +661,7 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
   let found = false;
   while (head < tail) {
     const t = queue[head++]!;
-    if (t === d.tile && stepUsable(world, t, d.side)) {
+    if (t === d.tile && stepUsable(world, t, d.side, closed)) {
       found = true;
       break;
     }
@@ -658,7 +673,7 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
       if (!inBounds(nx, ny)) continue;
       const n = tileIndex(nx, ny);
       if (world.tileKind[n] === TileKind.Block || parent[n] !== NONE) continue;
-      if (!stepUsable(world, t, dir)) continue;
+      if (!stepUsable(world, t, dir, closed)) continue;
       parent[n] = t;
       parentDir[n] = dir;
       queue[tail++] = n;
@@ -684,10 +699,43 @@ function bfsRoute(world: World, origin: number, destination: number): Route | nu
   return { origin, destination, links, tiles: path.length };
 }
 
-/** True when leaving `tile` in `dir` is on a link that carries traffic. */
-function stepUsable(world: World, tile: number, dir: number): boolean {
+/** True when leaving `tile` in `dir` is on a link that carries traffic and is not closed. */
+function stepUsable(world: World, tile: number, dir: number, closed: Uint8Array | null): boolean {
   const l = stepLink(world, tile, dir);
-  return l !== NONE && world.links[l]!.lanes.length > 0;
+  return l !== NONE && world.links[l]!.lanes.length > 0 && !(closed && closed[l]);
+}
+
+/**
+ * Links closed by `segments` (`RoundInput.closedSegments`, ADR-0YY): 1 for every link, in either
+ * direction, that holds a tile of a closed segment. Each segment must be a straight in-bounds run
+ * of plain road tiles (no intersection tiles); throws `RangeError` otherwise. Returns null when
+ * nothing is closed.
+ */
+export function closedLinkMask(world: World, segments: readonly SegmentId[]): Uint8Array | null {
+  if (segments.length === 0) return null;
+  const closedTile = new Uint8Array(TILE_COUNT);
+  for (const { from, to } of segments) {
+    if (
+      !inBounds(from.x, from.y) ||
+      !inBounds(to.x, to.y) ||
+      (from.x !== to.x && from.y !== to.y)
+    ) {
+      throw new RangeError(`closed segment must be a straight in-bounds run of tiles`);
+    }
+    const dx = Math.sign(to.x - from.x);
+    const dy = Math.sign(to.y - from.y);
+    for (let x = from.x, y = from.y; ; x += dx, y += dy) {
+      const t = tileIndex(x, y);
+      if (world.tileKind[t] !== TileKind.Road)
+        throw new RangeError(`closed segment tile (${x}, ${y}) is not a plain road tile`);
+      closedTile[t] = 1;
+      if (x === to.x && y === to.y) break;
+    }
+  }
+  const mask = new Uint8Array(world.links.length);
+  for (const link of world.links)
+    if (link.tiles.some((t) => closedTile[t] === 1)) mask[link.id] = 1;
+  return mask;
 }
 
 /**
@@ -695,7 +743,7 @@ function stepUsable(world: World, tile: number, dir: number): boolean {
  * costs"): the cheapest link sequence from intersection `from`, entered on side `arrivalSide`
  * (no U-turn back out of it; -1 allows any exit), to edge index `destination`. `cost(link)` must
  * return a positive integer, e.g. expected ticks to traverse. Ties go to the lower link id.
- * Returns null when unreachable.
+ * Links set in `closed` are never used. Returns null when unreachable.
  */
 export function weightedRoute(
   world: World,
@@ -703,6 +751,7 @@ export function weightedRoute(
   arrivalSide: number,
   destination: number,
   cost: (link: number) => number,
+  closed: Uint8Array | null = null,
 ): number[] | null {
   const n = world.links.length;
   dist.fill(-1, 0, n);
@@ -710,7 +759,7 @@ export function weightedRoute(
   done.fill(0, 0, n);
   heapLen = 0;
   const relax = (link: number, base: number, p: number): void => {
-    if (world.links[link]!.lanes.length === 0) return;
+    if (world.links[link]!.lanes.length === 0 || (closed && closed[link])) return;
     const c = cost(link);
     if (!Number.isInteger(c) || c < 1)
       throw new RangeError(`link cost must be a positive integer, got ${c}`);

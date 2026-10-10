@@ -110,10 +110,14 @@ const DENSE_MIX: readonly VehicleType[] = [
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 5, 5,
 ];
 
+/** p_slow per-mille values `denseInput` picks from. */
+const DENSE_PSLOW: readonly number[] = [0, 0, 0, 0, 100, 200];
+
 /**
  * A heavier round derived deterministically from `seed`: a lattice map and 50–150 vehicles of
  * every type spread over the round, so queues, contended boxes, taxi re-routes and multi-lane
- * spawns all occur. Placements are empty, so every intersection is uncontrolled.
+ * spawns all occur, and a third of rounds use p_slow (100 or 200 per mille). Placements are
+ * empty, so every intersection is uncontrolled.
  */
 export function denseInput(seed: number): RoundInput {
   const base = sampleInput(seed);
@@ -133,5 +137,13 @@ export function denseInput(seed: number): RoundInput {
     demandProfile.push({ tick: nextInt(p, ROUND_TICKS), edge, destinationEdge, vehicleType });
   }
   demandProfile.sort((a, b) => a.tick - b.tick || a.edge - b.edge);
-  return { ...base, mapId: map.id, map, demandProfile };
+  // Rule 3: a third of the rounds run with p_slow (Fog is +100, the Blackout boss +200).
+  const pSlowPermille = DENSE_PSLOW[nextInt(p, DENSE_PSLOW.length)]!;
+  return {
+    ...base,
+    mapId: map.id,
+    map,
+    demandProfile,
+    districtRules: { ...base.districtRules, pSlowPermille },
+  };
 }
