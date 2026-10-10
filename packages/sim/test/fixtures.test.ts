@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { Sim, VehicleType, buildWorld, denseInput, latticeMap } from '../src/index.js';
+import {
+  CARD_MAP,
+  Sim,
+  VehicleType,
+  buildWorld,
+  cardInput,
+  denseInput,
+  latticeMap,
+} from '../src/index.js';
 
 describe('fixtures: latticeMap and denseInput', () => {
   it('latticeMap builds a valid world with one intersection per crossing', () => {
@@ -23,5 +31,20 @@ describe('fixtures: latticeMap and denseInput', () => {
       expect(r.exited).toBeLessThanOrEqual(r.spawned);
     }
     expect(rushEmergency).toBeGreaterThan(0);
+  });
+});
+
+describe('fixtures: cardInput', () => {
+  it('places 1–4 Phase 1 cards on CARD_MAP, deterministically, and the round runs', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const a = cardInput(seed);
+      expect(cardInput(seed)).toEqual(a);
+      expect(a.map).toBe(CARD_MAP);
+      expect(a.placements.length).toBeGreaterThanOrEqual(1);
+      expect(a.placements.length).toBeLessThanOrEqual(4);
+      expect(a.demandProfile.every((d) => d.edge !== d.destinationEdge)).toBe(true);
+      const r = Sim.simulate(a);
+      expect(r.exited).toBeLessThanOrEqual(r.spawned);
+    }
   });
 });

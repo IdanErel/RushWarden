@@ -22,6 +22,9 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 013 | Web portal adapters never call portal ad APIs           | Proposed (Idan) |
 | 014 | Effect union v2                                         | Accepted        |
 | 015 | Renderer playback, provisional lanes, fake traffic      | Proposed        |
+| 016 | Map template format and variants                        | Accepted        |
 | 017 | Vehicles, intersection boxes and tick mechanics         | Proposed        |
 | 018 | Run controller rule readings                            | Accepted        |
 | 020 | Intersection controllers and the turn pocket            | Proposed        |
+| 022 | p_slow, the gridlock detector and closed segments       | Proposed        |
+| 023 | Card effects, stacking and controller conflicts         | Proposed        |

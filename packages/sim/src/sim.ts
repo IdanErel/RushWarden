@@ -4,8 +4,18 @@ import { createPrng, type PrngState } from './prng.js';
 import { controllerFrame } from './controllers.js';
 import { createTraffic, tickTraffic, type Traffic } from './traffic.js';
 import { MAX_VEHICLE_LENGTH, VEHICLE_TYPE_COUNT } from './vehicles.js';
-import { buildWorld, edgeIndex, type World } from './world.js';
 import {
+  checkSupported,
+  configureTraffic,
+  laneOverrides,
+  resolvePlacements,
+  tollFunds,
+  transformDemand,
+  type Toll,
+} from './effects.js';
+import { buildWorld, closedLinkMask, edgeIndex, type LaneOverride, type World } from './world.js';
+import {
+  GRIDLOCK_TICKS,
   ROUND_TICKS,
   SNAPSHOT_HEADER,
   SNAPSHOT_STRIDE,
@@ -36,6 +46,8 @@ interface State extends SimState {
   /** Rolling per-tick mix so the final hash depends on the whole trajectory, not just the end. */
   trail: number;
   readonly frames: Uint16Array[] | null;
+  /** Segment tolls (Toll Booth); `fundsDelta` is computed from their counts. */
+  tolls: Toll[];
 }
 
 function asState(s: SimState): State {
@@ -48,14 +60,33 @@ function asState(s: SimState): State {
  * The balance runner plays thousands of rounds per map; this keeps world building and BFS out of
  * its per-round cost. Per-round mutable state (vehicles, controllers) lives in `State`.
  */
-const worlds = new WeakMap<GridMap, World>();
-function worldFor(map: GridMap): World {
-  let w = worlds.get(map);
+const worlds = new WeakMap<GridMap, Map<string, World>>();
+function worldFor(map: GridMap, overrides: readonly LaneOverride[] = []): World {
+  let byTopology = worlds.get(map);
+  if (!byTopology) {
+    byTopology = new Map();
+    worlds.set(map, byTopology);
+  }
+  // Topology cards (setOneWay, setLaneCount) give the round its own world, cached by override.
+  const key = overrides.length === 0 ? '' : JSON.stringify(overrides);
+  let w = byTopology.get(key);
   if (!w) {
-    w = buildWorld(map);
-    worlds.set(map, w);
+    w = buildWorld(map, overrides);
+    byTopology.set(key, w);
   }
   return w;
+}
+
+/**
+ * The world a round runs on: the map plus its topology cards (`setOneWay`, `setLaneCount`).
+ * Lane ids in snapshots refer to this world, so the renderer builds its lane layout from it
+ * rather than from `buildWorld(map)` (ADR-023). Throws like `Sim.init` on invalid input.
+ */
+export function roundWorld(input: RoundInput): World {
+  validate(input);
+  const { applied } = resolvePlacements(input.cardState.runEffects, input.placements);
+  checkSupported(applied);
+  return worldFor(input.map, laneOverrides(input.map, applied));
 }
 
 /**
@@ -69,6 +100,9 @@ function validate(input: RoundInput): World {
   if (input.map.id !== input.mapId) {
     throw new RangeError(`map.id "${input.map.id}" does not match mapId "${input.mapId}"`);
   }
+  const pSlow = input.districtRules.pSlowPermille;
+  if (!Number.isInteger(pSlow) || pSlow < 0 || pSlow > 1000)
+    throw new RangeError(`pSlowPermille must be an integer 0..1000, got ${pSlow}`);
   const world = worldFor(input.map);
   let prevTick = 0;
   let prevEdge = -1;
@@ -120,13 +154,20 @@ function inputDigest(input: RoundInput): string {
     placements: input.placements,
     cardState: input.cardState,
     districtRules: input.districtRules,
+    // Only when something is closed, so inputs without closures keep their digests.
+    ...(input.closedSegments?.length ? { closedSegments: input.closedSegments } : {}),
   });
   return h.digest();
 }
 
 /** Creates the state at tick 0 for a round. Pure: the same input always gives an equal state. */
 export function init(input: RoundInput): SimState {
-  const world = validate(input);
+  validate(input);
+  // Card effects (P1-SIM-05, effects.ts): stacking and conflicts, then topology, demand, traffic.
+  const { applied } = resolvePlacements(input.cardState.runEffects, input.placements);
+  checkSupported(applied);
+  const world = worldFor(input.map, laneOverrides(input.map, applied));
+  const demand = transformDemand(input.map, input.demandProfile, applied);
   const state: State = {
     tick: 0,
     done: false,
@@ -134,13 +175,23 @@ export function init(input: RoundInput): SimState {
     inputDigest: inputDigest(input),
     world,
     prng: createPrng(input.seed),
-    traffic: createTraffic(world, input.demandProfile),
+    traffic: createTraffic(world, demand),
     fundsDelta: 0,
     gridlocked: false,
     stalledTicks: 0,
     trail: 0,
     frames: input.recordFrames ? [] : null,
+    tolls: [],
   };
+  // Rule 3: the round's PRNG drives p_slow and nothing else in the tick (GDD section 3).
+  state.traffic.prng = state.prng;
+  state.traffic.closed = closedLinkMask(world, input.closedSegments ?? []);
+  state.tolls = configureTraffic(
+    state.traffic,
+    input.map,
+    applied,
+    input.districtRules.pSlowPermille,
+  );
   return state;
 }
 
@@ -153,8 +204,7 @@ export function step(s: SimState): SimState {
   const st = asState(s);
   if (st.done) return st;
   const t = st.traffic;
-  // Spawning and tick rules 1, 2, 4, 6 (traffic.ts). Rule 3 (p_slow) and the gridlock detector
-  // arrive in P1-SIM-04, rule 5 (controllers) in P1-SIM-03.
+  // Spawning, rule 5 (controllers) and tick rules 1, 2, 3, 4 and 6 (traffic.ts, controllers.ts).
   tickTraffic(t, st.tick);
   st.trail =
     (Math.imul(st.trail, 31) +
@@ -164,6 +214,14 @@ export function step(s: SimState): SimState {
     0;
   st.tick += 1;
   if (st.frames) st.frames.push(snapshot(st));
+  // Gridlock detector: "if the sum of v across all vehicles is 0 for 60 consecutive ticks, the
+  // round ends". A tick with no vehicle on the map does not count and resets the run.
+  if (t.orderLen > 0 && t.speedSum === 0) st.stalledTicks++;
+  else st.stalledTicks = 0;
+  if (st.stalledTicks >= GRIDLOCK_TICKS) {
+    st.gridlocked = true;
+    st.done = true;
+  }
   if (st.tick >= ROUND_TICKS) st.done = true;
   return st;
 }
@@ -221,6 +279,7 @@ export function stateHash(s: SimState): string {
     h.int(t.atLine[i]!);
   }
   h.ints(t.ctrlKind).ints(t.sigPhase).ints(t.sigTimer).ints(t.sigClearing);
+  if (t.tollCount) h.ints(t.tollCount);
   return h.digest();
 }
 
@@ -233,7 +292,7 @@ export function result(s: SimState): RoundResult {
     exited: st.traffic.exited,
     ticks: st.tick,
     gridlocked: st.gridlocked,
-    fundsDelta: st.fundsDelta,
+    fundsDelta: st.fundsDelta + tollFunds(st.traffic, st.tolls),
     finalHash: stateHash(st),
   };
   return st.frames ? { ...base, frames: st.frames } : base;
