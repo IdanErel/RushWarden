@@ -7,6 +7,7 @@ import {
   type IngestClientOptions,
   type Platform,
 } from '@rushwarden/app';
+import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
 
 /**
  * Analytics wiring for the web build (P1-BE-01). Collection is OFF unless the build sets
@@ -44,6 +45,8 @@ export function startAnalytics(
 ): IngestClient {
   const endpoint = env.VITE_INGEST_URL ?? '';
   if (!endpoint.startsWith('https://')) return offIngestClient;
+  // Portal builds collect nothing (ADR-024 point 4, ADR-025 point 3), whatever the build sets.
+  if ((NO_ANALYTICS_PORTALS as readonly string[]).includes(portalId)) return offIngestClient;
   return createIngestClient({
     endpoint,
     platform: platformFromPortalId(portalId),

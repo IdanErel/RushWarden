@@ -65,6 +65,26 @@ describe('startAnalytics', () => {
     });
   });
 
+  it('is off on Poki and CrazyGames even with VITE_INGEST_URL set (ADR-024 point 4)', () => {
+    for (const portal of ['poki', 'crazygames'] as const) {
+      const sent: unknown[] = [];
+      const c = startAnalytics(
+        { VITE_INGEST_URL: 'https://api.rushwarden.com/ingest' },
+        portal,
+        30,
+        {
+          fetch: async (u) => void sent.push(u),
+          storage: null,
+          randomUUID: () => UUID,
+        },
+      );
+      c.setConsent(true);
+      c.track('app_open', {});
+      expect(c.install).toBeNull();
+      expect(sent).toEqual([]);
+    }
+  });
+
   it('maps portal ids and benchmark times', () => {
     expect(platformFromPortalId('none')).toBe('web');
     expect(platformFromPortalId('poki')).toBe('poki');
