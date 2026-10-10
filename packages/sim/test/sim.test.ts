@@ -35,6 +35,48 @@ describe('Sim contract', () => {
       demandProfile: [{ tick: 300, edge: 0, vehicleType: 0 as const, destinationEdge: 1 }],
     };
     expect(() => Sim.simulate(bad)).toThrow(RangeError);
+    const demand = (d: { tick: number; edge: number; vehicleType: number }[]) => ({
+      ...sampleInput(1),
+      demandProfile: d.map((e) => ({
+        ...e,
+        vehicleType: e.vehicleType as 0,
+        destinationEdge: (e.edge + 1) % 4,
+      })),
+    });
+    expect(() => Sim.simulate(demand([{ tick: 1.5, edge: 0, vehicleType: 0 }]))).toThrow(/tick/);
+    expect(() => Sim.simulate(demand([{ tick: 0, edge: 0, vehicleType: 6 }]))).toThrow(
+      /vehicle type/,
+    );
+    expect(() => Sim.simulate(demand([{ tick: 0, edge: 0, vehicleType: -1 }]))).toThrow(
+      /vehicle type/,
+    );
+    expect(() => Sim.simulate(demand([{ tick: 0, edge: 0, vehicleType: 0.5 }]))).toThrow(
+      /vehicle type/,
+    );
+    expect(() =>
+      Sim.simulate(
+        demand([
+          { tick: 5, edge: 0, vehicleType: 0 },
+          { tick: 4, edge: 0, vehicleType: 0 },
+        ]),
+      ),
+    ).toThrow(/sorted/);
+    expect(() =>
+      Sim.simulate(
+        demand([
+          { tick: 5, edge: 2, vehicleType: 0 },
+          { tick: 5, edge: 1, vehicleType: 0 },
+        ]),
+      ),
+    ).toThrow(/sorted/);
+    expect(
+      Sim.simulate(
+        demand([
+          { tick: 5, edge: 1, vehicleType: 0 },
+          { tick: 5, edge: 2, vehicleType: 0 },
+        ]),
+      ).spawned,
+    ).toBe(2);
   });
 
   it('property: same input, same hash; throughput never exceeds spawned score', () => {

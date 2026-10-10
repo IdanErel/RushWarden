@@ -42,6 +42,29 @@ portal.gameplayStop(); // round ends
 portal.happyTime(); // district win
 ```
 
+## itch build (P1-PLT-01)
+
+`pnpm package:itch` builds the itch flavour (`VITE_PORTAL=itch`) into `node_modules/.itch-dist`,
+never `dist/`, so it cannot change what `pnpm e2e` previews. It runs the ADR-004 size budget and
+writes `itch/rushwarden-itch.zip` (git-ignored). The script pins `VITE_TEST_HOOKS` empty: Vite
+never lets a `.env` file override a variable already set in the process, so test hooks (#22)
+cannot reach a public build. `scripts/itch-checks.mjs` then fails the build, and writes no zip,
+when:
+
+- `index.html` is not at the zip root;
+- any URL in `index.html` is root-absolute (itch serves the game from a CDN subfolder inside an
+  iframe);
+- there are more than 1000 files;
+- the zip is over the 7.5 MB budget;
+- there is any `*.map` file or `sourceMappingURL`;
+- any test-hook marker (`__portalCalls`, `portalSpy`) is present.
+
+The zip is written by `scripts/zip.mjs` with no dependencies. It is byte-identical for the same
+build on the pinned Node (`.nvmrc`), because entries are sorted and timestamps fixed; deflate output
+can differ between Node majors. CI uploads it as an artifact. The butler deploy is the Lead's
+(P1-LEAD-02). The itch page settings (embed 390×844, fullscreen button, mobile friendly) are in
+`docs/setup/accounts.md` §3.
+
 ## Test hooks (H1, H4)
 
 From `docs/release/phase-1-test-plan.md` §2.1. They exist only in builds made with

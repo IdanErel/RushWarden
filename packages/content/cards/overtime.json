@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "overtime",
+  "name": "Overtime",
+  "cost": 1,
+  "target": "district",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["TEMPO"],
+  "effects": [
+    {
+      "kind": "energyModifier",
+      "delta": 1,
+      "when": "next-round"
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "energyModifier",
+        "delta": 2,
+        "when": "next-round"
+      }
+    ]
+  },
+  "flavor": "The crews stay late. Tomorrow starts early."
+}
