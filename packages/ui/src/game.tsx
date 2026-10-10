@@ -219,8 +219,16 @@ export function Game(props: GameOptions): preact.JSX.Element {
     [s, run],
   );
 
+  // Go before the scene and the sim worker exist (they start async) is held, not dropped: the
+  // button is disabled until then, and a Space press waits and starts the round when they are up.
+  const goPending = useRef(false);
   const go = useCallback(() => {
-    if (s.phase !== 'place' || !client.current) return;
+    if (s.phase !== 'place') return;
+    if (!client.current) {
+      goPending.current = true;
+      return;
+    }
+    goPending.current = false;
     const input = run.roundInput();
     run.go();
     setSelected(null);
@@ -234,6 +242,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
     events?.roundStart?.(s.round);
     bump(0);
   }, [s, run, scene, events]);
+  useEffect(() => {
+    if (scene && goPending.current) go();
+  }, [scene, go]);
 
   const setFast = useCallback(
     (fast: boolean) => {
@@ -417,7 +428,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
             />
             <span class="rw-muted">{t('place.plays', { n: s.playsLeft })}</span>
             <span class="rw-grow" />
-            <button class="rw-go" aria-label={t('go.label')} onClick={go}>
+            <button class="rw-go" aria-label={t('go.label')} onClick={go} disabled={!scene}>
               {t('go')}
             </button>
           </div>
