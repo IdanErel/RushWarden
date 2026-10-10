@@ -1,5 +1,5 @@
 /**
- * Vehicles and tick rules 1, 2, 4 and 6 (GDD section 3; P1-SIM-02). Struct-of-arrays state so a
+ * Vehicles and tick rules 1–6 (GDD section 3; P1-SIM-02 to P1-SIM-04). Struct-of-arrays state so a
  * round allocates once and a tick allocates nothing (except taxi re-routes).
  *
  * Each tick:
@@ -10,12 +10,13 @@
  * 2. Gap: `v = min(v, free cells ahead along the route)`; the stop line counts as blocked
  *    when the intersection's controller says stop (rule 5, controllers.ts), and a bus also stops
  *    at an unserved bus stop cell. Turners use the turn pocket when one is placed.
+ * 3. Randomization: with `pSlowPermille` (round PRNG), a vehicle with v > 0 slows by 1.
  * 4. Move: advance `v` cells one at a time along the pre-computed route. At a link's end the
  *    vehicle enters the intersection box lane of its next movement, then the next link.
  * 6. Exit: moving past the end of the route's last link enters the sink; the vehicle is removed
  *    and its score value is added to throughput.
  * Rule 5 (controllers.ts) runs at the start of the tick: signals advance and grants are picked.
- * Rule 3 (p_slow) arrives in P1-SIM-04.
+ * The gridlock detector (sum of v is 0 for 60 ticks) runs in sim.ts after the tick.
  */
 import {
   BIKE_SHARED_VMAX,
@@ -32,8 +33,9 @@ import {
   UNCONTROLLED_RESOLVE_TICKS,
   updateControllers,
 } from './controllers.js';
-import { opposite, route, Turn, weightedRoute, type World } from './world.js';
+import { opposite, route, Turn, weightedRoute, type Route, type World } from './world.js';
 import { DEFAULT_SWITCH_TICKS } from './types.js';
+import { chancePermille, type PrngState } from './prng.js';
 import { VehicleType, type DemandProfile } from './types.js';
 
 const NONE = -1;
@@ -138,6 +140,19 @@ export interface Traffic {
   throughput: number;
   /** Sum of speeds after the last tick (the gridlock detector's input, P1-SIM-04). */
   speedSum: number;
+  /**
+   * Rule 3: per-mille chance that a moving vehicle slows by 1 this tick (NaSch p_slow), drawn
+   * from `prng`, the round's PRNG. 0 draws nothing. Set by the sim from `DistrictRules` (P1-SIM-04);
+   * `setPSlow` cards add to it from P1-SIM-05.
+   */
+  pSlowPermille: number;
+  prng: PrngState | null;
+  /**
+   * Links closed for the round (`RoundInput.closedSegments`), or null. Routes avoid them; with
+   * closures, BFS routes are cached here per round instead of in the shared world.
+   */
+  closed: Uint8Array | null;
+  readonly closedRoutes: Map<number, Route | null>;
 }
 
 export function createTraffic(world: World, demand: DemandProfile): Traffic {
@@ -228,6 +243,10 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
     exited: 0,
     throughput: 0,
     speedSum: 0,
+    pSlowPermille: 0,
+    prng: null,
+    closed: null,
+    closedRoutes: new Map(),
   };
 }
 
@@ -355,6 +374,7 @@ function taxiRoute(t: Traffic, i: number, linkId: number): readonly number[] | n
     opposite(link.exitDirs[link.exitDirs.length - 1]!),
     t.dest[i]!,
     (l) => w.links[l]!.cells + TAXI_LOAD_COST * t.linkLoad[l]!,
+    t.closed,
   );
   return rest ? [linkId, ...rest] : null;
 }
@@ -419,6 +439,18 @@ function exit(t: Traffic, i: number): void {
 }
 
 /** Spawns the head of each edge's queue while its spawn link has a free entry cell. */
+/** BFS route for a new trip, avoiding this round's closed links. */
+function routeFor(t: Traffic, origin: number, destination: number): Route | null {
+  if (!t.closed) return route(t.world, origin, destination);
+  const key = origin * t.world.edges.length + destination;
+  let r = t.closedRoutes.get(key);
+  if (r === undefined) {
+    r = route(t.world, origin, destination, t.closed);
+    t.closedRoutes.set(key, r);
+  }
+  return r;
+}
+
 function spawn(t: Traffic, tick: number): void {
   const w = t.world;
   while (t.demandNext < t.demand.length && t.demand[t.demandNext]!.tick <= tick) {
@@ -441,8 +473,9 @@ function spawn(t: Traffic, tick: number): void {
       const e = t.demand[queue[t.pendingHead[edge]!]!]!;
       t.pendingHead[edge]!++;
       const dest = w.edgeIndexById.get(e.destinationEdge)!;
-      const r = route(w, edge, dest);
-      if (!r) continue; // Unreachable (one-way, P1-SIM-05): the trip never starts.
+      const r = routeFor(t, edge, dest);
+      // Unreachable (a one-way from P1-SIM-05, or a closed segment): the trip never starts.
+      if (!r) continue;
       const i = t.count++;
       t.type[i] = e.vehicleType;
       t.dest[i] = dest;
@@ -498,7 +531,8 @@ export function tickTraffic(t: Traffic, tick: number): void {
 
 /** Rules 1, 2, 4 and 6 for every vehicle, in the order `prepareTick` left (exported for tests). */
 export function moveAll(t: Traffic): void {
-  const { order, speed, dwell, type } = t;
+  const { order, speed, dwell, type, prng } = t;
+  const pSlow = prng ? t.pSlowPermille : 0;
   let alive = 0;
   let speedSum = 0;
   for (let k = 0; k < t.orderLen; k++) {
@@ -514,6 +548,9 @@ export function moveAll(t: Traffic): void {
     let v = speed[i]! + 1;
     if (v > vmax) v = vmax;
     v = gapAhead(t, i, v);
+    // Rule 3: randomization. Only a vehicle that would move draws, so p_slow 0 (or a stopped
+    // queue) consumes no randomness.
+    if (v > 0 && pSlow > 0 && chancePermille(prng!, pSlow)) v--;
     if (move(t, i, v)) {
       speed[i] = v;
       speedSum += v;
