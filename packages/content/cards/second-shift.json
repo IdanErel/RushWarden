@@ -1,0 +1,30 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "second-shift",
+  "name": "Second Shift",
+  "cost": 2,
+  "target": "district",
+  "duration": "round",
+  "rarity": "uncommon",
+  "tags": ["TEMPO"],
+  "effects": [
+    {
+      "kind": "drawModifier",
+      "delta": 2
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "drawModifier",
+        "delta": 2
+      },
+      {
+        "kind": "energyModifier",
+        "delta": 1,
+        "when": "next-round"
+      }
+    ]
+  },
+  "flavor": "Fresh faces, fresh plans, same traffic."
+}

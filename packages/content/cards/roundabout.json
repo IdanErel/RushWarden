@@ -1,0 +1,27 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "roundabout",
+  "name": "Roundabout",
+  "cost": 1,
+  "target": "intersection",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["CHAOS"],
+  "effects": [
+    {
+      "kind": "setController",
+      "controller": "roundabout",
+      "capacity": 4
+    }
+  ],
+  "upgrade": {
+    "effects": [
+      {
+        "kind": "setController",
+        "controller": "roundabout",
+        "capacity": 6
+      }
+    ]
+  },
+  "flavor": "Nobody stops. Everybody yields. Mostly."
+}

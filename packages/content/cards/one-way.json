@@ -1,0 +1,20 @@
+{
+  "$schema": "../schema/card.schema.json",
+  "id": "one-way",
+  "name": "One-Way",
+  "cost": 1,
+  "target": "segment",
+  "duration": "round",
+  "rarity": "common",
+  "tags": ["FLOW"],
+  "effects": [
+    {
+      "kind": "setOneWay",
+      "doubleLanes": true
+    }
+  ],
+  "upgrade": {
+    "cost": 0
+  },
+  "flavor": "Everyone goes the same way. Nobody argues."
+}
