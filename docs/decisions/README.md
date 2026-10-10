@@ -17,3 +17,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 008 | The game is named Rushwarden                            | Accepted |
 | 009 | Analytics event time is the server's receipt time       | Accepted |
 | 010 | How the Phase 1 gate criteria are measured              | Accepted |
+| 014 | Effect union v2                                         | Accepted |
