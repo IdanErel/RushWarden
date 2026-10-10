@@ -4,7 +4,7 @@ Status: Accepted · 2026-10-10 · Idan chose it on the name decision
 
 The Phase 0 screen (`docs/setup/name-search.md`) found "Gridlock Royale" risky: a crowded word
 with same-theme games, a pending GRIDLOCK board-game application, and a "Royale" echo of Clash
-Royale on a card game. Rushwarden had no store or US trademark hits and its domains looked free.
+Royale on a card game. Rushwarden had no store or US trademark hits and its domains looked available (unregistered; registering still costs the usual yearly fee).
 
 - Product, store and copy name: **Rushwarden**. Package scope `@rushwarden/*`.
 - Bundle/package ID: `com.rushwarden.game`. Domain: `rushwarden.com` (Idan registers it).
