@@ -136,11 +136,15 @@ function flatFunds(placements: readonly Placement[]): number {
   return funds;
 }
 
-/** The controller an intersection has right now, from earlier card plays (the map has none yet). */
-function currentController(state: RunState, target: Target): string | null {
+/**
+ * The controller an intersection had before this round's cards: run effects over the map default
+ * (maps author none yet). Same reading as the sim's `resolvePlacements().replacedController`
+ * (#32), so Remove Signal over a signal played this same round gets only the conflict refund.
+ */
+function controllerBeforeRound(state: RunState, target: Target): string | null {
   if (target.kind !== 'intersection') return null;
   let controller: string | null = null;
-  for (const p of [...state.runEffects, ...state.plays.map((x) => x.placement)]) {
+  for (const p of state.runEffects) {
     if (!sameTarget(p.target, target)) continue;
     for (const e of p.effects) if (e.kind === 'setController') controller = e.controller;
   }
@@ -295,7 +299,7 @@ function play(state: RunState, action: Extract<RunAction, { type: 'play' }>): St
       : state.pendingCost;
   const roundCostRules: CostRule[] = state.roundCostRules.slice();
   const runCostRules: CostRule[] = state.runCostRules.slice();
-  const replacedSignal = currentController(state, action.target) === 'signal';
+  const replacedSignal = controllerBeforeRound(state, action.target) === 'signal';
 
   // GDD §4: conflicting controllers: the last played wins and the earlier card is refunded.
   let plays: Play[] = state.plays.slice();

@@ -289,18 +289,45 @@ describe('run-level effects', () => {
     expect(s.energy).toBe(2);
   });
 
-  it('tier-2 Remove Signal over a same-round signal ends on 3 energy, not 4 (ADR-018 point 4)', () => {
+  it('Remove Signal: replaced-signal reads the controller before this round (#32); refunds do not stack', () => {
     const s0 = startRun(toy(), fakeEnv()).state;
+    const hand = (ids: [string, 1 | 2][]) =>
+      ids.map(([id, tier], i) => ({ uid: 900 + i, id, tier }));
+    // A same-round signal is not "replaced": tier 2 gets only the conflict refund (1). 3-1-1+1 = 2.
     let s: RunState = {
       ...s0,
-      hand: [
-        { uid: 900, id: 'smart-signal', tier: 1 },
-        { uid: 901, id: 'remove-signal', tier: 2 },
-      ],
+      hand: hand([
+        ['smart-signal', 1],
+        ['remove-signal', 2],
+      ]),
     };
-    s = (playId(s, 'smart-signal') as { state: RunState }).state; // 3 - 1 = 2
-    s = (playId(s, 'remove-signal') as { state: RunState }).state; // 2 - 1 + max(1, 2) = 3
-    expect(s.energy).toBe(3);
+    s = (playId(s, 'smart-signal') as { state: RunState }).state;
+    s = (playId(s, 'remove-signal') as { state: RunState }).state;
+    expect(s.energy).toBe(2);
+    // A signal from a run effect is replaced: +1 at tier 1. 3-1+1 = 3.
+    const runSignal = {
+      cardId: 'smart-signal',
+      tier: 1 as const,
+      target: CENTER,
+      effects: [{ kind: 'setController' as const, controller: 'signal' as const }],
+      order: 0,
+    };
+    let t: RunState = { ...s0, runEffects: [runSignal], hand: hand([['remove-signal', 1]]) };
+    t = (playId(t, 'remove-signal') as { state: RunState }).state;
+    expect(t.energy).toBe(3);
+    // Both trigger (a run-effect signal, then a same-round Roundabout, then tier-2 Remove Signal):
+    // only the larger refund applies. 3 - 1 - 1 + max(conflict 1, replaced 2) = 3.
+    let u: RunState = {
+      ...s0,
+      runEffects: [runSignal],
+      hand: hand([
+        ['roundabout', 1],
+        ['remove-signal', 2],
+      ]),
+    };
+    u = (playId(u, 'roundabout') as { state: RunState }).state;
+    u = (playId(u, 'remove-signal') as { state: RunState }).state;
+    expect(u.energy).toBe(3);
   });
 
   it('drawModifier (Second Shift) draws 2 extra cards next round', () => {
