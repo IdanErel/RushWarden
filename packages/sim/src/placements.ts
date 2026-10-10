@@ -68,15 +68,15 @@ function inRange(n: number, lo: number, hi: number): boolean {
 
 function effectError(map: GridMap, p: Placement, e: Effect): string | null {
   switch (e.kind) {
-    case 'addBusStop': {
-      if (p.target.kind !== 'segment') return 'addBusStop needs a segment target';
+    case 'setBusStopDwell': {
+      if (p.target.kind !== 'segment') return 'setBusStopDwell needs a segment target';
       // The target was validated first, so this is a straight run of road tiles.
       const tiles = segmentTiles(p.target, map)!;
       const hasStop = tiles.some((t) => {
         const tile = map.tiles[t.y * GRID_WIDTH + t.x] as Extract<MapTile, { kind: 'road' }>;
         return tile.busStop === true;
       });
-      if (!hasStop) return 'addBusStop changes dwell only on a segment that already has a bus stop';
+      if (!hasStop) return 'setBusStopDwell is valid only on a segment that already has a bus stop';
       return inRange(e.dwellTicks, 0, ROUND_TICKS) ? null : 'dwellTicks out of range';
     }
     case 'setOneWay':
@@ -91,6 +91,21 @@ function effectError(map: GridMap, p: Placement, e: Effect): string | null {
         return 'reroute to secondary needs an edge secondaryTarget';
       }
       return null;
+    case 'banType':
+      return e.scope === 'target-class' && p.target.kind !== 'segment'
+        ? 'banType scope target-class needs a segment target'
+        : null;
+    case 'costModifier': {
+      const relative = e.delta !== undefined;
+      const absolute = e.next !== undefined || e.cost !== undefined;
+      if (relative === absolute)
+        return 'costModifier needs either delta, or next + cost (not both)';
+      if (absolute) {
+        if (e.next !== 1 && e.next !== 2) return 'costModifier next must be 1 or 2';
+        if (e.cost === undefined || !inRange(e.cost, 0, 3)) return 'costModifier cost must be 0..3';
+      } else if (!Number.isInteger(e.delta)) return 'costModifier delta must be an integer';
+      return null;
+    }
     case 'smoothDemand':
       return inRange(e.peakPermille, 0, 1000) ? null : 'peakPermille must be 0..1000';
     case 'spawnWindow':

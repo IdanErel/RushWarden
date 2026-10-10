@@ -31,7 +31,7 @@ golden hashes are unchanged.
 11. New `costModifier { cards: string[] | 'all', delta }` (Pilot Program).
 12. New `redraw { keep: 0 | 1 }` (Recount).
 13. `drawModifier` applies to the next round's draw.
-14. Express Stop (`addBusStop` changing dwell) is valid only on a segment that already has a bus
+14. Express Stop (`setBusStopDwell`, see addendum 2) is valid only on a segment that already has a bus
     stop tile. `Sim.init` rejects it elsewhere, and the UI uses `placementError(map, placement)`
     to grey out such targets.
 
@@ -50,3 +50,15 @@ Sim Engineer details:
   - out-of-range parameters.
 
   It checks both `placements` and `cardState.runEffects`.
+
+## Addendum (P1-SIM-01c, 2026-10-10, Lead)
+
+1. `costModifier` gains `next?: 1 | 2` and `cost?: number`: the next N cards played this round
+   cost exactly `cost` energy (0..3), for Pilot Program. `delta` becomes optional. Exactly one form
+   must be set: either `delta`, or both `next` and `cost`. `Sim.init` rejects anything else.
+2. `addBusStop` is renamed `setBusStopDwell`. Its behaviour is unchanged: it is valid only on a
+   segment that already has a bus stop.
+3. `banType.scope` gains `'target-class'`, the road class of the placed segment applied across the
+   whole district. It needs a segment target.
+
+Golden hashes are unchanged: no golden input uses placements.
