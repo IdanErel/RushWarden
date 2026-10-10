@@ -39,6 +39,7 @@ export {
   tileIndex,
   SIDES,
   TileKind,
+  Turn,
   MapError,
   type World,
   type Link,
@@ -48,3 +49,12 @@ export {
   type Route,
   type NodeRef,
 } from './world.js';
+export {
+  VEHICLE_SPECS,
+  BUS_DWELL_TICKS,
+  BIKE_SHARED_VMAX,
+  MAX_VEHICLE_LENGTH,
+  VEHICLE_TYPE_COUNT,
+  type VehicleSpec,
+} from './vehicles.js';
+export { TAXI_LOAD_COST } from './traffic.js';
