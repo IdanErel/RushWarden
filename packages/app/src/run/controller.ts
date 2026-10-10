@@ -171,9 +171,11 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
   const prng = clonePrng(state.prng);
   const roundSeed = nextU32(prng);
   const rush = rushOf(state.config, round);
+  // ADR-030: the round of the district curve this run round plays (the toy samples D1's curve).
+  const curveRound = state.config.curveRounds?.[round - 1] ?? round;
   const setup = env.setupRound({
     district: state.config.district,
-    round,
+    round: curveRound,
     rush: rush !== null,
     boss: rush?.boss ?? null,
     seed: roundSeed,
@@ -192,7 +194,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
     rush: rush !== null,
     boss: rush?.boss ?? null,
-    quota: roundQuota(state.config.district, round, rush !== null, state.config.quotaPermille),
+    quota: roundQuota(state.config.district, curveRound, rush !== null, state.config.quotaPermille),
     hand: dealt.drawn,
     drawPile: dealt.drawPile,
     spent: dealt.spent,
@@ -211,6 +213,11 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
 export function startRun(config: RunConfig, env: RunEnv): { state: RunState; events: RunEvent[] } {
   const index = cardIndex(config);
   for (const id of config.startingDeck) if (!index.has(id)) throw new Error(`unknown card ${id}`);
+  const curve = config.curveRounds;
+  if (curve && (curve.length !== config.rounds || curve.some((r) => !Number.isInteger(r) || r < 1)))
+    throw new RangeError(
+      `curveRounds must list a curve round ≥ 1 for each of the ${config.rounds} rounds, got [${curve.join(', ')}]`,
+    );
   for (const card of config.cards)
     for (const tier of [1, 2] as const)
       for (const e of resolveTier(card, tier).effects) {

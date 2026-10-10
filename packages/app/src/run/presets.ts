@@ -1,3 +1,4 @@
+import { TOY_ROUNDS, toyRushRounds } from '@rushwarden/content';
 import type { BossCondition } from '@rushwarden/sim';
 import type { RunCard, RunConfig, RushRound } from './types.js';
 
@@ -47,7 +48,11 @@ interface PresetArgs {
   readonly daily?: boolean;
 }
 
-/** The itch toy: a 5-round District 1 run; round 5 is a rush round with Market Day (ADR-007 item 1). */
+/**
+ * The itch toy: a 5-round District 1 run with no shop (ADR-007 item 1). Its rounds sample D1's
+ * 12-round curve (ADR-030): content's `TOY_ROUNDS` picks each round's quota and demand, and
+ * `toyRushRounds()` its rush flag and boss.
+ */
 export function toyRunConfig(a: PresetArgs): RunConfig {
   return {
     ...DEFAULT_RULES,
@@ -55,8 +60,9 @@ export function toyRunConfig(a: PresetArgs): RunConfig {
     district: 1,
     mayor: a.mayor ?? 'ada',
     daily: a.daily ?? false,
-    rounds: 5,
-    rushRounds: [{ round: 5, boss: 'market-day' }],
+    rounds: TOY_ROUNDS.length,
+    rushRounds: toyRushRounds(),
+    curveRounds: TOY_ROUNDS,
     startingDeck: a.startingDeck ?? PHASE1_STARTING_DECK,
     cards: a.cards,
   };
