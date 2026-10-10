@@ -1,2 +1,38 @@
-/** @rushwarden/balance — Headless balance runner, drafter bots and report generator (GDD section 11). Phase 0 placeholder; owner: Sim Engineer. */
-export const PACKAGE = { name: '@rushwarden/balance', phase: 0 } as const;
+/**
+ * @rushwarden/balance — headless balance runner, drafter bots and report generator (GDD §11,
+ * P1-BAL-02, ADR-019).
+ */
+export {
+  randomBot,
+  greedyBot,
+  archetypeBot,
+  phase1Bots,
+  botByName,
+  botContext,
+  ARCHETYPE_TAGS,
+  type Bot,
+  type BotContext,
+} from './bots.js';
+export { runOne, runSeeds, seedSet, canonical, type RunRecord, type RunSpec } from './runner.js';
+export { renderReport, gateCriterion2, summarizeDeck, type ReportMeta } from './report.js';
+export {
+  runJob,
+  splitJobs,
+  specFor,
+  configFor,
+  PRESETS,
+  type Preset,
+  type RunJob,
+} from './jobs.js';
+export { runJobs, workerPool, type Executor } from './pool.js';
+export {
+  buildReport,
+  formatReport,
+  dataWarnings,
+  BOT_NAMES,
+  STANDIN_WARNINGS,
+  roundsOf,
+} from './balance.js';
+export { candidateTargets, spread } from './targets.js';
+export { standinEnv } from './env.js';
+export { STANDIN_CARDS } from './standin-cards.js';

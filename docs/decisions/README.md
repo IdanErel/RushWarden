@@ -21,3 +21,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 013 | Web portal adapters never call portal ad APIs           | Proposed (Idan) |
 | 014 | Effect union v2                                         | Accepted        |
 | 018 | Run controller rule readings                            | Accepted        |
+| 019 | Balance runner seeds, bots and report format            | Proposed        |
