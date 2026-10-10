@@ -48,15 +48,22 @@ interface Seen {
   roadLink: number;
 }
 
-/** True when link `b` starts at most two links after link `a` ends (a vehicle moves ≤ 5 cells). */
+/**
+ * True when link `b` starts at most two links after link `a` ends (a vehicle moves ≤ 5 cells),
+ * without a U-turn: no link on the way is the reverse of the link before it.
+ */
 function follows(w: World, a: number, b: number): boolean {
   const end = w.links[a]!.to;
   const start = w.links[b]!.from;
   if (end.kind !== 'intersection' || start.kind !== 'intersection') return false;
-  if (end.index === start.index) return true;
+  if (end.index === start.index) return b !== w.links[a]!.reverse;
   return w.intersections[end.index]!.outLinks.some(
     (m) =>
-      m !== NONE && w.links[m]!.to.kind === 'intersection' && w.links[m]!.to.index === start.index,
+      m !== NONE &&
+      m !== w.links[a]!.reverse &&
+      w.links[m]!.to.kind === 'intersection' &&
+      w.links[m]!.to.index === start.index &&
+      b !== w.links[m]!.reverse,
   );
 }
 
@@ -116,13 +123,23 @@ function runChecked(input: RoundInput): SimState {
         if (cell < prev.cell) back();
         if (t.speed[i] !== cell - prev.cell) back();
       } else if (lane.kind === 'box') {
-        // Into the box of the intersection its last road link (or pocket) ends at.
-        const end = w.links[prev.roadLink]!.to;
-        if (end.kind !== 'intersection' || end.index !== lane.intersection) back();
+        // Into the box of the intersection its last road link (or pocket) ends at, on a movement
+        // entered from that link's side, and never a U-turn.
+        const from = w.links[prev.roadLink]!;
+        if (from.to.kind !== 'intersection' || from.to.index !== lane.intersection) back();
+        if (lane.entryDir !== from.exitDirs[from.exitDirs.length - 1]) back();
+        if (lane.exitDir === ((lane.entryDir + 2) & 3)) back();
       } else if (lane.kind === 'pocket') {
         if (lane.link !== prev.roadLink || w.lanes[prev.lane]!.kind !== 'road') back();
       } else if (lane.link === prev.roadLink || !follows(w, prev.roadLink, lane.link)) {
         back();
+      } else if (w.lanes[prev.lane]!.kind === 'box') {
+        // Out of the box onto the link its movement leads to (the box's exit side).
+        const box = w.lanes[prev.lane]!;
+        const link = w.links[lane.link]!;
+        const start = link.from;
+        if (start.kind !== 'intersection' || start.index !== box.intersection) back();
+        if (link.entryDirs[0] !== box.exitDir) back();
       }
       prev.lane = lane.id;
       prev.cell = cell;

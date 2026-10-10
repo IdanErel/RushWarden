@@ -32,6 +32,13 @@ export interface LaneLayout {
    * pair does not exist on this map (the renderer then hides the vehicle rather than guessing).
    */
   cellPoint(lane: number, cell: number, out: LanePoint): boolean;
+  /**
+   * Writes the centre of the cell `back` cells upstream of (`lane`, `cell`) along the path a
+   * vehicle took to get there (into the approach lane for a box lane), so a multi-cell vehicle's
+   * body can follow its path. Past the start of the known path it extends straight back from
+   * the lane's first cell. Returns false when (`lane`, `cell`) does not exist.
+   */
+  backPoint(lane: number, cell: number, back: number, out: LanePoint): boolean;
   /** Cells per tile along a lane (`CELLS_PER_TILE`). */
   readonly cellsPerLane: number;
 }
@@ -78,7 +85,20 @@ export function tileLaneLayout(map: GridMap): LaneLayout {
       out.heading = HEADING[dir];
       return true;
     },
+    backPoint(lane, cell, back, out) {
+      // Per-tile ids do not record where a vehicle came from: extend straight back.
+      if (cell - back >= 0) return this.cellPoint(lane, cell - back, out);
+      if (!this.cellPoint(lane, 0, out)) return false;
+      stepBack(out, back - cell);
+      return true;
+    },
   };
+}
+
+/** Moves `out` `cells` cells back against its heading. */
+function stepBack(out: LanePoint, cells: number): void {
+  out.x -= (Math.cos(out.heading) * cells) / CELLS_PER_TILE;
+  out.y -= (Math.sin(out.heading) * cells) / CELLS_PER_TILE;
 }
 
 /** Writes the centre of cell `offset` (0..3) of tile (x, y) for travel `entry` → `exit`. */
@@ -177,6 +197,34 @@ export function worldLaneLayout(world: World): LaneLayout {
       const lane = world.lanes[laneId];
       if (!lane) return false;
       return lane.kind === 'box' ? boxPoint(lane, cell, out) : roadPoint(lane, cell, out);
+    },
+    backPoint(laneId, cell, back, out) {
+      const lane = world.lanes[laneId];
+      if (!lane || !this.cellPoint(laneId, cell, out)) return false;
+      if (back <= 0) return true;
+      if (lane.kind === 'road') {
+        if (cell - back >= 0) return roadPoint(lane, cell - back, out);
+        roadPoint(lane, 0, out);
+        stepBack(out, back - cell);
+        return true;
+      }
+      if (lane.kind === 'box' && cell - back >= 0) return boxPoint(lane, cell - back, out);
+      // Box lanes and pockets are entered from the approach link's kerb lane.
+      const link =
+        lane.kind === 'box'
+          ? world.links[
+              world.intersections[lane.intersection]?.inLinks[(lane.entryDir + 2) & 3] ?? -1
+            ]
+          : world.links[lane.link];
+      const approach = world.lanes[link?.lanes[0] ?? -1];
+      if (!approach) return true;
+      // A box lane's cell c is c + 1 cells past the approach's last cell; a pocket sits beside it.
+      const into = lane.kind === 'box' ? cell + 1 : 0;
+      const c = approach.cells - 1 - (back - into);
+      if (c >= 0) return roadPoint(approach, c, out);
+      roadPoint(approach, 0, out);
+      stepBack(out, -c);
+      return true;
     },
   };
 }

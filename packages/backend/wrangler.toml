@@ -1,0 +1,25 @@
+# /ingest Worker (P1-BE-01). Not deployed yet: Idan creates the Cloudflare account first
+# (docs/setup/accounts.md §6). Deploys only from CI on tags (GDD §10 Operations).
+name = "rushwarden-api"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+# Collection is off until the privacy policy is published (ADR-007). Flip to "true" only then.
+[vars]
+INGEST_ENABLED = "false"
+ALLOWED_ORIGINS = "https://*.itch.zone"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rushwarden"
+database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
+migrations_dir = "migrations"
+
+# Keyed by install ID in code, never by IP.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
+
+# Secret, set with `wrangler secret put STATS_TOKEN` (never in this file): STATS_TOKEN

@@ -66,7 +66,8 @@ Chromium).
 
 `worldLaneLayout(buildWorld(map))` places sim snapshots using `locateCell` (ADR-012 numbering).
 Intersection box lanes from P1-SIM-02 (#23) are drawn at the centre of the sim's box quarter for each
-cell (`locateCell(...).quadrant`). Turn pockets (#27) sit beside the approach's last cell, half a lane inside its
+cell (`locateCell(...).quadrant`). Buses and trucks point from their tail cell to their head cell
+(`LaneLayout.backPoint`), so their bodies follow the path through a turn. Turn pockets (#27) sit beside the approach's last cell, half a lane inside its
 innermost lane. The layout dispatches on `Lane.kind`. `FakeTraffic` still numbers lanes per tile (`tileLaneId`) and is paired with
 `tileLaneLayout`; both go when the sim spawns vehicles. ADR-015 records this.
 
