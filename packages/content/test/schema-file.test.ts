@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { CARD_SCHEMA } from '../src/card-schema.js';
 import { DECK_SCHEMA } from '../src/deck.js';
 import type { JsonSchema } from '../src/json-schema.js';
+import { MAP_SCHEMA } from '../src/map-schema.js';
 
 const FILES: readonly (readonly [string, JsonSchema])[] = [
   ['card.schema.json', CARD_SCHEMA],
   ['deck.schema.json', DECK_SCHEMA],
+  ['map.schema.json', MAP_SCHEMA],
 ];
 
 describe.each(FILES)('schema/%s', (name, schema) => {
