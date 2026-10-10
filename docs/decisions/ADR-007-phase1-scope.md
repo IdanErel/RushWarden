@@ -1,0 +1,16 @@
+# ADR-007: Phase 1 scope
+
+Status: Accepted · 2026-10-10 · Lead
+
+The brief fixes the Phase 1 deliverable but not these details. Full task list: `docs/tasks/phase-1.md`.
+
+1. The itch toy is a 5-round District 1 run (round 5 is a rush round with Market Day), about
+   3 minutes. The balance runner plays full 12-round District 1 runs.
+2. No shop in Phase 1 (it is a Phase 2 deliverable), so funds have no sink: the 20 cards exclude
+   funds-only cards, and the Phase 1 starting deck replaces Grant with Pilot Program.
+3. `archetype(tag)` bots are built in Phase 1 with `random` and `greedy`, since gate criterion 2
+   ("5 archetypes with 35–65% win rates in sim") needs them.
+4. The deterministic run controller lives in `packages/app/src/run/`, owned by the Sim Engineer
+   in Phase 1.
+5. A minimal `/ingest` Worker with four of the §10 events measures itch session length for gate
+   criterion 1; it is pulled forward from Phase 3 and needs Idan's Cloudflare account.
