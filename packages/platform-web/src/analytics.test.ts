@@ -13,13 +13,27 @@ describe('startAnalytics', () => {
         storage: {
           getItem: (k) => storage.get(k) ?? null,
           setItem: (k, v) => void storage.set(k, v),
+          removeItem: (k) => void storage.delete(k),
         },
       });
+      c.setConsent(true);
       c.track('app_open', {});
       expect(c.install).toBeNull();
       expect(sent).toEqual([]);
       expect(storage.size).toBe(0);
     }
+  });
+
+  it('sends nothing before the player says yes, even when on', () => {
+    const sent: unknown[] = [];
+    const c = startAnalytics({ VITE_INGEST_URL: 'https://api.rushwarden.com/ingest' }, 'itch', 30, {
+      fetch: async (u) => void sent.push(u),
+      storage: null,
+      randomUUID: () => UUID,
+    });
+    c.track('app_open', {});
+    expect(c.install).toBeNull();
+    expect(sent).toEqual([]);
   });
 
   it('sends app_open with the build platform, version and benchmark class when on', () => {
@@ -38,6 +52,7 @@ describe('startAnalytics', () => {
         language: 'en-GB',
       },
     );
+    c.setConsent(true);
     c.track('app_open', {});
     expect(JSON.parse(sent[0] ?? '')).toEqual({
       event: 'app_open',

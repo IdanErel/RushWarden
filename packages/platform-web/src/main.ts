@@ -22,7 +22,8 @@ async function boot(): Promise<void> {
     el.textContent = `Rushwarden · sim ok · ${result.ticks} ticks · ${result.finalHash}`;
   }
   portal.loadingFinished();
-  // Off unless the build sets VITE_INGEST_URL (ADR-007: not in public builds before the policy).
+  // Off unless the build sets VITE_INGEST_URL (ADR-007: not in public builds before the policy),
+  // and even then nothing is sent until the player says yes (ADR-025; the prompt is UI's).
   let storage: Storage | null = null;
   try {
     storage = localStorage;
