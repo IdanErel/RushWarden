@@ -31,3 +31,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 023 | Card effects, stacking and controller conflicts         | Proposed        |
 | 024 | Portal monetisation: Poki and CrazyGames                | Accepted        |
 | 025 | Privacy defaults: consent, retention, requests          | Accepted        |
+| 028 | Clip tool: replay rendering, determinism, captions, CI  | Accepted        |
