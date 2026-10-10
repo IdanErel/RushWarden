@@ -4,6 +4,7 @@ import {
   ROUND_TICKS,
   type Effect,
   type GridMap,
+  type MapTile,
   type Placement,
   type Target,
   type TileRef,
@@ -28,9 +29,13 @@ function tileInBounds(t: TileRef): boolean {
 
 /**
  * The tiles of a segment target, from `from` to `to` inclusive. Segments are straight (same row
- * or column); returns null otherwise or when out of bounds.
+ * or column); returns null otherwise, when out of bounds, or (given `map`) when any tile is not a
+ * road tile.
  */
-export function segmentTiles(target: Extract<Target, { kind: 'segment' }>): TileRef[] | null {
+export function segmentTiles(
+  target: Extract<Target, { kind: 'segment' }>,
+  map?: GridMap,
+): TileRef[] | null {
   const { from, to } = target;
   if (!tileInBounds(from) || !tileInBounds(to)) return null;
   if (from.x !== to.x && from.y !== to.y) return null;
@@ -38,6 +43,7 @@ export function segmentTiles(target: Extract<Target, { kind: 'segment' }>): Tile
   const dy = Math.sign(to.y - from.y);
   const out: TileRef[] = [];
   for (let x = from.x, y = from.y; ; x += dx, y += dy) {
+    if (map && map.tiles[y * GRID_WIDTH + x]?.kind !== 'road') return null;
     out.push({ x, y });
     if (x === to.x && y === to.y) return out;
   }
@@ -52,7 +58,7 @@ function targetError(map: GridMap, t: Target): string | null {
     case 'intersection':
       return tileInBounds(t.tile) ? null : `intersection tile out of bounds`;
     case 'segment':
-      return segmentTiles(t) ? null : `segment must be a straight in-bounds run of tiles`;
+      return segmentTiles(t, map) ? null : `segment must be a straight in-bounds run of road tiles`;
   }
 }
 
@@ -64,10 +70,11 @@ function effectError(map: GridMap, p: Placement, e: Effect): string | null {
   switch (e.kind) {
     case 'addBusStop': {
       if (p.target.kind !== 'segment') return 'addBusStop needs a segment target';
-      const tiles = segmentTiles(p.target) ?? [];
+      // The target was validated first, so this is a straight run of road tiles.
+      const tiles = segmentTiles(p.target, map)!;
       const hasStop = tiles.some((t) => {
-        const tile = map.tiles[t.y * GRID_WIDTH + t.x];
-        return tile?.kind === 'road' && tile.busStop === true;
+        const tile = map.tiles[t.y * GRID_WIDTH + t.x] as Extract<MapTile, { kind: 'road' }>;
+        return tile.busStop === true;
       });
       if (!hasStop) return 'addBusStop changes dwell only on a segment that already has a bus stop';
       return inRange(e.dwellTicks, 0, ROUND_TICKS) ? null : 'dwellTicks out of range';
