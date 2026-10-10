@@ -12,8 +12,8 @@ things:
 The specs themselves land in a second P1-QA-01 PR once P1-UI-01 gives us a playable run screen.
 
 Sources: GDD §2 (core loop), §8 (screens, input), §9 (portal rules), §11 (test layers, device
-matrix, bug policy), §13 (Phase 1 gate); ADR-006 (Steam gate); ADR-007 (Phase 1 scope);
-ADR-008 (name); [ADR-009](../decisions/ADR-009-phase1-gate-measurement.md) (gate measurement
+matrix, bug policy), §13 (Phase 1 gate); ADR-006 (Steam gate, accepted); ADR-007 (Phase 1 scope); ADR-008 (name); ADR-009 (event time
+is the server's receipt time, in PR #8); [ADR-010](../decisions/ADR-010-phase1-gate-measurement.md) (gate measurement
 definitions, proposed in this PR).
 
 ## 1. What the toy is, and what it is not
@@ -183,19 +183,19 @@ into `docs/release/phase-1-gate.md` (task P1-QA-04) with a source for every numb
 reads a store, portal or analytics console itself: the Steam, itch, Poki and CrazyGames numbers
 come from Idan as an export or screenshot, committed under `docs/release/evidence/phase-1/`.
 
-The exact definitions below are proposed in ADR-009 for Idan to confirm. Where the brief leaves a
+The exact definitions below are proposed in ADR-010 for Idan to confirm. Where the brief leaves a
 choice open, the ADR gives a default.
 
 ### 4.1 Criterion 1: 200+ itch plays with median session > 2 min
 
-| Item        | Definition                                                                                                                                                                                                                                                                                                                                    |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Plays       | **Primary:** the play count on itch's analytics page for the project, as Idan exports it. **Cross-check:** the number of sessions (below) with `platform=itch`. If the two differ by more than 25%, the gate page reports both and says why.                                                                                                  |
-| Session     | Events from one install UUID with `platform=itch`, starting at `app_open` and ending at the last event before a gap of more than 30 minutes. Duration = server receive time of the last event minus server receive time of `app_open`. A session with only `app_open` counts, with duration 0 (players who bounce must pull the median down). |
-| Median      | Median of all session durations in the window. Pass: strictly greater than 120 s, with at least 200 plays.                                                                                                                                                                                                                                    |
-| Window      | 14 days from Idan's first public post of the itch link (same length as criterion 3). Builds on the draft channel and local builds report `platform=web`, so team and QA play does not count.                                                                                                                                                  |
-| Data source | The minimal `/ingest` Worker and session-length query from P1-BE-01. The client must flush on `round_end` and send a final beacon on `pagehide`. If it only flushes on `run_end`, mid-run quits look like 0-second sessions.                                                                                                                  |
-| Blocker     | ADR-007: `/ingest` stays off in public builds until the privacy policy is published on the website, and whether to collect at all is Idan's call. **If ingest is off, criterion 1 cannot be measured** (itch does not report session length). The gate page then marks it "not measured", not "fail", and the gate rests on the other three.  |
+| Item        | Definition                                                                                                                                                                                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plays       | **Primary:** the play count on itch's analytics page for the project, as Idan exports it. **Cross-check:** the number of sessions (below) with `platform=itch`. If the two differ by more than 25%, the gate page reports both and says why.                                                                                                                              |
+| Session     | Events from one install UUID with `platform=itch`, starting at `app_open` and ending at the last event before a gap of more than 30 minutes. Duration = server receive time of the last event minus server receive time of `app_open`. A session with only `app_open` counts, with duration 0 (players who bounce must pull the median down).                             |
+| Median      | Median of all session durations in the window. Pass: strictly greater than 120 s, with at least 200 plays.                                                                                                                                                                                                                                                                |
+| Window      | 14 days from Idan's first public post of the itch link (same length as criterion 3). Builds on the draft channel and local builds report `platform=web`, so team and QA play does not count.                                                                                                                                                                              |
+| Data source | The minimal `/ingest` Worker and session-length query from P1-BE-01. Each event is sent when it happens and timed by the server's receipt time (ADR-009, no batching in the toy). QA checks that `round_end` really is sent per round, so a player who quits mid-run is not counted as a 0-second session.                                                                |
+| Blocker     | ADR-007 as amended: Idan approved collecting the four events, but only once the privacy policy is published on the website. **Until then criterion 1 cannot be measured** (itch does not report session length). If the itch link is posted before the policy is live, the gate page marks criterion 1 "not measured", not "fail", and the gate rests on the other three. |
 
 ### 4.2 Criterion 2: 5 archetypes with 35–65% win rates in sim
 
@@ -210,13 +210,13 @@ choice open, the ADR gives a default.
 
 ### 4.3 Criterion 3: 500 Steam wishlists in 14 days
 
-| Item       | Definition                                                                                                                                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Depends on | ADR-006 (proposed, needs Idan): Steamworks account, app fee, page review and the page going live in Phase 1. If Idan drops the criterion, the gate is two of the remaining three, and this section is marked "dropped (ADR-006)". |
-| Window     | 14 days from the moment the "Coming soon" page is publicly visible, not from submission for review.                                                                                                                               |
-| Number     | **Net wishlists** at the end of day 14 (additions minus deletions) from Steamworks' wishlist report. Gross additions are reported next to it. Pass: net ≥ 500.                                                                    |
-| Evidence   | Idan exports the wishlist report (CSV or screenshot) on day 15; QA commits it under `docs/release/evidence/phase-1/`.                                                                                                             |
-| Note       | Activations from Steam key giveaways do not exist in Phase 1 (there is no build on Steam), so no adjustment is needed.                                                                                                            |
+| Item       | Definition                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Depends on | ADR-006 (accepted: the criterion stays). Idan opens Steamworks, pays the app fee and submits the page for Valve's review during Phase 1; the team supplies the copy (P1-QA-03). |
+| Window     | 14 days from the moment the "Coming soon" page is publicly visible, not from submission for review.                                                                             |
+| Number     | **Net wishlists** at the end of day 14 (additions minus deletions) from Steamworks' wishlist report. Gross additions are reported next to it. Pass: net ≥ 500.                  |
+| Evidence   | Idan exports the wishlist report (CSV or screenshot) on day 15; QA commits it under `docs/release/evidence/phase-1/`.                                                           |
+| Note       | Activations from Steam key giveaways do not exist in Phase 1 (there is no build on Steam), so no adjustment is needed.                                                          |
 
 ### 4.4 Criterion 4: Poki player-fit ≥ 25% at 3 min
 
@@ -230,7 +230,7 @@ choice open, the ADR gives a default.
 ### 4.5 Gate page
 
 `docs/release/phase-1-gate.md` (P1-QA-04) has one row per criterion: the number, the pass bar,
-pass / fail / not measured / dropped, the evidence link, and the date read. It ends with "2 of 4
+pass / fail / not measured, the evidence link, and the date read. It ends with "2 of 4
 needed; Idan decides go/no-go." QA does not recommend go or no-go. If a criterion fails, the page
 shows the data next to the bar so Idan can see how close it was.
 
@@ -258,6 +258,5 @@ shows the data next to the bar so Idan can see how close it was.
 | ---------------------------------------------------------- | --------------------------------- | --------------------------- |
 | Test hooks H1–H5                                           | Lead, with Render/UI and Platform | Most of the specs in §2.2   |
 | 390×844 and WebKit phone projects in CI                    | Lead                              | §3.1 rows marked "proposed" |
-| Measurement definitions (windows, sessions, net wishlists) | Idan (ADR-009)                    | The gate page               |
-| Steam criterion kept or dropped                            | Idan (ADR-006)                    | Criterion 3                 |
-| `/ingest` on or off in public builds                       | Idan (ADR-007)                    | Criterion 1                 |
+| Measurement definitions (windows, sessions, net wishlists) | Idan (ADR-010)                    | The gate page               |
+| Privacy policy published (enables `/ingest`)               | Idan (ADR-007)                    | Criterion 1                 |
