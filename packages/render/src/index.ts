@@ -7,13 +7,14 @@
  */
 export * from './core.js';
 export type { WorkerLike } from './worker/protocol.js';
-export { createFakeWorkerHandler } from './worker/fake-handler.js';
+export * from './controller-state.js';
+export * from './closures.js';
 export {
-  SimClient,
-  spawnFakeWorker,
-  spawnSimWorker,
-  type SimClientHandlers,
-} from './worker/client.js';
+  FAKE_ALL_RED_TICKS,
+  createFakeWorkerHandler,
+  fakeControllerFrame,
+} from './worker/fake-handler.js';
+export { SimClient, spawnSimWorker, type SimClientHandlers } from './worker/client.js';
 export {
   TrafficScene,
   type ControllerMark,

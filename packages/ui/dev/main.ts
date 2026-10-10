@@ -4,7 +4,8 @@
  * (policy URL), `reduced=1`, `source=sim`. Not shipped; Platform mounts the game in platform-web.
  */
 import { toyRunConfig, type RunAnalytics } from '@rushwarden/app';
-import { spawnFakeWorker, spawnSimWorker, tileLaneLayout } from '@rushwarden/render';
+import { spawnSimWorker, tileLaneLayout } from '@rushwarden/render';
+import { spawnFakeWorker } from '@rushwarden/render/fake-worker';
 import { ControllerRun, mountGame, type SoundControl } from '../src/index.js';
 import { DEV_CARDS, devCatalog, devEnv } from './cards.js';
 
