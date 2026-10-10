@@ -1,11 +1,14 @@
 # Store and community copy (Phase 1)
 
-> **DRAFT: pending the GIF (P1-QA-02).** None of this is final. Every `[GIF]` placeholder is
-> filled once the clip tool has rendered a seeded rush round. Idan edits the voice (GDD §12) and
+> **DRAFT.** None of this is final. `[GIF]` means the Market Day clip,
+> `tools/clip/out/rushwarden-s4-r5.gif` (`pnpm clip --spec tools/clip/clips/market-day.json`, or
+> the `rushwarden-clips-<sha>` artifact of the Clip workflow). The store images are in
+> [assets.md](assets.md). Idan edits the voice (GDD §12) and
 > posts everything himself; the team never posts (§13).
 
-Task: P1-QA-03, text part. The Steam capsules, the itch cover and the portal thumbnails are
-generated in code later, after P1-QA-02 lands.
+Task: P1-QA-03. The text is in the files below. The Steam capsules, Steam screenshots and the
+itch cover are generated in code by `pnpm --filter @rushwarden/clip store-assets` (see
+[assets.md](assets.md)). The portal thumbnails are in P1-PLT-02's submission package.
 
 | File                     | What                                                                   |
 | ------------------------ | ---------------------------------------------------------------------- |
@@ -13,6 +16,7 @@ generated in code later, after P1-QA-02 lands.
 | [itch.md](itch.md)       | itch.io page: tagline, body, controls, metadata                        |
 | [steam.md](steam.md)     | Steam "Coming soon": short and long descriptions, tags, AI disclosure  |
 | [portals.md](portals.md) | Poki and CrazyGames: description and controls text                     |
+| [assets.md](assets.md)   | Steam capsules and screenshots, itch cover: how they are made, checks  |
 
 ## Rules every draft follows
 
@@ -87,7 +91,7 @@ cards, which gridlocks at 0:12 with 29 through. CI uploads both as MP4 and GIF o
 
 ## Before Idan posts: checklist
 
-- [ ] The GIF is rendered and placed in every `[GIF]` slot.
+- [ ] The GIF (`rushwarden-s4-r5.gif`) is placed in every `[GIF]` slot, from the same commit as the build.
 - [ ] The share strip is replaced with a real one from the build. The example's glyphs are
       hand-computed; only a real strip guarantees each glyph means what §5 says (🟨 = passed
       under 110%).

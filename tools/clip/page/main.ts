@@ -17,6 +17,7 @@ import { buildClip, clipMeta, frameTime, hudAt, type Clip, type ClipMeta } from 
 import type { ClipSpec } from '../src/director.js';
 import { FRAME_H, FRAME_W, hudOps, type MapBox } from '../src/hud.js';
 import type { ClipOptions } from '../src/clip.js';
+import './store.js';
 
 /** Virtual clock origin: far above any real `performance.now()` the ticker has seen. */
 const BASE_MS = 10_000_000;
@@ -149,6 +150,16 @@ function step(i: number, draw: boolean): void {
   }
 }
 
+/**
+ * Where the map is drawn in the logical frame (no heat gutter): the store-asset compositor
+ * (cli/store.ts) crops capsules and the library hero from it.
+ */
+function layout(): { x: number; y: number; w: number; h: number } {
+  if (!scene) throw new Error('prepare() first');
+  const v = scene.view;
+  return { x: v.originX, y: v.originY, w: v.widthPx, h: v.heightPx };
+}
+
 /** Draws frame `i` and returns it as a PNG data URL. Frames must be requested in order. */
 function frame(i: number): string {
   step(i, true);
@@ -165,5 +176,5 @@ function seek(i: number): void {
   while (next < i) step(next, false);
 }
 
-Object.assign(window, { clip: { prepare, frame, seek } });
+Object.assign(window, { clip: { prepare, frame, seek, layout } });
 document.body.dataset['ready'] = '1';

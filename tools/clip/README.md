@@ -17,6 +17,14 @@ to use a local Chromium; otherwise Playwright's own browser is used. A full 1080
 2–4 minutes on 4 cores, because it is software WebGL by design. `--scale 1` is about 6× faster
 for drafts.
 
+## Store images
+
+`pnpm --filter @rushwarden/clip store-assets` renders the Steam capsules, library hero and logo,
+six 1920×1080 screenshots and the itch cover (P1-QA-03) to `out/store/`, with a
+`manifest.json` of sha256 sums. It uses frames from this page and composes them on a 2D canvas
+(`src/store.ts` for the layout, `page/store.ts` for the drawing, `cli/store.ts` for the driver).
+See [docs/store/assets.md](../../docs/store/assets.md).
+
 ## How it works
 
 | Part               | What it does                                                                                                                                                         |

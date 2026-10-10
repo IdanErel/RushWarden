@@ -77,7 +77,7 @@ const TYPES: Readonly<Record<string, string>> = {
 };
 
 /** Serves `dist/` on 127.0.0.1 at a free port. */
-function serve(): Promise<{ server: Server; url: string }> {
+export function serve(): Promise<{ server: Server; url: string }> {
   const server = createServer((req, res) => {
     const path = decodeURIComponent((req.url ?? '/').split('?')[0] ?? '/');
     const file = normalize(join(DIST, path === '/' ? 'index.html' : path));
@@ -141,11 +141,16 @@ export interface RenderHooks {
 }
 
 /** The page's API (page/main.ts), as seen from Playwright. */
-interface PageApi {
-  clip: { prepare(j: unknown): Promise<PageMeta>; frame(i: number): string; seek(i: number): void };
+export interface PageApi {
+  clip: {
+    prepare(j: unknown): Promise<PageMeta>;
+    frame(i: number): string;
+    seek(i: number): void;
+    layout(): { x: number; y: number; w: number; h: number };
+  };
 }
 
-const LAUNCH_ARGS = [
+export const LAUNCH_ARGS = [
   // Software WebGL everywhere, so pixels do not depend on the machine's GPU.
   '--use-angle=swiftshader',
   '--enable-unsafe-swiftshader',
@@ -153,7 +158,7 @@ const LAUNCH_ARGS = [
 ];
 
 /** One headless Chromium with the clip page loaded and prepared. */
-async function openWorker(
+export async function openWorker(
   url: string,
   job: unknown,
 ): Promise<{
