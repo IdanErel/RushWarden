@@ -43,7 +43,7 @@ Each map template is `maps/<id>.json`: 9 rows of 7 characters, top row first. `.
 `#` is a road with 1 lane each way, and `B` is the same road with a bus stop. Edges are inferred:
 every dead-end road runs straight off the grid and gets an edge there. Each template expands into
 its distinct mirrored and 180° variants (`-mx`, `-my`, `-r180`). See
-[ADR-015](../../docs/decisions/ADR-015-map-templates.md).
+[ADR-016](../../docs/decisions/ADR-016-map-templates.md).
 
 `pnpm test` runs every variant through the sim's `buildWorld` (ADR-012) and checks the district
 traits (D1: 4–6 intersections, 2 bus stops, every edge reachable from every other).

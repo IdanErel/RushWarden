@@ -1,4 +1,4 @@
-# ADR-015: Map template format and variants
+# ADR-016: Map template format and variants
 
 Status: Accepted · 2026-10-10 · Content Designer (P1-CON-03)
 

@@ -20,4 +20,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 011 | Card data format, schema and generated text             | Accepted |
 | 012 | World topology rules for maps                           | Proposed |
 | 014 | Effect union v2                                         | Accepted |
-| 015 | Map template format and variants                        | Accepted |
+| 016 | Map template format and variants                        | Accepted |

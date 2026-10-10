@@ -1,7 +1,7 @@
 /**
  * The map template JSON schema. A template is drawn as 9 rows of 7 characters (GDD §3 grid,
  * portrait): `.` block, `#` road with 1 lane each way, `B` the same road with a bus stop.
- * Edges are not drawn: every dead-end road reaches the boundary and gets an edge there (ADR-015).
+ * Edges are not drawn: every dead-end road reaches the boundary and gets an edge there (ADR-016).
  * This object is the single source; `schema/map.schema.json` is written from it.
  */
 import { GRID_HEIGHT, GRID_WIDTH } from '@rushwarden/sim';

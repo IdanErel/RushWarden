@@ -4,7 +4,7 @@
  * district's traits from GDD §5.
  *
  * Only the symmetries of the 7×9 rectangle are variants: identity, mirror left-right, mirror
- * top-bottom and the 180° rotation. A 90° turn would make the grid 9×7 (ADR-015).
+ * top-bottom and the 180° rotation. A 90° turn would make the grid 9×7 (ADR-016).
  */
 import {
   buildWorld,
