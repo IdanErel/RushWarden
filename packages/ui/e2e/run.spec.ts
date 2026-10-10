@@ -9,8 +9,11 @@ const attr = async (page: Page, k: string): Promise<string> =>
 async function selectPlayable(page: Page): Promise<number> {
   for (let i = 0; i < 5; i++) {
     await page.keyboard.press(String(i + 1));
+    // Wait for the selection to render before reading its targets (slow machines).
+    await expect(state(page)).toHaveAttribute('data-selected', String(i));
     if ((await attr(page, 'target-rects')) !== '[]') return i;
     await page.keyboard.press(String(i + 1)); // deselect
+    await expect(state(page)).toHaveAttribute('data-selected', '');
   }
   throw new Error('no playable card');
 }

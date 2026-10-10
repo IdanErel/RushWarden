@@ -212,7 +212,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const undo = useCallback(
     (i?: number) => {
       const n = i ?? s.placed.length - 1;
-      if (n < 0) return;
+      if (n < 0 || !run.canUndo(n)) return;
       run.undo(n);
       bump(0);
     },
@@ -431,6 +431,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
                   class="rw-chip"
                   style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
                   aria-label={t('place.undo', { name: p.card.name })}
+                  disabled={!run.canUndo(i)}
                   onClick={() => undo(i)}
                 >
                   ↶ {p.card.name}

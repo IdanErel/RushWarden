@@ -59,6 +59,7 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const card = run.state().hand[i]!;
     const target = run.targets(i)[0]!;
     run.place(i, target);
+    expect(run.canUndo(0)).toBe(true);
     let s = run.state();
     expect(s.placed.map((p) => p.card.id)).toEqual([card.id]);
     expect(targetKey(s.placed[0]!.target)).toBe(targetKey(target));
@@ -75,7 +76,8 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const run = devRun(3);
     const a = find(run);
     run.place(a, run.targets(a)[0]!);
-    const b = find(run);
+    // Not Recount: a redraw cannot be undone past (covered below).
+    const b = run.state().hand.findIndex((c, i) => c.id !== 'recount' && run.targets(i).length > 0);
     if (b < 0) return; // no second play affordable on this seed
     const second = run.state().hand[b]!.id;
     const t2 = run.targets(b)[0]!;
@@ -84,6 +86,36 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const s = run.state();
     expect(s.placed.map((p) => p.card.id)).toEqual([second]);
     expect(targetKey(s.placed[0]!.target)).toBe(targetKey(t2));
+  });
+
+  it('cannot undo past a Recount (ADR-018 point 8), and says so before the UI tries', () => {
+    let run = devRun(1);
+    let seed = 1;
+    // A seed whose opening hand has Recount and another card with a target.
+    for (; seed < 300; seed++) {
+      run = devRun(seed);
+      const ids = run.state().hand.map((c) => c.id);
+      const other = run
+        .state()
+        .hand.findIndex((c, i) => c.id !== 'recount' && run.targets(i).length > 0);
+      if (ids.includes('recount') && other >= 0) break;
+    }
+    expect(seed).toBeLessThan(300);
+    const other = run
+      .state()
+      .hand.findIndex((c, i) => c.id !== 'recount' && run.targets(i).length > 0);
+    run.place(other, run.targets(other)[0]!);
+    expect(run.canUndo(0)).toBe(true);
+    const r = run.state().hand.findIndex((c) => c.id === 'recount');
+    run.place(r, { kind: 'district' });
+    const before = run.state();
+    expect(before.placed.map((p) => p.card.id).at(-1)).toBe('recount');
+    expect(run.canUndo(0)).toBe(false);
+    expect(run.canUndo(1)).toBe(false);
+    run.undo(0);
+    run.undo(1);
+    expect(run.state()).toBe(before);
+    expect(run.canUndo(5)).toBe(false);
   });
 
   it('refuses a placement the controller rejects', () => {

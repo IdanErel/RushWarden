@@ -220,15 +220,26 @@ export class ControllerRun implements RunPort {
     this.marks.set(d.uid, target);
   }
 
+  canUndo(placedIndex: number): boolean {
+    const s = this.ctl.state;
+    if (this.going || s.phase !== 'place' || !s.plays[placedIndex]) return false;
+    // One controller undo per later play, back to and including this one. A redraw clears the
+    // controller's undo stack (ADR-018 point 8), so plays before it cannot be reached.
+    return s.undoStack.length >= s.plays.length - placedIndex;
+  }
+
   /**
    * Takes back play `placedIndex`. The controller undoes the last play only, so later plays are
-   * undone too and then replayed on the same targets.
+   * undone too and then replayed on the same targets. Refused (no change) when `!canUndo`.
    */
   undo(placedIndex: number): void {
+    if (!this.canUndo(placedIndex)) return;
     const s = this.ctl.state;
-    if (this.going || s.phase !== 'place' || !s.plays[placedIndex]) return;
     const later = s.plays.slice(placedIndex + 1).map((p) => p.card.uid);
-    for (let n = s.plays.length; n > placedIndex; n--) this.ctl.dispatch({ type: 'undo' });
+    for (let n = s.plays.length; n > placedIndex; n--) {
+      const r = this.ctl.dispatch({ type: 'undo' });
+      if (!r.ok) throw new Error(r.error);
+    }
     this.marks.delete(s.plays[placedIndex]?.card.uid ?? -1);
     for (const uid of later) {
       const mark = this.marks.get(uid);

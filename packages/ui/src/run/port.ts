@@ -73,7 +73,12 @@ export interface RunPort {
   targets(handIndex: number): readonly TargetMark[];
   /** Plays hand card `i` on `target`. Throws if not allowed (the UI only offers valid ones). */
   place(handIndex: number, target: TargetMark): void;
-  /** Takes back a card placed this round ("tap again to undo before Go"). */
+  /**
+   * Whether play `placedIndex` can still be taken back. False after a redraw (Recount) later in
+   * the round, which the rules never undo (ADR-018 point 8), and outside the place phase.
+   */
+  canUndo(placedIndex: number): boolean;
+  /** Takes back a card placed this round ("tap again to undo before Go"). No-op if `!canUndo`. */
   undo(placedIndex: number): void;
   /** The sim input for this round's Go phase, including the placements. */
   roundInput(): RoundInput;
