@@ -1,0 +1,20 @@
+{
+  "name": "@rushwarden/sim",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure deterministic integer-only traffic simulation. No DOM, no Pixi.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src test",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "~4.1.11",
+    "fast-check": "^4.10.2",
+    "vitest": "~4.1.11"
+  }
+}

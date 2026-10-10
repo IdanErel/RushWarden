@@ -1,0 +1,18 @@
+{
+  "name": "@rushwarden/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Game state machine, run controller, save/load, entitlement, analytics client, PortalAdapter.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src test",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@rushwarden/sim": "workspace:*"
+  }
+}

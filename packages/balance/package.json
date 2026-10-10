@@ -1,0 +1,19 @@
+{
+  "name": "@rushwarden/balance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless balance runner, drafter bots and report generator (GDD section 11).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@rushwarden/sim": "workspace:*",
+    "@rushwarden/content": "workspace:*"
+  }
+}

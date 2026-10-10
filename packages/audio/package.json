@@ -1,0 +1,16 @@
+{
+  "name": "@rushwarden/audio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web Audio synth, SFX definitions, music sequencer and mixer. No audio files.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {}
+}
