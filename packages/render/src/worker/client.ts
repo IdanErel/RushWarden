@@ -4,6 +4,11 @@
  * (wall time × speed), keeps a few ticks requested ahead from the worker, and releases one
  * snapshot per 50 ms of sim time (25 ms at 2×) to `onFrame`. The scene then interpolates between
  * the last two released snapshots, so playback is smooth and never ahead of the sim.
+ *
+ * Playback is paced by the wall clock, not by display frames: a slow frame releases every tick
+ * it covered (the scene draws only the newest, so frames are dropped, not the round slowed), the
+ * lookahead grows with the frame time, and time spent waiting on a late worker is caught up when
+ * its frames arrive. A 15 s round takes 15 s at 2 fps as at 60 fps.
  */
 import type { RoundInput, RoundResult } from '@rushwarden/sim';
 import { TICK_MS } from '../interpolate.js';
@@ -29,6 +34,11 @@ export function spawnSimWorker(): WorkerLike {
 
 /** Sim time requested ahead of playback, in ms; covers worker latency without adding lag. */
 const LOOKAHEAD_MS = 150;
+/**
+ * Longest wall-clock gap one `update` counts, in ms. A longer gap (a background tab, a debugger)
+ * resumes where it was instead of skipping the rest of the round.
+ */
+const MAX_GAP_MS = 2500;
 
 export class SimClient {
   private roundId = 0;
@@ -42,6 +52,8 @@ export class SimClient {
   private speed = 1;
   private acc = 0;
   private last: number | null = null;
+  /** Recent display frame time in ms (smoothed); sizes the lookahead. */
+  private frameMs = 1000 / 60;
 
   constructor(
     private readonly worker: WorkerLike,
@@ -68,8 +80,12 @@ export class SimClient {
     };
   }
 
-  /** Starts a round; any previous round is dropped. Playback begins on the next `update`. */
-  start(input: RoundInput): void {
+  /**
+   * Starts a round; any previous round is dropped. Pass `now` (the Go press) to count the round's
+   * time from then: on a slow device the first frame after Go can be a second away, and that time
+   * is caught up instead of added to the round. Without it, playback begins on the next `update`.
+   */
+  start(input: RoundInput, now?: number): void {
     this.roundId++;
     this.queue = [];
     this.ctrlQueue = [];
@@ -78,7 +94,8 @@ export class SimClient {
     this.running = true;
     this.paused = false;
     this.acc = 0;
-    this.last = null;
+    this.last = now ?? null;
+    this.frameMs = 1000 / 60;
     this.worker.postMessage({ type: 'start', roundId: this.roundId, input });
     this.request();
   }
@@ -120,7 +137,9 @@ export class SimClient {
       this.last = now;
       return;
     }
-    this.acc += (now - this.last) * this.speed;
+    const gap = Math.min(Math.max(now - this.last, 0), MAX_GAP_MS);
+    this.frameMs += (gap - this.frameMs) * 0.25;
+    this.acc += gap * this.speed;
     this.last = now;
     while (this.acc >= TICK_MS && this.queue.length > 0) {
       const f = this.queue.shift();
@@ -128,8 +147,9 @@ export class SimClient {
       this.acc -= TICK_MS;
       if (f) this.handlers.onFrame?.(f, now, c);
     }
-    // Starved (worker late): do not bank time, or playback would jump when frames arrive.
-    if (this.queue.length === 0) this.acc = Math.min(this.acc, TICK_MS);
+    // Starved (worker late): keep the time owed, up to one gap's worth, and catch up when the
+    // frames arrive, so a late worker drops frames rather than stretching the round.
+    if (this.queue.length === 0) this.acc = Math.min(this.acc, MAX_GAP_MS * this.speed);
     if (this.result && this.queue.length === 0) {
       const r = this.result;
       this.running = false;
@@ -142,7 +162,9 @@ export class SimClient {
 
   private request(): void {
     if (this.result) return;
-    const want = Math.ceil((LOOKAHEAD_MS * this.speed) / TICK_MS);
+    // Enough for the next two frames at the current frame time, plus the worker's latency.
+    const ahead = LOOKAHEAD_MS + 2 * this.frameMs + this.acc / this.speed;
+    const want = Math.ceil((ahead * this.speed) / TICK_MS);
     const need = Math.min(MAX_TICKS_PER_STEP, want - this.queue.length - this.inFlight);
     if (need <= 0) return;
     this.inFlight += need;

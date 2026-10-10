@@ -89,16 +89,54 @@ describe('SimClient over the shared protocol', () => {
     expect(client.currentSpeed).toBe(1);
   });
 
-  it('does not bank time while the worker is late', () => {
+  it('catches up the time a late worker cost, so the round is not stretched', () => {
     const w = memoryWorker(createSimWorkerHandler);
     const ticks: number[] = [];
     const client = new SimClient(w, { onFrame: (f) => ticks.push(f[0]!) });
     client.start(sampleInput(1));
     client.update(0);
     for (let t = 0; t < 1000; t += 16) client.update(t); // no flush: worker silent for 1 s
-    w.flush();
-    client.update(1016);
-    expect(ticks.length).toBeLessThanOrEqual(1);
+    // Once the worker answers, playback catches up to the wall clock within a few frames.
+    play(client, w, 1000, 500);
+    expect(ticks.length).toBeGreaterThanOrEqual(27);
+    expect(ticks.length).toBeLessThanOrEqual(31);
+    expect(ticks).toEqual(ticks.map((_, i) => i + 1));
+  });
+
+  it('counts the round from the Go press when start is given the time', () => {
+    const w = memoryWorker(createSimWorkerHandler);
+    const ticks: number[] = [];
+    const client = new SimClient(w, { onFrame: (f) => ticks.push(f[0]!) });
+    client.start(sampleInput(1), 0);
+    // The first display frame comes 1 s after Go (a slow device); then 60 fps.
+    play(client, w, 1000, 500);
+    expect(ticks.length).toBeGreaterThanOrEqual(28);
+    expect(ticks.length).toBeLessThanOrEqual(31);
+  });
+
+  it('plays a round in wall-clock time at any frame rate, 2× and pause included', () => {
+    for (const fps of [60, 10, 2]) {
+      const w = memoryWorker(createSimWorkerHandler);
+      let done = -1;
+      let t = 0;
+      const client = new SimClient(w, { onDone: () => (done = t) });
+      client.start(sampleInput(3));
+      const step = 1000 / fps;
+      // 5 s at 1×, a 3 s pause, then the rest at 2×.
+      for (; done < 0 && t < 60_000; t += step) {
+        if (t >= 5000 && t < 8000) client.pause();
+        else if (client.isPaused) {
+          client.resume();
+          client.setSpeed(2);
+        }
+        w.flush();
+        client.update(t);
+      }
+      // 300 ticks: 100 at 1× (5 s), then 200 at 2× (5 s), plus the 3 s pause = 13 s.
+      const expected = 5000 + 3000 + ((ROUND_TICKS - 100) * TICK_MS) / 2;
+      expect(done, `${fps} fps`).toBeGreaterThanOrEqual(expected - 2 * step - 100);
+      expect(done, `${fps} fps`).toBeLessThanOrEqual(expected + 2 * step + 200);
+    }
   });
 
   it('delivers every frame then the same result as a headless run', () => {
