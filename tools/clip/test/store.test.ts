@@ -47,19 +47,24 @@ function bounds(op: StoreOp): { x0: number; y0: number; x1: number; y1: number }
 describe('store assets', () => {
   const assets = storeAssets(frames());
 
-  it('has every GDD §12 Steam size, six screenshots and the itch cover', () => {
+  it('has every current Steamworks size (ADR-029), six promo images and the itch cover', () => {
     const sizes = assets.map((a) => `${a.store} ${a.width}x${a.height}`);
     for (const s of [
-      'steam 460x215',
-      'steam 231x87',
-      'steam 616x353',
-      'steam 374x448',
+      'steam 920x430',
+      'steam 462x174',
+      'steam 1232x706',
+      'steam 748x896',
+      'steam 1438x810',
+      'steam 600x900',
       'steam 3840x1240',
       'steam 1280x720',
       'itch 630x500',
     ])
       expect(sizes).toContain(s);
-    expect(sizes.filter((s) => s === 'steam 1920x1080')).toHaveLength(6);
+    expect(sizes.filter((s) => s === 'steam 920x430')).toHaveLength(2); // header + library header
+    expect(sizes.filter((s) => s === 'promo 1920x1080')).toHaveLength(6);
+    // Steam screenshots are gameplay captures from the run screen, not composed here.
+    expect(assets.some((a) => a.store === 'steam' && a.width === 1920)).toBe(false);
     expect(new Set(assets.map((a) => a.id)).size).toBe(assets.length);
     for (const a of assets) expect(a.id).toContain(`${a.width}x${a.height}`);
   });
@@ -94,16 +99,18 @@ describe('store assets', () => {
   });
 
   it('keeps text and logo off the library hero, and the logo transparent', () => {
-    const hero = assets.find((a) => a.id.startsWith('steam-hero'));
+    const hero = assets.find((a) => a.id.startsWith('steam-library-hero'));
     expect(hero?.ops.map((o) => o.op)).toEqual(['fill', 'image']);
-    const logo = assets.find((a) => a.id.startsWith('steam-logo'));
+    const bg = assets.find((a) => a.id.startsWith('steam-background'));
+    expect(bg?.ops.some((o) => o.op === 'stroke')).toBe(false);
+    const logo = assets.find((a) => a.id.startsWith('steam-library-logo'));
     expect(logo?.transparent).toBe(true);
     expect(logo?.ops.some((o) => o.op === 'image')).toBe(false);
   });
 
   it('names the game on every capsule, screenshot and cover', () => {
     for (const a of assets) {
-      if (a.id.startsWith('steam-hero')) continue;
+      if (a.id.startsWith('steam-library-hero') || a.id.startsWith('steam-background')) continue;
       expect(
         a.ops.some((o) => o.op === 'stroke'),
         a.id,
@@ -121,8 +128,8 @@ describe('store assets', () => {
 
   it('fails loudly on a missing frame', () => {
     const f = frames();
-    f.delete('jam');
-    expect(() => storeAssets(f)).toThrow(/no frame for shot "jam"/);
+    f.delete('jam-hi');
+    expect(() => storeAssets(f)).toThrow(/no frame for shot "jam-hi"/);
   });
 });
 
