@@ -26,7 +26,7 @@ import {
 
 function fakeResult(s: FakeTrafficState): RoundResult {
   return {
-    throughput: s.exited,
+    throughput: s.throughput,
     spawned: s.spawned,
     exited: s.exited,
     ticks: s.tick,
