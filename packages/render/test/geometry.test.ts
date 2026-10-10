@@ -92,6 +92,10 @@ describe('geometry', () => {
     expect(f.originX).toBe(2);
     expect(f.originY + f.heightPx).toBeLessThanOrEqual(600);
     expect(fitGrid(0, 0).tilePx).toBe(1);
+    // With the 6 px heat-strip gutter a 390 px phone still gets 54 px tiles.
+    const g = fitGrid(390, 600, 6);
+    expect(g.tilePx).toBe(54);
+    expect(g.originX).toBeGreaterThanOrEqual(6);
   });
 
   it('makes roads wider with more lanes but always inside a tile', () => {

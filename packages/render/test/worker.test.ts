@@ -183,4 +183,16 @@ describe('fake worker handler', () => {
     h({ type: 'abort', roundId: 4 });
     expect(out.at(-1)!.type).toBe('done');
   });
+
+  it('reports gridlock in the result for the Gridlock Drill jam mode', () => {
+    const out: FromSimWorker[] = [];
+    const h = createFakeWorkerHandler((m) => out.push(m));
+    const jam = {
+      ...input,
+      districtRules: { ...input.districtRules, boss: 'gridlock-drill' as const },
+    };
+    h({ type: 'start', roundId: 1, input: jam });
+    h({ type: 'finish', roundId: 1 });
+    expect(out.at(-1)).toMatchObject({ type: 'done', result: { gridlocked: true } });
+  });
 });

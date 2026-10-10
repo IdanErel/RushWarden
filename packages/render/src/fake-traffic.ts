@@ -10,6 +10,7 @@
  */
 import {
   CELLS_PER_TILE,
+  GRIDLOCK_TICKS,
   GRID_WIDTH,
   ROUND_TICKS,
   SNAPSHOT_HEADER,
@@ -17,6 +18,8 @@ import {
   VehicleType,
   createPrng,
   nextInt,
+  type DemandEvent,
+  type DemandProfile,
   type GridMap,
   type MapEdge,
   type PrngState,
@@ -47,10 +50,17 @@ const MIX: readonly (readonly [VehicleType, number])[] = [
 ];
 
 export interface FakeTrafficOptions {
-  /** Chance per edge per tick of trying to spawn, in per-mille. Default 150. */
+  /** Chance per edge per tick of trying to spawn, in per-mille. Default 150. Ignored with `demand`. */
   readonly spawnPermille?: number;
   /** Ticks before the round ends. Default ROUND_TICKS. */
   readonly ticks?: number;
+  /**
+   * Spawn exactly these events (vehicles wait at their edge while its first cell is busy), so
+   * heat-strips and traffic agree. Empty or absent: random spawns.
+   */
+  readonly demand?: DemandProfile;
+  /** Nothing may enter an intersection, so queues build until the gridlock detector fires. */
+  readonly jam?: boolean;
 }
 
 interface RouteStep {
@@ -86,6 +96,15 @@ export interface FakeTrafficState {
   readonly spawnPermille: number;
   readonly endTick: number;
   nextId: number;
+  /** Route per `from * 65536 + to` edge pair, for demand events. */
+  readonly routeByPair: ReadonlyMap<number, readonly RouteStep[]>;
+  readonly demand: DemandProfile;
+  demandIdx: number;
+  /** Demand events whose tick has come but whose edge was blocked. */
+  readonly waiting: DemandEvent[];
+  readonly jam: boolean;
+  stalled: number;
+  gridlocked: boolean;
 }
 
 const key = (s: RouteStep): number => s.lane * CELLS_PER_TILE + s.cell;
@@ -160,11 +179,14 @@ function pickType(prng: PrngState): VehicleType {
 
 export function init(map: GridMap, seed: number, opts: FakeTrafficOptions = {}): FakeTrafficState {
   const routes = new Map<number, RouteStep[][]>();
+  const routeByPair = new Map<number, RouteStep[]>();
   for (const from of map.edges) {
     const list: RouteStep[][] = [];
     for (const to of map.edges) {
       const r = buildRoute(map, from, to);
-      if (r) list.push(r);
+      if (!r) continue;
+      list.push(r);
+      routeByPair.set(from.id * 65536 + to.id, r);
     }
     routes.set(from.id, list);
   }
@@ -181,6 +203,13 @@ export function init(map: GridMap, seed: number, opts: FakeTrafficOptions = {}):
     spawnPermille: opts.spawnPermille ?? 150,
     endTick: opts.ticks ?? ROUND_TICKS,
     nextId: 1,
+    routeByPair,
+    demand: opts.demand ?? [],
+    demandIdx: 0,
+    waiting: [],
+    jam: opts.jam ?? false,
+    stalled: 0,
+    gridlocked: false,
   };
 }
 
@@ -218,7 +247,7 @@ export function step(st: FakeTrafficState): FakeTrafficState {
       const holder = st.occupied.get(key(next));
       if (holder !== undefined && holder !== v.id) break;
       const lock = st.locks.get(next.tile);
-      if (next.inIntersection && lock !== undefined && lock !== v.id) break;
+      if (next.inIntersection && (st.jam || (lock !== undefined && lock !== v.id))) break;
       move++;
     }
     if (exits) {
@@ -232,24 +261,89 @@ export function step(st: FakeTrafficState): FakeTrafficState {
   }
   st.vehicles.length = 0;
   st.vehicles.push(...keep);
-  // Spawns, in edge order.
+  if (st.demand.length > 0) spawnDemand(st);
+  else spawnRandom(st);
+  // Gridlock detector, as GDD §3: no vehicle moved for GRIDLOCK_TICKS consecutive ticks.
+  const moving = st.vehicles.some((v) => v.v > 0);
+  st.stalled = st.vehicles.length > 0 && !moving ? st.stalled + 1 : 0;
+  if (st.stalled >= GRIDLOCK_TICKS) {
+    st.gridlocked = true;
+    st.done = true;
+  }
+  st.tick++;
+  if (st.tick >= st.endTick) st.done = true;
+  return st;
+}
+
+function trySpawn(st: FakeTrafficState, type: VehicleType, route: readonly RouteStep[]): boolean {
+  const first = route[0];
+  if (!first || st.occupied.has(key(first))) return false;
+  const v: Vehicle = { id: st.nextId, type, len: VEHICLE_LENGTH[type], route, pos: 0, v: 0 };
+  st.nextId = st.nextId >= 0xffff ? 1 : st.nextId + 1;
+  occupy(st, v, true);
+  st.vehicles.push(v);
+  st.spawned++;
+  return true;
+}
+
+function spawnRandom(st: FakeTrafficState): void {
   for (const edge of [...st.routes.keys()].sort((a, b) => a - b)) {
     if (nextInt(st.prng, 1000) >= st.spawnPermille) continue;
     const list = st.routes.get(edge) ?? [];
     if (list.length === 0) continue;
     const route = list[nextInt(st.prng, list.length)];
     const type = pickType(st.prng);
-    const first = route?.[0];
-    if (!route || !first || st.occupied.has(key(first))) continue;
-    const v: Vehicle = { id: st.nextId, type, len: VEHICLE_LENGTH[type], route, pos: 0, v: 0 };
-    st.nextId = st.nextId >= 0xffff ? 1 : st.nextId + 1;
-    occupy(st, v, true);
-    st.vehicles.push(v);
-    st.spawned++;
+    if (route) trySpawn(st, type, route);
   }
-  st.tick++;
-  if (st.tick >= st.endTick) st.done = true;
-  return st;
+}
+
+function spawnDemand(st: FakeTrafficState): void {
+  while (st.demandIdx < st.demand.length) {
+    const ev = st.demand[st.demandIdx];
+    if (!ev || ev.tick > st.tick) break;
+    st.waiting.push(ev);
+    st.demandIdx++;
+  }
+  // One spawn per edge per tick, oldest first; the rest keep waiting.
+  const used = new Set<number>();
+  for (let i = 0; i < st.waiting.length;) {
+    const ev = st.waiting[i];
+    const route = ev && st.routeByPair.get(ev.edge * 65536 + ev.destinationEdge);
+    if (!ev || !route) {
+      st.waiting.splice(i, 1);
+      continue;
+    }
+    if (!used.has(ev.edge) && trySpawn(st, ev.vehicleType, route)) {
+      used.add(ev.edge);
+      st.waiting.splice(i, 1);
+      continue;
+    }
+    used.add(ev.edge);
+    i++;
+  }
+}
+
+/**
+ * A seeded demo demand profile for the dev page and tests: each edge has its own rush peak at a
+ * different second, so the heat-strips show distinct shapes. Not District 1's generator (CON-04).
+ */
+export function fakeDemand(map: GridMap, seed: number): DemandEvent[] {
+  const prng = createPrng((seed ^ 0x5eed) >>> 0);
+  const events: DemandEvent[] = [];
+  const edges = [...map.edges].sort((a, b) => a.id - b.id);
+  const peaks = edges.map(() => nextInt(prng, ROUND_TICKS));
+  for (let tick = 0; tick < ROUND_TICKS; tick++) {
+    edges.forEach((edge, i) => {
+      const d = Math.abs(tick - (peaks[i] ?? 0));
+      const rate = 30 + Math.max(0, 260 - d * 3); // per-mille per tick
+      if (nextInt(prng, 1000) >= rate || edges.length < 2) return;
+      let dest = edges[nextInt(prng, edges.length)];
+      if (dest?.id === edge.id) dest = edges[(i + 1) % edges.length];
+      if (!dest) return;
+      events.push({ tick, edge: edge.id, vehicleType: pickType(prng), destinationEdge: dest.id });
+    });
+  }
+  return events;
 }
 
 /** Snapshot in the `Sim.snapshot` format: `[tick, count, ...(id, lane, cell, speed, type)]`. */
