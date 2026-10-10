@@ -179,6 +179,13 @@
   gap: 6px;
   margin-bottom: 8px;
 }
+.rw-flip {
+  min-width: 44px;
+}
+.rw-chip-group {
+  display: inline-flex;
+  gap: 4px;
+}
 .rw-chip {
   border: 2px solid;
   background: var(--card);

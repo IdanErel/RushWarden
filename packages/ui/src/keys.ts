@@ -1,6 +1,6 @@
 /**
  * Keyboard map (GDD §8): 1–5 select cards, arrows move a target cursor, Enter places,
- * Space = Go, Esc = undo/pause. Pure: maps (phase, key) to an action the screen applies.
+ * Space = Go, Esc = undo/pause, R = flip the last placed One-Way. Pure: maps (phase, key) to an action the screen applies.
  */
 import type { Side } from '@rushwarden/sim';
 import type { Phase } from './run/port.js';
@@ -11,6 +11,8 @@ export type KeyAction =
   | { readonly type: 'confirm' }
   | { readonly type: 'go' }
   | { readonly type: 'undo' }
+  /** Turns the last placed One-Way round (GDD §4 "one-way in the chosen direction"). */
+  | { readonly type: 'flip' }
   | { readonly type: 'pause' }
   | { readonly type: 'skip' }
   | null;
@@ -32,6 +34,7 @@ export function keyAction(phase: Phase, key: string, overlayOpen = false): KeyAc
       if (key === 'Enter') return { type: 'confirm' };
       if (key === ' ' || key === 'Spacebar') return { type: 'go' };
       if (key === 'Escape' || key === 'Backspace') return { type: 'undo' };
+      if (key === 'r' || key === 'R') return { type: 'flip' };
       return null;
     case 'go':
       if (key === 'Escape' || key === 'p' || key === 'P') return { type: 'pause' };
