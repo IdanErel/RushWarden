@@ -1,5 +1,5 @@
-import { NullPortalAdapter } from '@gridlock/app';
-import { Sim, sampleInput } from '@gridlock/sim';
+import { NullPortalAdapter } from '@rushwarden/app';
+import { Sim, sampleInput } from '@rushwarden/sim';
 
 /**
  * Phase 0 web entry: proves the bundle boots and runs the sim in the browser.
@@ -12,7 +12,7 @@ async function boot(): Promise<void> {
   const el = document.getElementById('app');
   if (el) {
     el.dataset['hash'] = result.finalHash;
-    el.textContent = `Gridlock Royale · sim ok · ${result.ticks} ticks · ${result.finalHash}`;
+    el.textContent = `Rushwarden · sim ok · ${result.ticks} ticks · ${result.finalHash}`;
   }
 }
 

@@ -1,4 +1,4 @@
-import { Sim, sampleInput } from '@gridlock/sim';
+import { Sim, sampleInput } from '@rushwarden/sim';
 
 /** Number of seeded rounds in the golden suite (GDD section 3). */
 export const GOLDEN_ROUNDS = 200;

@@ -52,7 +52,7 @@ export class MemoryBackend implements SaveBackend {
   }
 }
 
-const KEY = 'gridlock-save';
+const KEY = 'rushwarden-save';
 
 /** Default `SaveStore` over any backend, with forward migrations. */
 export class JsonSaveStore implements SaveStore {

@@ -1,4 +1,4 @@
-# @gridlock/content
+# @rushwarden/content
 
 Cards, maps, districts, mayors and demand templates as JSON with schemas and loaders.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/content';
+import { PACKAGE } from '@rushwarden/content';
 console.log(PACKAGE.name);
 ```

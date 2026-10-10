@@ -1,4 +1,4 @@
-# @gridlock/platform-web
+# @rushwarden/platform-web
 
 Vite web entry with Poki, CrazyGames and itch adapters and the Stripe unlock.
 

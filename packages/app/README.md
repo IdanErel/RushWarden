@@ -1,4 +1,4 @@
-# @gridlock/app
+# @rushwarden/app
 
 Game state machine, run controller, save/load, entitlement, analytics client, and the
 `PortalAdapter` contract (GDD section 6). Interfaces are owned by the Lead; changes are announced
@@ -18,7 +18,12 @@ first (section 13, rule 6).
 ## Example
 
 ```ts
-import { JsonSaveStore, MemoryBackend, NullPortalAdapter, LockedEntitlement } from '@gridlock/app';
+import {
+  JsonSaveStore,
+  MemoryBackend,
+  NullPortalAdapter,
+  LockedEntitlement,
+} from '@rushwarden/app';
 
 const portal = new NullPortalAdapter();
 await portal.init();

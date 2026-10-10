@@ -1,4 +1,4 @@
-# @gridlock/ui
+# @rushwarden/ui
 
 Preact menus, store, settings, share card, codex, onboarding and i18n.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/ui';
+import { PACKAGE } from '@rushwarden/ui';
 console.log(PACKAGE.name);
 ```

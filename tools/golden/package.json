@@ -1,5 +1,5 @@
 {
-  "name": "@gridlock/golden",
+  "name": "@rushwarden/golden",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "update": "UPDATE_GOLDEN=1 vitest run"
   },
   "dependencies": {
-    "@gridlock/sim": "workspace:*"
+    "@rushwarden/sim": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

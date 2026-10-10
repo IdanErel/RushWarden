@@ -26,7 +26,7 @@ few choices the brief leaves open.
 | Backend         | Cloudflare Workers + D1 + KV, Wrangler                                                | Phase 3                                                                                                           |
 | Commits         | Conventional commits; squash merge; PR title linted by commitlint in CI               |                                                                                                                   |
 
-Package scope is `@gridlock/*`. Packages export TypeScript source (`exports: ./src/index.ts`);
+Package scope is `@rushwarden/*`. Packages export TypeScript source (`exports: ./src/index.ts`);
 bundlers and Vitest compile it, so there is no per-package build step until a package needs one.
 
 Non-null assertions (`!`) are allowed only in `packages/sim` and tests, where typed-array hot loops

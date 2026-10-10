@@ -1,4 +1,4 @@
-# @gridlock/audio
+# @rushwarden/audio
 
 Web Audio synth, SFX definitions, music sequencer and mixer. No audio files.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/audio';
+import { PACKAGE } from '@rushwarden/audio';
 console.log(PACKAGE.name);
 ```

@@ -4,10 +4,9 @@ Everything here is something only Idan can do: it costs money, signs a legal agr
 a store console. The team never does these. Prices are what the platforms publish as of
 October 2026; check the console before paying.
 
-`<NAME>` is the final game name and `<domain>` the domain you register (see
-[name-search.md](name-search.md); decision pending). `<bundle>` is the app ID, which we will set
-to `com.<domain-without-tld>.game` (e.g. `com.rushwarden.game`). **Do not create store listings
-until the name is final**: renaming a Play listing is possible, but the bundle ID is permanent.
+The game is **Rushwarden** (ADR-008). Domain `rushwarden.com`; app ID `com.rushwarden.game`
+(permanent once a store record exists). Get a trademark attorney's clearance, including EU and
+UK, before paying for listings; our screen is in [name-search.md](name-search.md).
 
 ## Order and when each is needed
 
@@ -26,7 +25,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
 
 ## 1. GitHub (today)
 
-1. Create an **empty private repository**, e.g. `IdanErel/gridlock-royale` (no README, no
+1. Create an **empty private repository**, e.g. `IdanErel/rushwarden` (no README, no
    licence; the scaffold is ready to push). Keep the slug even if the game is renamed.
 2. Make sure the Claude GitHub app can reach it: https://github.com/apps/claude/installations/select_target
 3. Settings → Branches → add a rule for `main`: require a pull request, require status checks
@@ -40,7 +39,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
 
 ## 2. Domain
 
-1. Register `<domain>` (`.com` preferred, `.game` as backup) at a registrar with free WHOIS
+1. Register `rushwarden.com` (`.com` preferred, `.game` as backup) at a registrar with free WHOIS
    privacy. Cloudflare Registrar sells at cost once you have the Cloudflare account (step 6).
 2. Point nameservers at Cloudflare.
 3. Reserve matching social handles (X, Bluesky, Reddit, TikTok, YouTube) at the same time.
@@ -50,7 +49,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
 1. Create an account; under "Dashboard → Create new project" make a **draft** project, kind HTML,
    embed 390×844, "Mobile friendly", fullscreen button on. Leave it unpublished.
 2. Settings → API keys → generate a key. GitHub secret: `BUTLER_API_KEY`. Variable:
-   `ITCH_TARGET` = `youruser/<slug>:html5`.
+   `ITCH_TARGET` = `youruser/rushwarden:html5`.
 3. You publish; CI only uploads builds to the draft channel.
 
 ## 4. Steamworks
@@ -73,7 +72,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
 
 ## 6. Cloudflare
 
-1. Create an account (free plan). Add `<domain>`.
+1. Create an account (free plan). Add `rushwarden.com`.
 2. Workers & Pages: nothing to create by hand; Wrangler in CI creates them.
 3. My Profile → API Tokens → create a token with "Edit Cloudflare Workers", D1 Edit, Workers KV
    Edit, Cloudflare Pages Edit, scoped to your account. GitHub secrets: `CLOUDFLARE_API_TOKEN`,
@@ -88,7 +87,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
 2. Enable **Stripe Tax** (Settings → Tax) and register where required.
 3. Create product "Full City", one-time price US$7.99.
 4. Developers → API keys: GitHub secrets `STRIPE_SECRET_KEY` (test mode first), and after we
-   deploy the Worker, a webhook endpoint `https://api.<domain>/license` for
+   deploy the Worker, a webhook endpoint `https://api.rushwarden.com/license` for
    `checkout.session.completed` → secret `STRIPE_WEBHOOK_SECRET`.
 
 ## 8. Apple Developer Program
@@ -97,7 +96,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
    name shown on the App Store will be your legal name).
 2. Sign the **Paid Applications Agreement** and complete tax and banking (required for IAP, even
    sandbox).
-3. Certificates, IDs & Profiles → register App ID `<bundle>`.
+3. Certificates, IDs & Profiles → register App ID `com.rushwarden.game`.
 4. App Store Connect → create the app record (name ≤ 30 chars), then In-App Purchases → create
    non-consumable `full_city`, US$7.99 tier.
 5. Users and Access → Integrations → App Store Connect API → generate a key (App Manager role).
@@ -110,7 +109,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
    created after Nov 2023 must run a **closed test with at least 12 testers for 14 consecutive
    days** before production; start recruiting early (section 12).
 2. Set up a payments profile (merchant) for IAP.
-3. Create the app with package name `<bundle>`, enroll in Play App Signing.
+3. Create the app with package name `com.rushwarden.game`, enroll in Play App Signing.
 4. Monetize → Products → In-app products: `full_city`, non-consumable, US$7.99.
 5. Create a Google Cloud service account with Play Console API access (Release manager).
    GitHub secret: `PLAY_SERVICE_ACCOUNT_JSON`. Upload keystore: we generate it; you store the
@@ -122,7 +121,7 @@ until the name is final**: renaming a Play listing is possible, but the bundle I
    Android app (needs the Play service account JSON).
 2. Create entitlement `full_city` and attach both store products; create an offering "default".
 3. GitHub secrets: `REVENUECAT_IOS_PUBLIC_KEY`, `REVENUECAT_ANDROID_PUBLIC_KEY` (public SDK keys),
-   and a webhook to `https://api.<domain>/revenuecat` with auth header secret
+   and a webhook to `https://api.rushwarden.com/revenuecat` with auth header secret
    `REVENUECAT_WEBHOOK_AUTH` for refunds/revocations.
 
 ## Secrets summary

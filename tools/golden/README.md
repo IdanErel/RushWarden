@@ -1,4 +1,4 @@
-# @gridlock/golden
+# @rushwarden/golden
 
 The golden determinism suite (GDD sections 3 and 11). 200 seeded rounds are simulated and their
 final hashes compared with `fixtures/hashes.json`. A mismatch fails CI.

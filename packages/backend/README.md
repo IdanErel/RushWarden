@@ -1,4 +1,4 @@
-# @gridlock/backend
+# @rushwarden/backend
 
 Cloudflare Workers: /daily, /leaderboard, /verify, /ingest, /license, /sync.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/backend';
+import { PACKAGE } from '@rushwarden/backend';
 console.log(PACKAGE.name);
 ```

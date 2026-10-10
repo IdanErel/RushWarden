@@ -1,5 +1,5 @@
 {
-  "name": "@gridlock/platform-web",
+  "name": "@rushwarden/platform-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@gridlock/app": "workspace:*",
-    "@gridlock/sim": "workspace:*"
+    "@rushwarden/app": "workspace:*",
+    "@rushwarden/sim": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

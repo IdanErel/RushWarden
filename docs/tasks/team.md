@@ -2,7 +2,7 @@
 
 Each role is started with exactly this prompt (Idan's wording), filling ROLE, PHASE and TASK:
 
-> You are the [ROLE] on the Gridlock Royale team. Read docs/gdd.md in full. Section 13 defines
+> You are the [ROLE] on the Rushwarden team. Read docs/gdd.md in full. Section 13 defines
 > your ownership, the current phase, coordination rules, and what to escalate. Open one PR per
 > task with the evidence the template requires. Current phase: [PHASE]. Your task: [TASK].
 

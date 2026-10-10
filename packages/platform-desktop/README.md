@@ -1,4 +1,4 @@
-# @gridlock/platform-desktop
+# @rushwarden/platform-desktop
 
 Electron shell with steamworks.js: ownership, achievements, cloud saves, input.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/platform-desktop';
+import { PACKAGE } from '@rushwarden/platform-desktop';
 console.log(PACKAGE.name);
 ```

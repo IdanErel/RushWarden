@@ -1,8 +1,8 @@
 /**
- * @gridlock/sim — the deterministic, integer-only traffic simulation (GDD section 3).
+ * @rushwarden/sim — the deterministic, integer-only traffic simulation (GDD section 3).
  *
  * ```ts
- * import { Sim } from '@gridlock/sim';
+ * import { Sim } from '@rushwarden/sim';
  * const result = Sim.simulate(input); // headless, e.g. balance runner or /verify
  *
  * let state = Sim.init(input);        // tick-by-tick, e.g. the render worker

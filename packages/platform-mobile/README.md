@@ -1,4 +1,4 @@
-# @gridlock/platform-mobile
+# @rushwarden/platform-mobile
 
 Capacitor shell for iOS and Android: RevenueCat, share sheet, haptics.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/platform-mobile';
+import { PACKAGE } from '@rushwarden/platform-mobile';
 console.log(PACKAGE.name);
 ```

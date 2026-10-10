@@ -1,4 +1,4 @@
-# Gridlock Royale
+# Rushwarden
 
 A traffic-simulation deckbuilding roguelite for web (Poki, CrazyGames, itch.io), iOS, Android and
 Steam, from one TypeScript codebase. The binding specification is [`docs/gdd.md`](docs/gdd.md).
@@ -12,7 +12,7 @@ pnpm lint && pnpm typecheck && pnpm test   # what CI runs first
 pnpm golden                                # 200-round determinism suite on Node
 pnpm golden:browsers                       # same on Chromium, WebKit, Firefox
 pnpm size                                  # web build + 7.5 MB gzipped budget
-pnpm --filter @gridlock/platform-web dev   # run the web build locally
+pnpm --filter @rushwarden/platform-web dev   # run the web build locally
 ```
 
 ## Layout (GDD section 6)

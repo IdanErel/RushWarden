@@ -1,4 +1,4 @@
-# @gridlock/balance
+# @rushwarden/balance
 
 Headless balance runner, drafter bots and report generator (GDD section 11).
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/balance';
+import { PACKAGE } from '@rushwarden/balance';
 console.log(PACKAGE.name);
 ```

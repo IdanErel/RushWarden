@@ -1,5 +1,5 @@
 {
-  "name": "@gridlock/platform-mobile",
+  "name": "@rushwarden/platform-mobile",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,6 +13,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@gridlock/app": "workspace:*"
+    "@rushwarden/app": "workspace:*"
   }
 }

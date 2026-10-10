@@ -1,5 +1,5 @@
 {
-  "name": "@gridlock/sim",
+  "name": "@rushwarden/sim",
   "version": "0.0.0",
   "private": true,
   "type": "module",

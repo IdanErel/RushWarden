@@ -49,9 +49,9 @@ describe('JsonSaveStore', () => {
     expect(await s.load()).toEqual({ version: 1, installId: 'uuid-1', settings: {}, slices: {} });
     await s.save({ version: 1, installId: 'a', settings: { music: 5 }, slices: {} });
     expect((await s.load()).settings).toEqual({ music: 5 });
-    b.data.set('gridlock-save', '{nope');
+    b.data.set('rushwarden-save', '{nope');
     expect((await s.load()).installId).toBe('uuid-1');
-    b.data.set('gridlock-save', JSON.stringify({ version: 99 }));
+    b.data.set('rushwarden-save', JSON.stringify({ version: 99 }));
     expect((await s.load()).version).toBe(1);
     await s.clear();
     expect(b.data.size).toBe(0);
@@ -60,7 +60,7 @@ describe('JsonSaveStore', () => {
   it('migrates older documents forward', async () => {
     const b = new MemoryBackend();
     b.data.set(
-      'gridlock-save',
+      'rushwarden-save',
       JSON.stringify({ version: 1, installId: 'a', settings: {}, slices: {} }),
     );
     const s = new JsonSaveStore(b, id, [(d) => ({ ...d, slices: { migrated: true } })], 2);

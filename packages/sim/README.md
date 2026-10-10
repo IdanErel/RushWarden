@@ -1,4 +1,4 @@
-# @gridlock/sim
+# @rushwarden/sim
 
 The deterministic, integer-only traffic simulation (GDD section 3). No DOM, no Pixi, no clock,
 no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim Engineer.
@@ -17,7 +17,7 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 ## Example
 
 ```ts
-import { Sim, sampleInput } from '@gridlock/sim';
+import { Sim, sampleInput } from '@rushwarden/sim';
 
 const result = Sim.simulate(sampleInput(42));
 console.log(result.throughput, result.finalHash);

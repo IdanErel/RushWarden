@@ -1,5 +1,5 @@
 {
-  "name": "gridlock-royale",
+  "name": "rushwarden",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.0",
@@ -11,10 +11,10 @@
     "lint": "turbo run lint && prettier --check .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "golden": "pnpm --filter @gridlock/golden run test:node",
-    "golden:browsers": "pnpm --filter @gridlock/golden run test:browsers",
-    "golden:update": "pnpm --filter @gridlock/golden run update",
-    "size": "pnpm --filter @gridlock/platform-web run build && node tools/size-budget/check.mjs",
+    "golden": "pnpm --filter @rushwarden/golden run test:node",
+    "golden:browsers": "pnpm --filter @rushwarden/golden run test:browsers",
+    "golden:update": "pnpm --filter @rushwarden/golden run update",
+    "size": "pnpm --filter @rushwarden/platform-web run build && node tools/size-budget/check.mjs",
     "format": "prettier --write .",
     "commitlint": "commitlint"
   },

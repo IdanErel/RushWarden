@@ -1,4 +1,4 @@
-# @gridlock/render
+# @rushwarden/render
 
 Pixi scene graph, tick interpolation, procedural sprite generation and effects.
 
@@ -12,6 +12,6 @@ the real API table and an example when the first feature lands.
 ## Example
 
 ```ts
-import { PACKAGE } from '@gridlock/render';
+import { PACKAGE } from '@rushwarden/render';
 console.log(PACKAGE.name);
 ```
