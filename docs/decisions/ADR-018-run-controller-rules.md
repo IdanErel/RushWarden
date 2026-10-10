@@ -1,0 +1,48 @@
+# ADR-018: Run controller rule readings
+
+Status: Accepted · 2026-10-10 · Platform Engineer (P1-BAL-01; the task moved from Sim by the Lead)
+
+GDD §2 and §4 fix the core loop and draft rules but leave some mechanics open. The run controller
+(`packages/app/src/run/`) reads them as follows. Content and balance tuning may change the numbers;
+changing a rule needs a new ADR.
+
+1. **Deck model.** A run has a draw pile, a hand, the cards played this round, and a spent pile.
+   Hands are drawn from the top of the draw pile. Unplayed cards go back to the bottom of the draw
+   pile ("unplayed cards return to the deck", §2). Played cards go to the spent pile, which is
+   shuffled into the draw pile when it runs out ("deck shuffles when empty", §4). There is no
+   discard pile in the player's view.
+2. **Picked offer cards** are shuffled into the draw pile at a random position, so they can show
+   up next round. Skipping gives +2 funds (§2). Offers come only after a passed round and never
+   after the last round.
+3. **Run-duration cards** stay in the deck. Their placement joins `CardState.runEffects` from the
+   next round on, and their `perRound` energy applies every later round.
+4. **Stacking** (§4): playing the same card on the same target as an earlier placement this round
+   or in `runEffects` is refused, so energy is not wasted. **Conflicting controllers**: when a
+   card with `setController` lands on an intersection that already received one this round, the
+   earlier card's paid energy is refunded. Its placement stays, and the sim lets the later one
+   win by `order`. The refunded card still counts toward the 2-play limit.
+5. **Quota** is `base[d] * (1000 + 110*(r-1)) * rush * mayor`, computed in per-mille integers and
+   rounded half up. **Funds** for a pass are +4, plus +1 per full 10% over quota with that bonus
+   capped at +6, plus `RoundResult.fundsDelta`.
+6. **Offers** roll rarity 60/30/10 per slot. They fall back to any eligible card when that rarity
+   has none, and never repeat a card within an offer. The pity rule (after round 3) replaces the
+   last slot with a random card of the deck's dominant tag if none was offered. Ties for the
+   dominant tag go to FLOW, MASS, TOLL, CHAOS, TEMPO in that order.
+7. **Run effects.**
+   - `drawModifier` adds cards to the next round's draw, once.
+   - `energyModifier` adds energy `now`, or once `next-round`, or every round (`perRound`). With
+     `replaced-signal`, it applies only when the intersection's current controller, from earlier
+     card plays, is a signal; maps do not author controllers yet.
+   - `costModifier` with `next` + `cost` makes the next N plays this round cost exactly `cost`.
+     With `delta`, it changes costs (never below 0) for the rest of the round, or for the run if
+     the card's duration is `run`.
+   - `redraw` puts the rest of the hand at the bottom of the draw pile and draws the same number.
+     With `keep: 1`, the player first picks one card to keep.
+   - Unspent energy does not carry over.
+8. **Undo** before Go restores the exact earlier state, including the PRNG, so undoing a Recount
+   and replaying it draws the same cards.
+9. **Seeds.** One xoshiro128** stream from the run seed drives shuffles, offers and round seeds.
+   Each round's seed is the next uint32 at round start. Map and demand are set up from that seed
+   at round start, so the heat-strip can be shown before placement (§2).
+10. **Win and loss.** Approval 0 ends the run as a loss immediately. Surviving the last round
+    (5 in the toy, 12 in a full run, ADR-007) is a win.
