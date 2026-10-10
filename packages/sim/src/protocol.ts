@@ -1,4 +1,4 @@
-import { init, result, snapshot, step } from './sim.js';
+import { controllerSnapshot, init, result, snapshot, step } from './sim.js';
 import type { RoundInput, RoundResult, SimState } from './types.js';
 
 /**
@@ -21,8 +21,19 @@ export type ToSimWorker =
 
 /** Messages the worker sends to the main thread. */
 export type FromSimWorker =
-  /** Snapshots for consecutive ticks, oldest first (see `Sim.snapshot` for the layout). */
-  | { readonly type: 'frames'; readonly roundId: number; readonly frames: readonly Uint16Array[] }
+  /**
+   * Snapshots for consecutive ticks, oldest first (see `Sim.snapshot` for the layout).
+   * `controllers[k]` is `Sim.controllerSnapshot` after the same tick as `frames[k]`:
+   * `[kind, greenMask, boxCount]` per intersection (ADR-020). The sim worker always sends it;
+   * it is optional so other producers (the renderer's fake traffic) may omit it. Until P1-SIM-05
+   * wires the cards, every intersection is uncontrolled: kind 0, mask 0, only boxCount moves.
+   */
+  | {
+      readonly type: 'frames';
+      readonly roundId: number;
+      readonly frames: readonly Uint16Array[];
+      readonly controllers?: readonly Uint8Array[];
+    }
   /** Sent once, after the last frames of the round. `frames` is never included here. */
   | { readonly type: 'done'; readonly roundId: number; readonly result: RoundResult }
   | { readonly type: 'error'; readonly roundId: number; readonly message: string };
@@ -44,17 +55,19 @@ export function createSimWorkerHandler(post: PostFromWorker): (msg: ToSimWorker)
   const advance = (ticks: number): void => {
     if (!state) return;
     const frames: Uint16Array[] = [];
+    const controllers: Uint8Array[] = [];
     let n = 0;
     while (!state.done && n < ticks) {
       state = step(state);
       frames.push(snapshot(state));
+      controllers.push(controllerSnapshot(state));
       n++;
     }
     if (frames.length > 0) {
-      post(
-        { type: 'frames', roundId, frames },
-        frames.map((f) => f.buffer as ArrayBuffer),
-      );
+      post({ type: 'frames', roundId, frames, controllers }, [
+        ...frames.map((f) => f.buffer as ArrayBuffer),
+        ...controllers.map((c) => c.buffer as ArrayBuffer),
+      ]);
     }
     if (state.done) {
       const { frames: _ignored, ...rest } = result(state);
