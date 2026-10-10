@@ -1,6 +1,6 @@
 # ADR-016: Map template format and variants
 
-Status: Accepted · 2026-10-10 · Content Designer (P1-CON-03)
+Status: Accepted · 2026-10-10 · Lead (proposed by Content Designer, P1-CON-03)
 
 GDD §3 says maps are seeded per district "from a template bank of 12 layouts per district with
 mirrored and rotated variants", and §5 gives each district's traits. The file format, which
