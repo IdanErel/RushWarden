@@ -27,7 +27,6 @@ export {
   type SimClientHandlers,
 } from './worker/client.js';
 export {
-  HEAT_GUTTER_PX,
   TrafficScene,
   type ControllerMark,
   type SceneStats,

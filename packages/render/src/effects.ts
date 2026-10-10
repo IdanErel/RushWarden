@@ -61,6 +61,17 @@ export function shakeOffset(elapsed: number, prefs: MotionPrefs): [number, numbe
 /** Desaturated red applied as a tint to stopped vehicles during gridlock. */
 export const GRIDLOCK_TINT = 0xd27b6e;
 
+/**
+ * Heat-strip thickness floor in CSS px (Lead's decision, ADR-015): at least 6 px at the 390 px
+ * design width, so the strip reads as a profile rather than a hairline.
+ */
+export const HEAT_STRIP_MIN_PX = 6;
+/**
+ * Space kept around the grid for the demand heat-strips, in px. The strip fills it edge to edge:
+ * any wider gutter drops a 390 px phone from 54 px to 53 px tiles, and the car under 12 px.
+ */
+export const HEAT_GUTTER_PX = HEAT_STRIP_MIN_PX;
+
 /** Seconds in a round, one heat-strip bin each (15). */
 export const HEAT_BINS = ROUND_TICKS / TICKS_PER_SECOND;
 
@@ -111,17 +122,16 @@ export function stripRect(
 ): { x: number; y: number; w: number; h: number; horizontal: boolean } {
   const { x, y } = edge.tile;
   const len = 0.9;
-  const thick = gutter * 0.8;
-  const inset = gutter * 0.1;
+  // The strip fills the gutter (see HEAT_GUTTER_PX); it starts where the grid ends.
   switch (edge.side) {
     case 'n':
-      return { x: x + 0.05, y: -gutter + inset, w: len, h: thick, horizontal: true };
+      return { x: x + 0.05, y: -gutter, w: len, h: gutter, horizontal: true };
     case 's':
-      return { x: x + 0.05, y: gridH + inset, w: len, h: thick, horizontal: true };
+      return { x: x + 0.05, y: gridH, w: len, h: gutter, horizontal: true };
     case 'w':
-      return { x: -gutter + inset, y: y + 0.05, w: thick, h: len, horizontal: false };
+      return { x: -gutter, y: y + 0.05, w: gutter, h: len, horizontal: false };
     case 'e':
     default:
-      return { x: gridW + inset, y: y + 0.05, w: thick, h: len, horizontal: false };
+      return { x: gridW, y: y + 0.05, w: gutter, h: len, horizontal: false };
   }
 }

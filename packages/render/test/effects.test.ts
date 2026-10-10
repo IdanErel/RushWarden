@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { GRID_HEIGHT, GRID_WIDTH, ROUND_TICKS, emptyMap, type MapEdge } from '@rushwarden/sim';
 import {
   HEAT_BINS,
+  HEAT_GUTTER_PX,
   HEAT_LEVELS,
+  HEAT_STRIP_MIN_PX,
   PULSE_PERIOD_MS,
   SHAKE_MS,
   SHAKE_PX,
@@ -16,6 +18,7 @@ import {
   trailCells,
 } from '../src/effects.js';
 import { OLD_TOWN, luminance } from '../src/palette.js';
+import { fitGrid } from '../src/geometry.js';
 
 const normal = { reducedMotion: false };
 const reduced = { reducedMotion: true };
@@ -123,5 +126,17 @@ describe('demand heat-strips', () => {
       expect(Math.max(r.w, r.h)).toBeLessThanOrEqual(1);
       expect(Math.min(r.w, r.h)).toBeLessThanOrEqual(g);
     }
+  });
+
+  it('draws strips at least 6 px thick at the 390 px design width (ADR-015)', () => {
+    const tilePx = fitGrid(390, 844 * 0.7, HEAT_GUTTER_PX).tilePx;
+    for (const e of map.edges as MapEdge[]) {
+      const r = stripRect(e, GRID_WIDTH, GRID_HEIGHT, HEAT_GUTTER_PX / tilePx);
+      expect(Math.min(r.w, r.h) * tilePx).toBeGreaterThanOrEqual(HEAT_STRIP_MIN_PX - 1e-9);
+      // ...and still inside the gutter, clear of the grid.
+      const outside = r.y + r.h <= 0 || r.y >= GRID_HEIGHT || r.x + r.w <= 0 || r.x >= GRID_WIDTH;
+      expect(outside).toBe(true);
+    }
+    expect(HEAT_STRIP_MIN_PX).toBe(6);
   });
 });

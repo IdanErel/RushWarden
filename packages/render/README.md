@@ -14,7 +14,7 @@ receives per-tick `Uint16Array` snapshots through the shared protocol in `@rushw
 | `SimClient(worker, { onFrame, onDone, onError })`                                           | Main-thread side of the worker protocol. Owns timing: call `update(now)` per frame (or `scene.attach(client)`); `start`, `pause`, `resume`, `setSpeed`, `stop`, `dispose`.                                                                                                                 |
 | `spawnSimWorker()` / `spawnFakeWorker()`                                                    | Worker factories (real sim; fake traffic for dev and tests).                                                                                                                                                                                                                               |
 | `SnapshotBuffer`                                                                            | Last-two-snapshot interpolation; never predicts past the newest snapshot.                                                                                                                                                                                                                  |
-| `LaneLayout`, `tileLaneLayout(map)`                                                         | (lane, cell) → map point. `tileLaneLayout` is provisional (see below).                                                                                                                                                                                                                     |
+| `LaneLayout`, `worldLaneLayout(world)`, `tileLaneLayout(map)`                               | (lane, cell) → map point. `worldLaneLayout` reads the sim's lanes (scene default); `tileLaneLayout` is for fake traffic only.                                                                                                                                                              |
 | `vehicleShapes`, `controllerShapes`, `drawShapes`                                           | Shape grammar as data, and its Pixi drawer. Reused by card glyphs and `/dev/style`.                                                                                                                                                                                                        |
 | `OLD_TOWN`, `contrast`                                                                      | District 1 palette tokens and the WCAG contrast check.                                                                                                                                                                                                                                     |
 | `FakeTraffic`, `createFakeWorkerHandler`                                                    | Deterministic fake traffic in the `Sim.snapshot` format, until the sim spawns vehicles.                                                                                                                                                                                                    |
@@ -60,8 +60,15 @@ of every glyph and vehicle). Query: `seed`, `speed`, `ctrl`, `source=fake|sim`, 
 phone screenshots to `test-results/shots/` (`SHOT_DIR` overrides; `PW_CHROMIUM_PATH` for a local
 Chromium).
 
-## Open interface
+## Lane geometry
 
-`tileLaneLayout` numbers lanes per tile and direction (`tileLaneId`). When the sim's world
-(P1-SIM-01, ADR-012) lands on `main`, a `worldLaneLayout(world)` adapter over its `Link`/`Lane`
-geometry replaces it; only `lanes.ts` and the fake traffic change. ADR-015 records the plan.
+`worldLaneLayout(buildWorld(map))` places sim snapshots using `locateCell` (ADR-012 numbering).
+Intersection box lanes from P1-SIM-02 (#23) are drawn on a straight line from the approach cell to
+the exit cell. `FakeTraffic` still numbers lanes per tile (`tileLaneId`) and is paired with
+`tileLaneLayout`; both go when the sim spawns vehicles. ADR-015 records this.
+
+## Status
+
+Done: map, glyphs, vehicles, worker playback, interpolation, sim lane geometry (P1-REN-01); §7
+motion feedback (trails, queue pulse, gridlock red and shake), demand heat-strips at least 6 px
+thick, and §8 reduced motion (P1-REN-02). Not yet measured: frame time at 120 vehicles (§6).

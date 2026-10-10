@@ -11,6 +11,7 @@ import {
   vehicleShapes,
   type Shape,
 } from '../src/shapes.js';
+import { HEAT_GUTTER_PX } from '../src/effects.js';
 
 function bounds(shapes: Shape[]): { x0: number; x1: number; y0: number; y1: number } {
   let x0 = Infinity;
@@ -66,16 +67,26 @@ describe('vehicle shapes (GDD §7)', () => {
   });
 
   it('draws a car at least 12 px long on a 390 px wide phone', () => {
-    // The scene keeps a 6 px heat-strip gutter (HEAT_GUTTER_PX).
-    const cellPx = fitGrid(390, 600, 6).tilePx / CELLS_PER_TILE;
+    // The scene keeps a heat-strip gutter (HEAT_GUTTER_PX) around the grid.
+    const cellPx = fitGrid(390, 600, HEAT_GUTTER_PX).tilePx / CELLS_PER_TILE;
     const b = bounds(vehicleShapes(VehicleType.Car));
     expect((b.x1 - b.x0) * cellPx).toBeGreaterThanOrEqual(12);
   });
 
-  it('gives every type a distinct shape signature', () => {
+  it('tells every type apart by shape alone, ignoring colour (§7)', () => {
+    const r = (n: number): string => n.toFixed(2);
     const sig = (t: number): string =>
       vehicleShapes(t)
-        .map((s) => `${s.kind}:${s.fill ?? ''}`)
+        .map((s) => {
+          switch (s.kind) {
+            case 'rect':
+              return `rect:${r(s.x)},${r(s.y)},${r(s.w)},${r(s.h)}`;
+            case 'circle':
+              return `circle:${r(s.x)},${r(s.y)},${r(s.r)}`;
+            case 'poly':
+              return `poly:${s.points.map(r).join(',')}`;
+          }
+        })
         .join('|');
     expect(new Set(TYPES.map(sig)).size).toBe(TYPES.length);
   });

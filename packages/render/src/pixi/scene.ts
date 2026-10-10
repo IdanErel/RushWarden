@@ -10,6 +10,7 @@ import {
   GRID_WIDTH,
   ROUND_TICKS,
   VehicleType,
+  buildWorld,
   type ControllerKind,
   type DemandProfile,
   type GridMap,
@@ -28,12 +29,13 @@ import {
   type ViewFit,
 } from '../geometry.js';
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
-import { tileLaneLayout, type LaneLayout } from '../lanes.js';
+import { worldLaneLayout, type LaneLayout } from '../lanes.js';
 import { OLD_TOWN, type Palette } from '../palette.js';
 import { VEHICLE_LENGTH, controllerShapes, vehicleOutline, vehicleShapes } from '../shapes.js';
 import {
   GRIDLOCK_TINT,
   HEAT_BINS,
+  HEAT_GUTTER_PX,
   demandBins,
   heatLevel,
   maxBin,
@@ -59,16 +61,13 @@ export interface TrafficSceneOptions {
   readonly width: number;
   readonly height: number;
   readonly palette?: Palette;
-  /** Defaults to the provisional `tileLaneLayout(map)`. */
+  /** Defaults to `worldLaneLayout(buildWorld(map))`, the sim's own lanes. */
   readonly layout?: LaneLayout;
   /** Device pixel ratio; defaults to `window.devicePixelRatio`. */
   readonly resolution?: number;
   /** GDD §8 reduced-motion mode: no shake, no trails, steady queue outline. */
   readonly reducedMotion?: boolean;
 }
-
-/** Space kept around the grid for the demand heat-strips, in px. */
-export const HEAT_GUTTER_PX = 6;
 
 /** One drawn vehicle: the shared-context body plus its queue-pulse outline. */
 interface VehicleView {
@@ -125,7 +124,7 @@ export class TrafficScene {
     this.app = app;
     this.map = opts.map;
     this.palette = opts.palette ?? OLD_TOWN;
-    this.buffer = new SnapshotBuffer(opts.layout ?? tileLaneLayout(opts.map));
+    this.buffer = new SnapshotBuffer(opts.layout ?? worldLaneLayout(buildWorld(opts.map)));
     this.motion = { reducedMotion: opts.reducedMotion ?? false };
     this.fit = fitGrid(opts.width, opts.height, HEAT_GUTTER_PX);
     this.world.addChild(
@@ -182,7 +181,7 @@ export class TrafficScene {
     this.drawGlyphs();
   }
 
-  setMap(map: GridMap, layout: LaneLayout = tileLaneLayout(map)): void {
+  setMap(map: GridMap, layout: LaneLayout = worldLaneLayout(buildWorld(map))): void {
     this.map = map;
     this.buffer.setLayout(layout);
     this.buffer.reset();

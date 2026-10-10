@@ -20,6 +20,7 @@ import {
   spawnFakeWorker,
   spawnSimWorker,
   TrafficScene,
+  tileLaneLayout,
   VEHICLE_LENGTH,
   controllerShapes,
   drawShapes,
@@ -59,6 +60,8 @@ async function boot(): Promise<void> {
     width: WIDTH,
     height: SCENE_H,
     reducedMotion,
+    // Fake traffic uses the renderer's per-tile lane ids; the real sim uses its world's lanes.
+    ...(source === 'fake' ? { layout: tileLaneLayout(map) } : {}),
   });
   scene.setControllers([{ x: 3, y: 4, kind: ctrl, direction: 'e' }]);
   scene.setSpeed(speed);
