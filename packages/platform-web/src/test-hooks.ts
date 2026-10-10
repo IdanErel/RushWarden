@@ -48,7 +48,8 @@ export type PortalCall =
   | 'commercialBreak'
   | 'happyTime'
   | 'shareUrl'
-  | 'canSellInPortal';
+  | 'canSellInPortal'
+  | 'openExternalLink';
 
 /**
  * H4: a `PortalAdapter` that records every call in order into `calls`, then delegates to
@@ -97,6 +98,10 @@ export class SpyPortalAdapter implements WebPortalAdapter {
     this.calls.push('canSellInPortal');
     return this.inner.canSellInPortal();
   }
+  openExternalLink(url: string): void {
+    this.calls.push('openExternalLink');
+    this.inner.openExternalLink(url);
+  }
 }
 
 /** A stand-in portal with a given identity and no SDK, for `?portalSpy=<id>`. */
@@ -117,6 +122,8 @@ class StandInPortal implements WebPortalAdapter {
   canSellInPortal(): boolean {
     return SELLS_IN_PORTAL[this.id];
   }
+  /** No SDK and no new tab: specs check the call in `__portalCalls`. */
+  openExternalLink(): void {}
 }
 
 /**

@@ -8,6 +8,12 @@ import type { PortalAdapter } from '@rushwarden/app';
 export interface WebPortalAdapter extends PortalAdapter {
   /** Tells the portal the game finished loading and the first screen is interactive. */
   loadingFinished(): void;
+  /**
+   * Opens an external https link (the privacy policy) in a new tab, the way the portal requires:
+   * Poki through `PokiSDK.openExternalLink`, elsewhere `window.open` with no opener. Anything
+   * that is not an https URL is ignored.
+   */
+  openExternalLink(url: string): void;
 }
 
 /** Where an adapter finds the SDK global and how it loads the SDK script. Tests pass fakes. */
@@ -18,6 +24,8 @@ export interface AdapterEnv {
   loadScript(url: string): Promise<void>;
   /** How long to wait for the script and for SDK promises before booting without the SDK. */
   readonly timeoutMs: number;
+  /** Opens `url` in a new tab with no opener. Absent in tests that never open links. */
+  openWindow?(url: string): void;
 }
 
 /** Options every web adapter takes. */
@@ -26,6 +34,15 @@ export interface WebAdapterOptions {
   readonly shareUrl: string;
   /** Overrides for tests; the default uses `globalThis` and `document`. */
   readonly env?: AdapterEnv;
+}
+
+/** External links must be https (ADR-024 point 5: the privacy policy is the only one today). */
+export function isHttpsUrl(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /** Reads a property from an unknown object without trusting its type. */
