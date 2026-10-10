@@ -2,6 +2,9 @@
 
 Status: Accepted · 2026-10-10 · Lead
 
+Idan delegated these privacy defaults to the Lead on 2026-10-10 ('why do I need to give privacy
+details? You can do that yourself'); only the developer name and contact email remain his.
+
 ADR-009 left consent in the EU/UK, retention and opt-out to the published policy, and the
 privacy draft (`docs/legal/privacy.md`) listed them as open questions. This ADR picks the
 defaults. Only the developer's legal name and contact email remain for Idan.
@@ -9,14 +12,19 @@ defaults. Only the developer's legal name and contact email remain for Idan.
 ## The law in short (read 2026-10-10)
 
 - **EU (ePrivacy Art. 5(3)).** The EDPB's
-  [Guidelines 2/2023 on the technical scope of Art. 5(3)](https://www.edpb.europa.eu/system/files/2024-10/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_v2_en_0.pdf)
-  say storage need not persist (para 37: no "upper or lower limit on the length of time"), RAM
-  counts (para 38), and JavaScript that "instructs the browser of the user to send asynchronous
-  requests" is access that "clearly falls within the scope of Article 5(3)" (para 33). There is
+  [Guidelines 2/2023 on the technical scope of Art. 5(3), version 2.0](https://www.edpb.europa.eu/system/files/documents/2024-10/edpb_guidelines_202302_technical_scope_art_53_eprivacydirective_v2_en_0.pdf)
+  (landing page:
+  [edpb.europa.eu](https://www.edpb.europa.eu/documents/guideline/guidelines-22023-on-technical-scope-of-art-53-of-eprivacy-directive_en))
+  say: "The ePD does not place any upper or lower limit on the length of time that information
+  must persist on a storage medium to be counted as stored" (para 37); "the notion of storage
+  does not depend on the type of medium on which the information is stored" (para 38); and
+  access also covers software the entity "distributes ... on the terminal equipment of the
+  user" that "will then proactively call an Application Programming Interface ('API') endpoint
+  over the network" (para 33), which is what our analytics client does. There is
   no EU-wide first-party analytics exemption, so a random install ID in `localStorage`, and
   even an ID kept only in memory, needs consent unless it is strictly necessary. Analytics is
   not strictly necessary to play.
-- **UK (PECR as amended by the Data (Use and Access) Act 2025, in force 5 February 2026).** The
+- **UK (PECR as amended by the Data (Use and Access) Act 2025, commenced in 2026).** The
   ICO's [exceptions guidance](https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guidance-on-the-use-of-storage-and-access-technologies/what-are-the-exceptions/)
   adds a "statistical purposes" exception for information society services, including apps:
   allowed without consent if the sole purpose is statistics "about how the service is used",
@@ -41,8 +49,9 @@ defaults. Only the developer's legal name and contact email remain for Idan.
      and still has to treat "unknown" as EU; ID-less analytics still falls under Art. 5(3) per
      the EDPB and cannot measure a session; the UK statistical exception does not cover the EU.
      One opt-in rule is the safest and the simplest to build and test.
-   - Cost: Phase 1 criterion 1 is measured on players who said yes. QA reports the yes rate
-     next to the median (ADR-010 is otherwise unchanged).
+   - Cost, a caveat on Phase 1 criterion 1: session length comes only from players who opted
+     in, so it skews toward engaged players. QA reports the yes rate beside the median, and the
+     gate one-pager (P1-QA-04) shows both to Idan (ADR-010 is otherwise unchanged).
 2. **Legal basis: consent** (GDPR Art. 6(1)(a)), the same consent as point 1. Withdrawing is as
    easy as giving it (Art. 7(3)): the Privacy panel has an on/off switch.
 3. **Portal builds collect nothing** (ADR-024 point 4). Analytics exists only on itch and our

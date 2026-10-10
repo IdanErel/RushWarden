@@ -135,10 +135,10 @@ anyone.
   to you, and they are deleted when the 90 days above end.
 - You can contact us about this data at any time at [contact email].
 
-If you are in the EU, UK or a similar jurisdiction, you have the right to access, correct, delete
-or object to the processing of personal data about you, and to complain to your data protection
-authority. You can also withdraw your consent at any time, which does not affect what was sent
-before.
+If you are in the EU, UK or a similar jurisdiction, you have the right to access, correct and delete
+personal data about you, to receive a copy of it in a portable format, and to complain to your
+data protection authority. You can also withdraw your consent at any time, which does not affect
+what was sent before.
 
 ## Children
 

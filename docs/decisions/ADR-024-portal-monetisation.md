@@ -1,6 +1,7 @@
 # ADR-024: What Poki and CrazyGames allow for a no-ads, one-unlock game
 
-Status: Accepted · 2026-10-10 · Lead
+Status: Accepted · 2026-10-10 · Lead, except decision 2, which is Proposed (Idan): decision card
+posted 2026-10-10, recommended free District 1 demo, non-exclusive only.
 
 GDD §1 constraint 2 says "No ads, ever" and one unlock purchase. §9 plans the unlock on
 CrazyGames through its IAP, and on Poki an unlock button that deep-links to the stores and the
@@ -98,14 +99,20 @@ Sources: [Requirements](https://docs.crazygames.com/requirements/intro/),
 1. **Ad calls.** ADR-013 stands: no portal build calls `commercialBreak`, `rewardedBreak` or
    `SDK.ad.*`. The team never adds them; if a portal requires them, the portal is dropped for
    that phase, not the pillar.
-2. **Poki is a test channel and a free demo channel only.** The Phase 1 player-fit test goes
+2. **Proposed (Idan): decision card posted 2026-10-10, recommended free District 1 demo,
+   non-exclusive only.** Poki is a test channel and a free demo channel only. The Phase 1 player-fit test goes
    ahead. A later Poki release, if any, is District 1 only, with no unlock button, no price, no
    purchase UI and no outgoing links (the share uses `shareableURL`). `canSellInPortal()` stays
    `false`. The §9 row "on Poki, the unlock CTA deep-links to the stores and the website" is
    replaced by this. Any Poki deal must be **non-exclusive** (flat fee or none); a web-exclusive
-   deal needs Idan's decision, since it would remove itch, our website and CrazyGames.
-3. **CrazyGames starts in Basic Launch with no unlock.** Same District 1 build as Poki, with
-   `canSellInPortal()` returning `false` until CrazyGames invites the game to IAP. If invited,
+   deal needs Idan's decision, since it would remove itch, our website and CrazyGames. Until
+   Idan answers, nothing depends on this beyond the Phase 1 player-fit test, which fits either
+   way.
+3. **CrazyGames starts in Basic Launch with no unlock.** This is not a choice we make: in-game
+   purchases are invite-only under CrazyGames' own policy ("In-game purchases are an invite only
+   feature"), so at launch the §9 "unlock via CrazyGames IAP" cannot exist. It reverts to §9 when
+   CrazyGames invites us. Same District 1 build as Poki, with `canSellInPortal()` returning
+   `false` until that invitation (a reversible change). If invited,
    the unlock uses only CrazyGames' Xsolla flow, requires the player to sign in to CrazyGames
    (a CrazyGames account, not a Rushwarden one, so constraint 6 holds), stores the entitlement
    with the CrazyGames account ID, and is hidden in the CrazyGames mobile apps. That work is a
