@@ -7,6 +7,7 @@ import type {
   PrngState,
   RoundInput,
   RoundResult,
+  SegmentId,
   Target,
 } from '@rushwarden/sim';
 
@@ -125,6 +126,10 @@ export interface RunState {
   readonly rush: boolean;
   readonly boss: BossCondition | null;
   readonly quota: number;
+  /** Segments closed for the round (the Parade boss, ADR-021/ADR-022), from `setupRound`. */
+  readonly closedSegments: readonly SegmentId[];
+  /** The round's NaSch p_slow (GDD §3 rule 3) from the district rules `setupRound` returns. */
+  readonly pSlowPermille: number;
 
   // Run-level effects.
   readonly runEffects: readonly Placement[];
@@ -165,7 +170,14 @@ export interface RunEnv {
     readonly rush: boolean;
     readonly boss: BossCondition | null;
     readonly seed: number;
-  }): { readonly map: GridMap; readonly demandProfile: DemandProfile };
+  }): {
+    readonly map: GridMap;
+    readonly demandProfile: DemandProfile;
+    /** Segments closed for the round (Parade). Content's `setupRound` returns them; default none. */
+    readonly closedSegments?: readonly SegmentId[];
+    /** The round's district rules; only `pSlowPermille` is read (default 0). */
+    readonly districtRules?: { readonly pSlowPermille: number };
+  };
   /** Defaults to `Sim.simulate`. */
   simulate?(input: RoundInput): RoundResult;
 }
