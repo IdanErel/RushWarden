@@ -5,10 +5,10 @@ GIF (540×960, 15 fps), plus a `.json` sidecar that reproduces it. Task P1-QA-02
 [ADR-028](../../docs/decisions/ADR-028-clip-tool.md). Owner: QA / Release.
 
 ```sh
-pnpm clip --spec tools/clip/clips/market-day.json        # seed 4, round 5 Market Day, with cards
+pnpm clip --spec tools/clip/clips/market-day.json        # seed 1, round 5 Market Day, with cards
 pnpm clip --spec tools/clip/clips/market-day-none.json   # the same round with no cards: gridlock
 pnpm clip --seed 17 --speed 2 --formats gif              # any seed; 2× speed; GIF only
-pnpm clip --spec tools/clip/out/rushwarden-s4-r5.json    # re-render from a sidecar (actions pinned)
+pnpm clip --spec tools/clip/out/rushwarden-s1-r5.json    # re-render from a sidecar (actions pinned)
 pnpm clip --help
 ```
 

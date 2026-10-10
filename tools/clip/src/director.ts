@@ -10,7 +10,9 @@
  * a round worth watching. Everything here is pure and runs the same in Node and in the browser.
  */
 import {
+  reverseSegment,
   roundInput,
+  segmentRuns,
   startRun,
   step,
   toyRunConfig,
@@ -19,8 +21,16 @@ import {
   type RunEnv,
   type RunState,
 } from '@rushwarden/app';
-import { interiorSegments, loadCards, setupRound, startingDeck } from '@rushwarden/content';
+import { loadCards, setupRound, startingDeck } from '@rushwarden/content';
 import { Sim, roundWorld, type BossCondition, type RoundInput, type Target } from '@rushwarden/sim';
+
+/**
+ * The seed of the Market Day clip (`clips/market-day*.json`), the store frames and the GIF. Its
+ * rush round passes with the director's cards and gridlocks with none. Content tuning can change
+ * that (ADR-028), so the tests pin both outcomes: when they fail after a content change, scan for
+ * a new seed, change it here and in `clips/*.json`, and update docs/store.
+ */
+export const MARKET_DAY_SEED = 1;
 
 /** How the target round is played when the spec has no actions for it. */
 export type PlayPolicy = 'greedy' | 'none';
@@ -80,12 +90,22 @@ export function candidateTargets(kind: Target['kind'], state: RunState): Target[
       return out;
     }
     case 'segment':
-      // Both directions: a one-way card points from `from` to `to`.
-      return interiorSegments(map).flatMap((s) => [
-        { kind: 'segment', from: s.from, to: s.to },
-        { kind: 'segment', from: s.to, to: s.from },
-      ]);
+      return segmentTargets(state);
   }
+}
+
+/**
+ * Segment targets as a player places them (ADR-031): every full straight run of non-intersection
+ * road tiles (`segmentRuns`, the same helper the run screen and the balance bots use), and, for
+ * runs longer than one tile, the reverse too (`reverseSegment`). One-Way takes its direction from
+ * the target, from `from` to `to`, and the sim rejects it on a one-tile run.
+ */
+function segmentTargets(state: RunState): Target[] {
+  return segmentRuns(state.map).flatMap((t) =>
+    t.kind === 'segment' && (t.from.x !== t.to.x || t.from.y !== t.to.y)
+      ? [t, reverseSegment(t)]
+      : [t],
+  );
 }
 
 function throughput(state: RunState): number {
