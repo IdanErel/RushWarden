@@ -27,6 +27,7 @@ technology and the shape of `upgrade` open. Decisions:
    1–2 (Commissioner's Decree's "any" gets its own decision when that card is added).
 6. **Text templates are the contract for what a primitive means.** Each template states only what
    its fields say. Where the sim type leaves meaning open, the template's reading is the one the
-   Sim Engineer implements, or the template changes in the same PR: `drawModifier` applies to the
-   next round's draw; `addBusStop` on a segment means "this segment has a stop with this dwell".
+   Sim Engineer implements, or the template changes in the same PR. Lead rulings (2026-10-10):
+   `drawModifier` applies to the next draw; `addBusStop` (Express Stop) is valid only on a segment
+   that already has a bus stop and sets that stop's dwell.
    English templates live in `packages/content` until §8's i18n layer exists.
