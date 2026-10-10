@@ -48,6 +48,28 @@ its distinct mirrored and 180° variants (`-mx`, `-my`, `-r180`). See
 `pnpm test` runs every variant through the sim's `buildWorld` (ADR-012) and checks the district
 traits (D1: 4–6 intersections, 2 bus stops, every edge reachable from every other).
 
+## Demand and round setup
+
+`setupRound({ round, seed, rush?, boss?, district? })` gives the run controller one round, as a
+pure function of its arguments. It returns the map (a seeded pick from the bank), the demand
+profile, the heat-strip, the quota and the sim's `DistrictRules`. The argument matches
+`RunEnv.setupRound`, so `{ setupRound }` can be passed to the run controller as is.
+
+- **Volume:** `baseVehicles` (28 in D1) grows 11% a round with the quota and ×1.6 on rush rounds.
+  28 is a starting value; P1-CON-05 tunes it from the balance report.
+- **Mix:** exact per-round counts from GDD §5's per-mille mix (D1: 70% car, 15% bus, 10% truck,
+  5% bike), with leftovers going to the largest remainders.
+- **Timing:** `SECOND_WEIGHTS` is a rush-hour curve over the 15 seconds. Each edge gets a seeded
+  weight of 1–3 per round, so some edges run hot. Destinations are uniform over the other edges.
+  An edge never spawns twice in one tick.
+- **Market Day** (GDD §5): +2 trucks in every second, on top of the rush demand. Other bosses
+  throw until they are built (`SUPPORTED_BOSSES`).
+- **Heat-strip** (GDD §2): spawns per edge per second, plus the max for scaling.
+- **Quota:** `roundQuota` is GDD §2's formula in per-mille integers, rounded half up (ADR-018).
+
+The map pick and the demand use the round seed XOR a fixed salt each, so they never share a
+stream with the sim's own PRNG.
+
 ## Public API
 
 | Export                                                | What it does                                                      |
@@ -63,6 +85,9 @@ traits (D1: 4–6 intersections, 2 bus stops, every edge reachable from every ot
 | `loadMapTemplates()` / `districtMaps(d)`              | Validated templates; every map (variants included) for a district |
 | `pickMap(maps, seed)`                                 | Seeded uniform pick of a map                                      |
 | `templateVariants(t)`, `rowsToGridMap(id, rows)`      | Template to `GridMap`s                                            |
+| `setupRound(args)`                                    | One round's map, demand, heat-strip, quota and district rules     |
+| `generateDemand(args)`, `heatStrip(map, profile)`     | The seeded demand profile; its per-edge, per-second strip         |
+| `roundQuota(d, r, rush, mayor?)`, `roundVehicles`     | GDD §2 quota; demand volume                                       |
 | `validateSchema(schema, value)`                       | The JSON Schema subset validator                                  |
 
 ## Example
