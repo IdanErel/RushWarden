@@ -11,7 +11,7 @@ export interface ReportMeta {
   readonly seeds: number;
   readonly bots: readonly string[];
   readonly commit: string;
-  /** Lines shown in a warning box at the top (stand-in data, stub sim). */
+  /** Lines shown in a warning box at the top (pre-tuning data, stub sim). */
   readonly warnings: readonly string[];
 }
 

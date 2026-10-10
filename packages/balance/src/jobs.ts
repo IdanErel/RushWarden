@@ -1,8 +1,7 @@
 import { fullRunConfig, toyRunConfig, type RunConfig } from '@rushwarden/app';
 import { botByName } from './bots.js';
-import { standinEnv } from './env.js';
+import { CARDS, CONTENT_ENV, STARTING_DECK } from './data.js';
 import { runSeeds, type RunRecord, type RunSpec } from './runner.js';
-import { STANDIN_CARDS } from './standin-cards.js';
 
 /**
  * `full`: 12-round District 1 runs, the gate configuration (ADR-007, ADR-010 point 2).
@@ -24,16 +23,16 @@ export interface RunJob {
 
 export function configFor(preset: Preset): (seed: number) => RunConfig {
   return preset === 'toy'
-    ? (seed) => toyRunConfig({ seed, cards: STANDIN_CARDS })
-    : (seed) => fullRunConfig({ seed, cards: STANDIN_CARDS });
+    ? (seed) => toyRunConfig({ seed, cards: CARDS, startingDeck: STARTING_DECK })
+    : (seed) => fullRunConfig({ seed, cards: CARDS, startingDeck: STARTING_DECK });
 }
 
 export function specFor(job: RunJob): RunSpec {
   return {
     bot: botByName(job.bot),
     config: configFor(job.preset),
-    env: standinEnv,
-    cards: STANDIN_CARDS,
+    env: CONTENT_ENV,
+    cards: CARDS,
     targetsPerKind: job.targetsPerKind,
   };
 }

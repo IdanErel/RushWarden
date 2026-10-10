@@ -37,8 +37,10 @@ night. `packages/balance` reads them as follows.
    inclusive at both ends. The drafted delta is (win rate of runs that drafted the card) − (win rate
    of all runs in the report). Purity is the share of final-deck cards that carry the deck's most
    common tag. Watch time is simulated ticks ÷ 20 and excludes placement time.
-6. **Stand-ins are labelled.** Until content's maps, demand generator and card loader are on main,
-   the runner uses stand-ins, and the report lists each one in a warning at the top. When every
+6. **Caveats are labelled.** The runner plays content's cards, starting deck and `setupRound`
+   (maps, demand, district rules, Parade closures); the stand-ins it used before #28 are gone (a
+   small seeded environment remains as a test fixture only). Known caveats about the data, such as
+   pre-tuning content during CON-05, are listed in a warning at the top of the report. When every
    round scores 0 throughput (the stub sim), the report says that its win rates mean nothing.
 
 Alternatives considered: fresh random seeds each night (rejected: every diff would be noise), and

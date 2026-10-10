@@ -1,9 +1,9 @@
 import { fullRunConfig, type RunEnv } from '@rushwarden/app';
 import type { RoundInput, RoundResult } from '@rushwarden/sim';
 import type { Bot } from '../src/bots.js';
-import { standinEnv } from '../src/env.js';
+import { standinEnv } from './standin-env.js';
 import type { RunRecord, RunSpec } from '../src/runner.js';
-import { STANDIN_CARDS } from '../src/standin-cards.js';
+import { CARDS, STARTING_DECK } from '../src/data.js';
 
 function hashStr(s: string): number {
   let h = 0;
@@ -40,8 +40,8 @@ export function scoredSpec(bot: Bot): RunSpec {
   return {
     bot,
     env: scoredEnv,
-    cards: STANDIN_CARDS,
-    config: (seed) => fullRunConfig({ seed, cards: STANDIN_CARDS }),
+    cards: CARDS,
+    config: (seed) => fullRunConfig({ seed, cards: CARDS, startingDeck: STARTING_DECK }),
   };
 }
 

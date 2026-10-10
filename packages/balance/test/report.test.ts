@@ -93,7 +93,7 @@ describe('report', () => {
     const md = buildReport(zero, { preset: 'toy', seeds: 1, commit: 'x' });
     expect(md).toContain('> [!WARNING]');
     expect(md).toContain('Every round scored 0 throughput');
-    expect(md).toContain('Stand-in cards');
+    expect(md).toContain('Pre-tuning content');
     expect(md).toContain('5-round runs');
     expect(roundsOf('full')).toBe(12);
   });

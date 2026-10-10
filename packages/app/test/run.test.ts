@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Effect, Target } from '@rushwarden/sim';
+import { roundQuota } from '@rushwarden/content';
 import {
   PHASE1_STARTING_DECK,
   RunController,
@@ -7,7 +8,6 @@ import {
   costOf,
   deckOf,
   fullRunConfig,
-  quotaFor,
   replay,
   roundInput,
   runEffectError,
@@ -168,17 +168,13 @@ describe('round setup reaches the sim (p_slow, Parade closures)', () => {
   });
 });
 
-describe('quota (GDD §2, integer per-mille, ADR-018)', () => {
-  it('matches the formula rounded half up for every district, round and rush flag', () => {
-    for (const d of [1, 2, 3] as const)
-      for (let r = 1; r <= 12; r++)
-        for (const rush of [false, true]) {
-          const exact = [26, 34, 42][d - 1]! * (1 + 0.11 * (r - 1)) * (rush ? 1.6 : 1);
-          expect(quotaFor(d, r, rush), `${d}/${r}/${rush}`).toBe(Math.floor(exact + 0.5 + 1e-9));
-        }
-    expect(quotaFor(1, 1, false)).toBe(26);
-    expect(quotaFor(1, 5, true)).toBe(60);
-    expect(quotaFor(1, 1, false, 1150)).toBe(30);
+describe('quota (content roundQuota, ADR-018)', () => {
+  it("uses content's roundQuota with the mayor's modifier", () => {
+    const plain = startRun(toy(3), fakeEnv()).state;
+    expect(plain.quota).toBe(roundQuota(1, 1, false));
+    const mayor = startRun({ ...toy(3), quotaPermille: 1150 }, fakeEnv()).state;
+    expect(mayor.quota).toBe(roundQuota(1, 1, false, 1150));
+    expect(mayor.quota).toBe(30);
   });
 });
 

@@ -3,12 +3,11 @@ import { phase1Bots } from './bots.js';
 import type { Preset } from './jobs.js';
 import { renderReport } from './report.js';
 import type { RunRecord } from './runner.js';
-import { STANDIN_CARDS } from './standin-cards.js';
+import { CARDS } from './data.js';
 
-/** Stand-in data the current report is built on; each line becomes a warning in its header. */
-export const STANDIN_WARNINGS: readonly string[] = [
-  'Stand-in data: the sim test map and a seeded demand stand-in (`src/env.ts`) replace the District 1 maps (P1-CON-03) and demand generator (P1-CON-04) until they are on main. Win rates here test the runner, not the cards; do not tune from them.',
-  "Stand-in cards: `src/standin-cards.ts` is generated from content's Phase 1 cards (#14) until the loader is on main.",
+/** Known caveats about the data the report is built on; each line becomes a warning in its header. */
+export const TUNING_WARNINGS: readonly string[] = [
+  'Pre-tuning content: quotas, demand and score values are the first-pass numbers from #28 and are being tuned in CON-05. Win rates near 100% mean the quotas are too low for the delivered throughput, not that the archetypes are balanced; do not judge gate criterion 2 from this report.',
 ];
 
 export const BOT_NAMES: readonly string[] = phase1Bots().map((b) => b.name);
@@ -27,7 +26,7 @@ export function dataWarnings(records: readonly RunRecord[]): string[] {
   return out;
 }
 
-/** The report for a finished set of runs, with the stand-in and data warnings in its header. */
+/** The report for a finished set of runs, with the tuning and data warnings in its header. */
 export function buildReport(
   records: readonly RunRecord[],
   opts: { readonly preset: Preset; readonly seeds: number; readonly commit: string },
@@ -40,9 +39,9 @@ export function buildReport(
       seeds: opts.seeds,
       bots: BOT_NAMES,
       commit: opts.commit,
-      warnings: [...dataWarnings(records), ...STANDIN_WARNINGS],
+      warnings: [...dataWarnings(records), ...TUNING_WARNINGS],
     },
-    new Map(STANDIN_CARDS.map((c) => [c.id, c.tags])),
+    new Map(CARDS.map((c) => [c.id, c.tags])),
   );
 }
 

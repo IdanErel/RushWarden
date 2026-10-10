@@ -30,9 +30,8 @@ export {
   formatReport,
   dataWarnings,
   BOT_NAMES,
-  STANDIN_WARNINGS,
+  TUNING_WARNINGS,
   roundsOf,
 } from './balance.js';
 export { candidateTargets, spread } from './targets.js';
-export { standinEnv } from './env.js';
-export { STANDIN_CARDS } from './standin-cards.js';
+export { CARDS, CONTENT_ENV, STARTING_DECK } from './data.js';

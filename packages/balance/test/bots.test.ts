@@ -10,10 +10,10 @@ import {
 } from '../src/bots.js';
 import { runOne } from '../src/runner.js';
 import { candidateTargets, spread } from '../src/targets.js';
-import { STANDIN_CARDS } from '../src/standin-cards.js';
+import { CARDS } from '../src/data.js';
 import { scoredSpec } from './fixtures.js';
 
-const tagsOf = new Map(STANDIN_CARDS.map((c) => [c.id, c.tags as readonly string[]]));
+const tagsOf = new Map(CARDS.map((c) => [c.id, c.tags as readonly string[]]));
 
 describe('bots', () => {
   it('has the §11 Phase 1 bots in report order and finds them by name', () => {

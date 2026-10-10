@@ -36,7 +36,7 @@ The report is formatted with the repo's Prettier settings, so it is committed as
 | `splitJobs`, `runJob`, `RunJob`                               | Plain-data jobs a worker thread can rebuild and run.                                               |
 | `runJobs(jobs, concurrency, exec, botOrder)`, `workerPool`    | Parallel scheduling; results come back in canonical order whatever the worker count.               |
 | `renderReport`, `buildReport`, `formatReport`                 | The §11 report as stable Markdown; `gateCriterion2` is the 35–65% check.                           |
-| `standinEnv`, `STANDIN_CARDS`                                 | Stand-ins for content's maps, demand and cards until they are on main; the report says so.         |
+| `CARDS`, `STARTING_DECK`, `CONTENT_ENV`                       | Content's cards, starting deck and `setupRound`, as the runner plays them.                         |
 
 ## Example
 
