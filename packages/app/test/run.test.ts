@@ -9,6 +9,7 @@ import {
   fullRunConfig,
   quotaFor,
   replay,
+  roundInput,
   runEffectError,
   sameTarget,
   startRun,
@@ -133,6 +134,37 @@ describe('determinism', () => {
       quota: 26,
     });
     expect(Number.isInteger(input.seed) && input.seed >= 0 && input.seed < 2 ** 32).toBe(true);
+  });
+});
+
+describe('round setup reaches the sim (p_slow, Parade closures)', () => {
+  it('passes districtRules.pSlowPermille and closedSegments from setupRound into roundInput', () => {
+    const closed = { from: SEGMENT.from, to: SEGMENT.to };
+    const base = fakeEnv();
+    const env = {
+      ...base,
+      setupRound: (a: Parameters<typeof base.setupRound>[0]) => ({
+        ...base.setupRound(a),
+        districtRules: { pSlowPermille: a.round === 2 ? 150 : 0 },
+        closedSegments: a.round === 2 ? [closed] : [],
+      }),
+    };
+    let s = startRun(toy(3), env).state;
+    expect(roundInput(s).districtRules.pSlowPermille).toBe(0);
+    expect('closedSegments' in roundInput(s)).toBe(false);
+    s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+    expect(s.round).toBe(2);
+    expect(roundInput(s).districtRules.pSlowPermille).toBe(150);
+    expect(roundInput(s).closedSegments).toEqual([closed]);
+    // The real Sim accepts the round with the closure and p_slow.
+    const real = { setupRound: env.setupRound };
+    expect(step({ ...s, plays: [] }, { type: 'go' }, real).ok).toBe(true);
+  });
+
+  it('defaults to p_slow 0 and no closures when setupRound gives neither', () => {
+    const s = startRun(toy(3), fakeEnv()).state;
+    expect(s.pSlowPermille).toBe(0);
+    expect(s.closedSegments).toEqual([]);
   });
 });
 

@@ -7,6 +7,7 @@ import type {
   PrngState,
   RoundInput,
   RoundResult,
+  SegmentId,
   Target,
 } from '@rushwarden/sim';
 
@@ -125,6 +126,10 @@ export interface RunState {
   readonly rush: boolean;
   readonly boss: BossCondition | null;
   readonly quota: number;
+  /** Baseline p_slow this round, from the round setup (`DistrictRules.pSlowPermille`). */
+  readonly pSlowPermille: number;
+  /** Segments closed this round (the Parade boss), from the round setup. */
+  readonly closedSegments: readonly SegmentId[];
 
   // Run-level effects.
   readonly runEffects: readonly Placement[];
@@ -165,7 +170,17 @@ export interface RunEnv {
     readonly rush: boolean;
     readonly boss: BossCondition | null;
     readonly seed: number;
-  }): { readonly map: GridMap; readonly demandProfile: DemandProfile };
+  }): {
+    readonly map: GridMap;
+    readonly demandProfile: DemandProfile;
+    /**
+     * Content's district rules for the round. The controller takes `pSlowPermille` from it; the
+     * quota stays the controller's own (it applies the mayor modifier). Absent = p_slow 0.
+     */
+    readonly districtRules?: { readonly pSlowPermille: number };
+    /** Segments closed this round (Parade). Absent = none. */
+    readonly closedSegments?: readonly SegmentId[];
+  };
   /** Defaults to `Sim.simulate`. */
   simulate?(input: RoundInput): RoundResult;
 }

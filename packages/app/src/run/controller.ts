@@ -170,7 +170,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
   const prng = clonePrng(state.prng);
   const roundSeed = nextU32(prng);
   const rush = rushOf(state.config, round);
-  const { map, demandProfile } = env.setupRound({
+  const setup = env.setupRound({
     district: state.config.district,
     round,
     rush: rush !== null,
@@ -185,8 +185,10 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     prng,
     round,
     roundSeed,
-    map,
-    demandProfile,
+    map: setup.map,
+    demandProfile: setup.demandProfile,
+    pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
+    closedSegments: setup.closedSegments ?? [],
     rush: rush !== null,
     boss: rush?.boss ?? null,
     quota: quotaFor(state.config.district, round, rush !== null, state.config.quotaPermille),
@@ -232,6 +234,8 @@ export function startRun(config: RunConfig, env: RunEnv): { state: RunState; eve
     roundSeed: 0,
     map: { id: '', tiles: [], edges: [] },
     demandProfile: [],
+    pSlowPermille: 0,
+    closedSegments: [],
     rush: false,
     boss: null,
     quota: 0,
@@ -405,8 +409,10 @@ export function roundInput(state: RunState): RoundInput {
       rush: state.rush,
       boss: state.boss,
       quota: state.quota,
-      pSlowPermille: 0,
+      pSlowPermille: state.pSlowPermille,
     },
+    // Omitted when none are closed, so ordinary rounds hash exactly as before.
+    ...(state.closedSegments.length > 0 ? { closedSegments: state.closedSegments } : {}),
   };
 }
 
