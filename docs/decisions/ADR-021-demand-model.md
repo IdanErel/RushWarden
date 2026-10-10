@@ -62,13 +62,13 @@ rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5).
    - **Candidates:** each maximal straight piece of a link between two intersections, so links to
      an edge are excluded. A piece is a candidate only if closing it leaves every edge able to
      reach every other.
-   - **Type:** the segment has the same shape as a card's segment target (`SegmentId`). The sim
-     may move this type into `packages/sim`.
+   - **Type:** the sim's `SegmentId` (`{ from, to }`, ADR-022). Content re-exports it, and every
+     candidate is a run of plain road tiles that `Sim.init` accepts.
    - **Map pool:** Parade rounds pick only from maps with at least one candidate. Tree-shaped
      maps have none. In District 1 those are d1-02, d1-05, d1-09 and d1-10, leaving 24 of 38
      maps. Other rounds pick from all maps.
-   - **Sim support:** the sim honours `closedSegments` from P1-SIM-04/05 on (Lead decision).
-     Until then the data is returned and has no effect.
+   - **Sim support:** the run controller passes `closedSegments` on as
+     `RoundInput.closedSegments`, and the sim closes those links for the round (ADR-022).
 10. **Festival** (round 12): data only.
     - Volume is ×1.6 on top of the rush ×1.6.
     - The mix gives 5% to emergency vehicles, taken from cars (650 car, 150 bus, 100 truck,

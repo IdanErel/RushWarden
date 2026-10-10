@@ -1,7 +1,7 @@
 /**
  * Parade (GDD §5, District 1 round 8 boss): "one segment closed". Content picks the segment from
- * the round seed and returns it in `RoundSetup.closedSegments`. The sim honours the closure from
- * P1-SIM-04/05 on; until then the data is returned and has no effect (Lead decision on #28).
+ * the round seed and returns it in `RoundSetup.closedSegments`, which the run controller passes
+ * on as `RoundInput.closedSegments` (sim `SegmentId`, ADR-022).
  */
 import {
   buildWorld,
@@ -10,16 +10,11 @@ import {
   GRID_WIDTH,
   type GridMap,
   nextInt,
-  type Target,
+  type SegmentId,
   type TileRef,
 } from '@rushwarden/sim';
 
-/**
- * A closable segment: a straight run of road tiles between two intersections, ends inclusive and
- * intersections excluded. It has the same shape as a card's segment target, so the sim's
- * `segmentTiles` reads it. The sim owns the final type (it may move to packages/sim).
- */
-export type SegmentId = Extract<Target, { kind: 'segment' }>;
+export type { SegmentId };
 
 const DIRS = [
   { dx: 0, dy: -1 },
@@ -68,7 +63,7 @@ export function interiorSegments(map: GridMap): SegmentId[] {
           const last = run[run.length - 1];
           if (first === undefined || last === undefined) continue;
           const [from, to] = idx(first) <= idx(last) ? [first, last] : [last, first];
-          out.set(`${idx(from)}-${idx(to)}`, { kind: 'segment', from, to });
+          out.set(`${idx(from)}-${idx(to)}`, { from, to });
         }
       }
     }

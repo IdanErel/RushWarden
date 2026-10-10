@@ -297,8 +297,8 @@ export interface RoundSetup {
   readonly quota: number;
   readonly districtRules: DistrictRules;
   /**
-   * Segments closed this round: one on a Parade round, else none. The sim honours it from
-   * P1-SIM-04/05; until then it has no effect.
+   * Segments closed this round: one on a Parade round, else none. Pass it on as
+   * `RoundInput.closedSegments` (ADR-022).
    */
   readonly closedSegments: readonly SegmentId[];
 }

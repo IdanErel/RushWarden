@@ -45,6 +45,7 @@ function inputFor(s: ReturnType<typeof setupRound>, seed: number): RoundInput {
     placements: [],
     cardState: { runEffects: [] },
     districtRules: s.districtRules,
+    closedSegments: s.closedSegments,
   };
 }
 
@@ -300,11 +301,22 @@ describe('Parade (GDD §5: one segment closed)', () => {
     expect(maps.length - none.length).toBe(24);
   });
 
-  it('Parade rounds only pick maps with a closable segment', () => {
+  it('Parade rounds only pick maps with a closable segment, and Sim.init accepts the closure', () => {
     for (let seed = 0; seed < 100; seed++) {
       const s = setupRound({ round: 8, seed });
       expect(paradeCandidates(s.map).length).toBeGreaterThan(0);
       expect(s.closedSegments).toHaveLength(1);
+      expect(Object.keys(s.closedSegments[0]!).sort()).toEqual(['from', 'to']);
+      expect(() => Sim.init(inputFor(s, seed))).not.toThrow();
+    }
+  });
+
+  it('every candidate on every map is a closure Sim.init accepts (ADR-022)', () => {
+    for (const m of maps) {
+      for (const seg of paradeCandidates(m)) {
+        const s = { ...setupRound({ round: 1, seed: 1 }), map: m, closedSegments: [seg] };
+        expect(() => Sim.init({ ...inputFor(s, 1), demandProfile: [] }), m.id).not.toThrow();
+      }
     }
   });
 
@@ -312,7 +324,7 @@ describe('Parade (GDD §5: one segment closed)', () => {
     for (const m of maps) {
       for (const seg of interiorSegments(m)) {
         expect(seg.from.x === seg.to.x || seg.from.y === seg.to.y).toBe(true);
-        const tiles = segmentTiles(seg);
+        const tiles = segmentTiles({ kind: 'segment', ...seg }, m);
         expect(tiles).not.toBeNull();
         for (const t of tiles!) expect(m.tiles[t.y * 7 + t.x]!.kind).toBe('road');
         const inter = new Set(
@@ -343,7 +355,7 @@ describe('Parade (GDD §5: one segment closed)', () => {
   it('rejects a closure that would disconnect the edges', () => {
     // A closure covering an edge's only road disconnects it.
     const e = map.edges[0]!;
-    const cut = { kind: 'segment' as const, from: e.tile, to: e.tile };
+    const cut = { from: e.tile, to: e.tile };
     expect(edgesConnectedWithout(map, cut)).toBe(false);
     expect(edgesConnectedWithout({ ...map, edges: [] }, cut)).toBe(true);
   });
