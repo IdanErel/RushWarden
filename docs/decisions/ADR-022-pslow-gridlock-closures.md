@@ -1,7 +1,7 @@
-# ADR-0YY: p_slow, the gridlock detector and closed segments
+# ADR-022: p_slow, the gridlock detector and closed segments
 
-Status: Proposed · 2026-10-10 · Sim Engineer (P1-SIM-04). The number is a placeholder until the
-Lead assigns one.
+Status: Proposed · 2026-10-10 · Sim Engineer (P1-SIM-04). Number assigned by the
+Lead.
 
 GDD §3 fixes tick rule 3 ("the classic NaSch slowdown probability exists as a parameter `p_slow`
 … driven by the seeded PRNG only") and the gridlock detector ("if the sum of `v` across all

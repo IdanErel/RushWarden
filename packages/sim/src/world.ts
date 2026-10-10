@@ -706,7 +706,7 @@ function stepUsable(world: World, tile: number, dir: number, closed: Uint8Array 
 }
 
 /**
- * Links closed by `segments` (`RoundInput.closedSegments`, ADR-0YY): 1 for every link, in either
+ * Links closed by `segments` (`RoundInput.closedSegments`, ADR-022): 1 for every link, in either
  * direction, that holds a tile of a closed segment. Each segment must be a straight in-bounds run
  * of plain road tiles (no intersection tiles); throws `RangeError` otherwise. Returns null when
  * nothing is closed.

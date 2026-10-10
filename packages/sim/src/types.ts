@@ -51,7 +51,7 @@ export interface TileRef {
 
 /**
  * A road segment: a straight run of road tiles from `from` to `to` (inclusive), as in a segment
- * `Target`. Used by `RoundInput.closedSegments` (Parade boss, ADR-0YY).
+ * `Target`. Used by `RoundInput.closedSegments` (Parade boss, ADR-022).
  */
 export interface SegmentId {
   readonly from: TileRef;
@@ -324,7 +324,7 @@ export interface RoundInput {
   /**
    * Segments closed for the whole round (the Parade boss; content's `setupRound` fills it). No
    * vehicle enters a link that touches a closed tile, in either direction: routes avoid them, and
-   * a trip whose origin or destination is cut off never starts (ADR-0YY). Absent = none closed.
+   * a trip whose origin or destination is cut off never starts (ADR-022). Absent = none closed.
    */
   readonly closedSegments?: readonly SegmentId[];
   /** When true, `RoundResult.frames` holds one snapshot per tick for replay. */
