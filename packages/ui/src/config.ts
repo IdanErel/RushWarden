@@ -7,6 +7,11 @@ export interface UiConfig {
   readonly privacyUrl: string;
   /** Link appended to the share line; empty for none. */
   readonly shareUrl: string;
+  /**
+   * Opens an outbound link through the portal (Poki requires `PokiSDK.openExternalLink` for every
+   * link out; ADR-024). Unset: links open as plain `target="_blank"` anchors.
+   */
+  readonly openExternalLink?: (url: string) => void;
 }
 
 export const DEFAULT_CONFIG: UiConfig = { privacyUrl: '', shareUrl: '' };
