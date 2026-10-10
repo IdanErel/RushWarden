@@ -62,6 +62,9 @@ importers:
 
   packages/backend:
     dependencies:
+      '@rushwarden/app':
+        specifier: workspace:*
+        version: link:../app
       '@rushwarden/sim':
         specifier: workspace:*
         version: link:../sim
