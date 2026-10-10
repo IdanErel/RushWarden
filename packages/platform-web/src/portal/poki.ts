@@ -28,7 +28,7 @@ function asPokiSdk(value: unknown): PokiSdk | null {
 /**
  * Poki adapter (GDD §9). Loads the SDK lazily in `init`, keeps `gameplayStart`/`gameplayStop`
  * strictly alternating, and never shows ads: `commercialBreak` resolves without calling the SDK's
- * ad methods (ADR-010). Poki forbids external payments, so `canSellInPortal` is false.
+ * ad methods (ADR-013). Poki forbids external payments, so `canSellInPortal` is false.
  */
 export class PokiAdapter implements WebPortalAdapter {
   readonly id = 'poki' as const;

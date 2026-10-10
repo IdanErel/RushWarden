@@ -7,9 +7,8 @@
  * - H4: `window.__portalCalls`.
  * - H5: `data-target-rects` and the keyboard path.
  *
- * Target. By default the specs open the hooks build of this package (`build:e2e`, port 4174 by default).
- * Until P1-WEB-01 mounts the run screen there, that build has no `#game-state`, and every toy
- * spec is marked fixme with that reason. Set `TOY_E2E_URL` to point the same specs at another
+ * Target. By default the specs open the hooks build of this package (`build:e2e`, port 4174 by
+ * default), which mounts the run screen (P1-WEB-01). Set `TOY_E2E_URL` to point the same specs at another
  * page with the hooks, such as the run screen's dev page from packages/ui
  * (`TOY_E2E_URL=http://localhost:5175 TOY_E2E_TARGET=ui-dev`). That page uses stand-in cards
  * and fake traffic, so specs that compare against the headless run (or need the H4 spy) skip
@@ -23,9 +22,6 @@ export const TOY_URL =
   `http://localhost:${Number(process.env['WEB_E2E_PORT'] ?? '4173') + 1}`;
 /** `game` (the platform-web build) or `ui-dev` (packages/ui's dev page, for proving specs). */
 export const TARGET = process.env['TOY_E2E_TARGET'] === 'ui-dev' ? 'ui-dev' : 'game';
-
-export const NEEDS_WIRING =
-  'needs P1-WEB-01: the platform-web build does not mount the run screen yet (no #game-state, H2)';
 
 /** Skips a spec on the ui-dev target, which has stand-in content and no portal spy. */
 export function gameOnly(why: string): void {
@@ -48,28 +44,10 @@ export function watchErrors(page: Page): string[] {
   return errors;
 }
 
-/**
- * False only on the Phase 0 build, which has no run screen and marks itself with
- * `#app[data-hash]`. P1-WEB-01 removes that marker. So on any later build the toy specs cannot
- * turn themselves off: a run screen that fails to mount has neither node, the wait below times
- * out, and every spec fails. The follow-up PR to P1-WEB-01 deletes this gate.
- */
-export async function hasRunScreen(page: Page): Promise<boolean> {
-  await page.goto(`${TOY_URL}/?seed=1`);
-  await page.waitForSelector('#game-state, #app[data-hash]', { state: 'attached' });
-  if ((await state(page).count()) > 0) return true;
-  // Only the Phase 0 marker is there: not wired yet.
-  return (await page.locator('#app[data-hash]').count()) === 0;
-}
-
-/**
- * Opens the toy at `seed` (H1) and waits for the place phase. Marks the spec fixme when the
- * build has no run screen yet (the Phase 0 boot marks `#app[data-hash]` instead).
- */
+/** Opens the toy at `seed` (H1) and waits for the place phase. */
 export async function openToy(page: Page, seed: number, extra = ''): Promise<void> {
   await page.goto(`${TOY_URL}/?seed=${seed}${extra}`);
-  await page.waitForSelector('#game-state, #app[data-hash]', { state: 'attached' });
-  test.fixme((await state(page).count()) === 0, NEEDS_WIRING);
+  await state(page).waitFor({ state: 'attached' });
   await expect(state(page)).toHaveAttribute('data-phase', 'place');
   // Target rects and the hold-to-2× surface come from the Pixi scene, which starts async.
   await expect(page.locator('canvas').first()).toBeVisible();

@@ -60,7 +60,8 @@ defaults. Only the developer's legal name and contact email remain for Idan.
    - Raw events (with install ID): **90 days** from receipt, then deleted by a daily job.
    - Aggregates: daily totals with **no install ID**, and any figure covering fewer than 10
      installs is merged or dropped, so they are anonymous. Kept while the game is maintained,
-     reviewed once a year.
+     reviewed once a year. Clarified by the Lead on 2026-10-10: a daily row covering fewer than
+     10 installs is dropped, never merged into another row.
    - Cloudflare: Workers request logs and Logpush stay off for the analytics Worker, and the
      Worker never logs request bodies, IP addresses or install IDs.
 5. **Where the policy lives.** Source of truth: `docs/legal/privacy.md` in this repo. Published
