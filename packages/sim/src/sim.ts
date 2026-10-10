@@ -1,5 +1,6 @@
 import { Hasher, hashValue } from './hash.js';
 import { createPrng, nextU32, type PrngState } from './prng.js';
+import { buildWorld, edgeIndex, type World } from './world.js';
 import {
   ROUND_TICKS,
   SNAPSHOT_HEADER,
@@ -9,15 +10,17 @@ import {
 } from './types.js';
 
 /**
- * Internal state behind the opaque `SimState`. Phase 0 stub: the world has no vehicles yet, so
- * a round is 300 empty ticks. The Sim Engineer replaces the body in Phase 1; the shape of
- * `init`/`step`/`snapshot`/`result`/`simulate` is the contract and stays.
+ * Internal state behind the opaque `SimState`. P1-SIM-01 builds the world (tiles, lanes,
+ * intersections, edges, routes); vehicles arrive in P1-SIM-02, so a round is still 300 empty
+ * ticks. The shape of `init`/`step`/`snapshot`/`result`/`simulate` is the contract and stays.
  */
 interface State extends SimState {
   tick: number;
   done: boolean;
   readonly input: RoundInput;
   readonly inputDigest: string;
+  /** Tiles, links, lanes, intersections and edges for this round (derived from `input.map`). */
+  readonly world: World;
   readonly prng: PrngState;
   spawned: number;
   exited: number;
@@ -35,28 +38,37 @@ function asState(s: SimState): State {
   return s as State;
 }
 
-/** Validates the parts of the input the sim relies on. Throws `RangeError` on bad input. */
-function validate(input: RoundInput): void {
+/**
+ * Validates the parts of the input the sim relies on and builds the world. Throws `RangeError`
+ * (or its subclass `MapError`) on bad input.
+ */
+function validate(input: RoundInput): World {
   if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > 0xffffffff) {
     throw new RangeError(`seed must be a uint32, got ${input.seed}`);
   }
   if (input.map.id !== input.mapId) {
     throw new RangeError(`map.id "${input.map.id}" does not match mapId "${input.mapId}"`);
   }
+  const world = buildWorld(input.map);
   for (const e of input.demandProfile) {
     if (e.tick < 0 || e.tick >= ROUND_TICKS)
       throw new RangeError(`demand tick ${e.tick} out of range`);
+    if (edgeIndex(world, e.edge) === edgeIndex(world, e.destinationEdge)) {
+      throw new RangeError(`demand at tick ${e.tick} has edge ${e.edge} as its own destination`);
+    }
   }
+  return world;
 }
 
 /** Creates the state at tick 0 for a round. Pure: the same input always gives an equal state. */
 export function init(input: RoundInput): SimState {
-  validate(input);
+  const world = validate(input);
   const state: State = {
     tick: 0,
     done: false,
     input,
     inputDigest: hashValue(new Hasher(), { ...input, recordFrames: null }).digest(),
+    world,
     prng: createPrng(input.seed),
     spawned: 0,
     exited: 0,

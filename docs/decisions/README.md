@@ -16,3 +16,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 007 | Phase 1 scope                                           | Accepted |
 | 008 | The game is named Rushwarden                            | Accepted |
 | 009 | Analytics event time is the server's receipt time       | Accepted |
+| 012 | World topology rules for maps                           | Proposed |
