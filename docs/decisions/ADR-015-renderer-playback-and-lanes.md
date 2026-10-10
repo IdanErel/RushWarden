@@ -35,10 +35,15 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
   the entry direction and cells 2–3 the exit direction.
 - Vehicles inside an intersection: the sim names the turn movement. Intersection movement lanes
   get reserved lane ids after the road lanes (P1-SIM-02, #23), and `locateCell` resolves them.
-  The renderer draws a box-lane cell on the straight line from the approach lane's last cell to
-  the exit lane's first cell, at `(cell + 1) / (cells + 1)` of the way. It reads the box fields
-  (`intersection`, `entryDir`, `exitDir`) structurally, so the same code works before and after
-  #23; before it, the sim reports no vehicle in a box and the snapshot blend draws the same line.
+  Until #23 merged, the Lead's interim rule drew box cells on a straight line from the approach
+  lane's last cell to the exit lane's first cell. With #23 on `main`, the renderer draws each
+  box-lane cell at the centre of the box quarter the sim puts it in (`locateCell(...).quadrant`:
+  right turns use 1 quarter, straight 2, left 3, starting in the right-hand quarter of the
+  approach). So what you see matches the sim's shared quadrant cells, and a vehicle waiting in a
+  quarter is drawn where it blocks crossing traffic. A cell's heading points from the previous
+  point (the approach lane's last cell, or the previous quarter) to the next (the next quarter,
+  or the exit lane's first cell). Every step into, through and out of the box is at most half a
+  tile (tested).
 - `tileLaneLayout` (per-tile ids) stays only for `FakeTraffic`, which the dev page pairs with it.
 
 ## Readability and shape notes (review of #18)

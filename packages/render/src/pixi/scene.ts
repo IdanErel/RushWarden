@@ -42,8 +42,8 @@ import {
   pulseAlpha,
   shakeOffset,
   stripRect,
-  trailAlpha,
   trailCells,
+  trailPieces,
   type MotionPrefs,
 } from '../effects.js';
 import { drawShapes } from './draw.js';
@@ -598,7 +598,7 @@ export class TrafficScene {
     this.stats.gridlock = gridlock;
   }
 
-  /** 1–3 cell trail behind the vehicle's tail, fading with distance (GDD §7). */
+  /** 1–3 cell tapering streak behind the vehicle's tail, fading with distance (GDD §7). */
   private drawTrail(
     g: Graphics,
     pose: VehiclePose,
@@ -609,21 +609,17 @@ export class TrafficScene {
     const len = VEHICLE_LENGTH[pose.type as VehicleType] ?? 1;
     const c = Math.cos(pose.heading);
     const s = Math.sin(pose.heading);
-    const half = cellPx * 0.18;
     const cx = pose.x * T;
     const cy = pose.y * T;
-    for (let i = 0; i < cells; i++) {
-      // Along-axis span of segment i, in px behind the head cell centre.
-      const a0 = -(len - 0.5 + i) * cellPx;
-      const a1 = a0 - cellPx * 0.9;
-      const pts = [a0, -half, a0, half, a1, half, a1, -half];
+    for (const p of trailPieces(cells, len)) {
+      const pts = [p.a0, -p.h0, p.a0, p.h0, p.a1, p.h1, p.a1, -p.h1];
       const out: number[] = [];
       for (let k = 0; k < pts.length; k += 2) {
-        const x = pts[k] ?? 0;
-        const y = pts[k + 1] ?? 0;
+        const x = (pts[k] ?? 0) * cellPx;
+        const y = (pts[k + 1] ?? 0) * cellPx;
         out.push(cx + x * c - y * s, cy + x * s + y * c);
       }
-      g.poly(out, true).fill({ color: this.palette.divider, alpha: trailAlpha(i, cells) });
+      g.poly(out, true).fill({ color: this.palette.divider, alpha: p.alpha });
     }
   }
 }

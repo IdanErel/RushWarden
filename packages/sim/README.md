@@ -17,7 +17,8 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `buildWorld(map): World`                                                            | Validates a `GridMap` (ADR-012) and builds links, lanes, intersections, edges. Throws `MapError`.                            |
 | `route(world, o, d)`, `routeByEdgeId(world, oId, dId)`                              | BFS shortest route between two edges as a list of link ids, cached per round.                                                |
 | `weightedRoute(world, intersection, arrivalSide, d, cost)`                          | Integer Dijkstra over links for taxis (time-weighted costs), no U-turns.                                                     |
-| `locateCell(world, laneId, cell)`                                                   | Tile, offset and travel directions of a snapshot's (lane, cell), for the renderer.                                           |
+| `locateCell(world, laneId, cell)`                                                   | Tile, offset, travel directions and box quarter of a snapshot's (lane, cell), for the renderer.                              |
+| `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-017).                                                                       |
 
 ## Worker protocol (P1-LEAD-01)
 
@@ -70,9 +71,25 @@ lanes has 4 cells per tile, cell 0 upstream. Directions are indices 0..3 = n, e,
 `Sim.init` (for example, Express Stop's `setBusStopDwell` needs a segment that already has a bus stop) and applies
 the effects from P1-SIM-05 on. `DEFAULT_SWITCH_TICKS` is the default phase-switch time.
 
+## Vehicles and lane ids (P1-SIM-02, ADR-017)
+
+Snapshots are `[tick, count, ...count × (id, lane, cell, speed, type)]`, listed in the tick's
+update order: (lane, cell) descending at the start of the tick. `id` is the spawn index and
+`cell` is the head cell.
+
+| Lane ids                          | What                                                                                                                        |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `0 .. world.roadLanes - 1`        | Road lanes: `world.lanes[id].link` is the link, 4 cells per tile, cell 0 upstream.                                          |
+| `world.roadLanes .. lanes.length` | Intersection box lanes, one per movement. 1/2/3 cells for right/straight/left; `locateCell` gives the quarter (0 NE..3 NW). |
+
+Vehicle table (§3): car 1/3/1, taxi 1/3/1, bus 2/2/3, truck 3/2/2, emergency 1/4/5, bike 1/2/1
+(length / vmax / score). Bikes move at 1 without a bike lane, and buses stand 4 ticks at each
+bus-stop tile.
+
 ## Status
 
-P1-SIM-01: `Sim.init` builds and validates the world and checks demand edges. Vehicles, tick
-rules and controllers follow in P1-SIM-02/03; until then a round runs 300 empty ticks and hashes
-its trajectory. Any change to
+P1-SIM-02: vehicles spawn, follow tick rules 1, 2, 4 and 6, and exit with their score.
+Controllers (rule 5) follow in P1-SIM-03; p_slow (rule 3) and the gridlock detector in P1-SIM-04.
+
+Any change to
 the exported types is an interface change (GDD section 13, rule 6).
