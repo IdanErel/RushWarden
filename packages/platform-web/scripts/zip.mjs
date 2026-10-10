@@ -3,7 +3,7 @@
 // byte-identical zip.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { crc32, deflateRawSync } from 'node:zlib';
+import { crc32, deflateRawSync, inflateRawSync } from 'node:zlib';
 
 /** Lists files under `dir` as [zipPath, absolutePath], sorted by zip path. */
 export function listFiles(dir) {
@@ -78,4 +78,29 @@ export function zipEntries(entries) {
 /** Zips every file under `dir`. */
 export function zipDirectory(dir) {
   return zipEntries(listFiles(dir).map(([name, p]) => [name, readFileSync(p)]));
+}
+
+/**
+ * Reads a zip written by `zipEntries` back into [name, Buffer] entries, in central-directory
+ * order. Used by the itch smoke test to serve exactly what would be uploaded.
+ */
+export function readZip(zip) {
+  const end = zip.length - 22;
+  if (zip.readUInt32LE(end) !== 0x06054b50) throw new Error('not a zip (no end record)');
+  const count = zip.readUInt16LE(end + 10);
+  let p = zip.readUInt32LE(end + 16);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    if (zip.readUInt32LE(p) !== 0x02014b50) throw new Error('bad central directory entry');
+    const method = zip.readUInt16LE(p + 10);
+    const size = zip.readUInt32LE(p + 20);
+    const nameLen = zip.readUInt16LE(p + 28);
+    const local = zip.readUInt32LE(p + 42);
+    const name = zip.toString('utf8', p + 46, p + 46 + nameLen);
+    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const body = zip.subarray(start, start + size);
+    out.push([name, method === 8 ? inflateRawSync(body) : Buffer.from(body)]);
+    p += 46 + nameLen;
+  }
+  return out;
 }

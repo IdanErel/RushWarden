@@ -1,6 +1,7 @@
 import { withTimeout } from './load-script.js';
 import { browserEnv } from './env.js';
 import {
+  isHttpsUrl,
   prop,
   safeCall,
   type AdapterEnv,
@@ -127,5 +128,10 @@ export class CrazyGamesAdapter implements WebPortalAdapter {
 
   canSellInPortal(): boolean {
     return false;
+  }
+
+  /** CrazyGames has no link API in its SDK; a plain new tab with no opener. */
+  openExternalLink(url: string): void {
+    if (isHttpsUrl(url)) this.env.openWindow?.(url);
   }
 }
