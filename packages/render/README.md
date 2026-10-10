@@ -49,5 +49,4 @@ Chromium).
 
 `tileLaneLayout` numbers lanes per tile and direction (`tileLaneId`). When the sim's world
 (P1-SIM-01, ADR-012) lands on `main`, a `worldLaneLayout(world)` adapter over its `Link`/`Lane`
-geometry replaces it; only `lanes.ts` and the fake traffic change. ADR-014 lists what the renderer
-needs from the sim for that.
+geometry replaces it; only `lanes.ts` and the fake traffic change. ADR-015 records the plan.

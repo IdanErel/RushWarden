@@ -1,4 +1,4 @@
-# ADR-014: Renderer playback, provisional lane layout, and fake traffic
+# ADR-015: Renderer playback, provisional lane layout, and fake traffic
 
 Status: Proposed · 2026-10-10 · Render Engineer (P1-REN-01)
 
@@ -26,14 +26,13 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
 5. **District 1 colours** are hand-picked tokens until the §7 OKLCH generator; a unit test keeps
    every vehicle body at ≥ 3:1 contrast against the road (WCAG AA for graphics).
 
-## What the renderer needs from the sim (for the Lead)
+## Lane geometry from the sim (Lead's decision, 2026-10-10)
 
-- `World` (or a small export from `@rushwarden/sim`) giving, per lane id: its link's tile list and
-  travel directions per tile, and the lane index. `Link`/`Lane` in ADR-012 already carry this.
-- A rule for where a vehicle is while it crosses an intersection (links stop at intersection
-  tiles): either the snapshot names a turn movement (e.g. a reserved lane-id range per
-  intersection approach → exit) or the renderer interpolates straight from the last approach cell
-  to the first exit cell. The second needs nothing from the sim but cuts corners on turns.
+- `World`, `Link`, `Lane`, `buildWorld` and `locateCell` are exported from `@rushwarden/sim` by
+  #13. The renderer adds `worldLaneLayout(world)` over them once #13 is on `main`.
+- Vehicles inside an intersection: the sim names the turn movement. Intersection movement lanes
+  get reserved lane ids after the road lanes (SIM-03), and `locateCell` resolves them. Until
+  SIM-03 lands, the renderer draws a straight line from the approach cell to the exit cell.
 
 ## Consequences
 
