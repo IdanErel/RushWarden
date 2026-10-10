@@ -18,7 +18,7 @@ function fakeResult(s: FakeTrafficState): RoundResult {
     spawned: s.spawned,
     exited: s.exited,
     ticks: s.tick,
-    gridlocked: false,
+    gridlocked: s.gridlocked,
     fundsDelta: 0,
     // Not a sim hash: the fake is not part of the determinism contract.
     finalHash: '0000000000000000',
@@ -53,7 +53,12 @@ export function createFakeWorkerHandler(post: PostFromWorker): (msg: ToSimWorker
     switch (msg.type) {
       case 'start':
         roundId = msg.roundId;
-        state = FakeTraffic.init(msg.input.map, msg.input.seed);
+        // Dev affordance: the "Gridlock Drill" boss runs the fake in jam mode, so the gridlock
+        // effect can be seen through the normal `done` path.
+        state = FakeTraffic.init(msg.input.map, msg.input.seed, {
+          demand: msg.input.demandProfile,
+          jam: msg.input.districtRules.boss === 'gridlock-drill',
+        });
         return;
       case 'step':
         if (msg.roundId === roundId) advance(Math.max(0, Math.min(msg.ticks, MAX_TICKS_PER_STEP)));

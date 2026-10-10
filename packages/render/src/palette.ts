@@ -27,6 +27,14 @@ export interface Palette {
   readonly beaconA: number;
   readonly beaconB: number;
   readonly bike: number;
+  /** Queue pulse outline. */
+  readonly pulse: number;
+  /** Heat-strip ramp: 0 = no spawns in that second, 4 = the busiest second on the map. */
+  readonly heat0: number;
+  readonly heat1: number;
+  readonly heat2: number;
+  readonly heat3: number;
+  readonly heat4: number;
 }
 
 export const OLD_TOWN: Palette = {
@@ -52,6 +60,12 @@ export const OLD_TOWN: Palette = {
   beaconA: 0xe0533d,
   beaconB: 0x3d7be0,
   bike: 0xf2b33d,
+  pulse: 0xffffff,
+  heat0: 0xe0d0b8,
+  heat1: 0xe9b98f,
+  heat2: 0xe08f5f,
+  heat3: 0xc65a33,
+  heat4: 0x8c3218,
 };
 
 function channel(c: number): number {

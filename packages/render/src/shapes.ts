@@ -190,6 +190,30 @@ export function vehicleShapes(type: number, frame: 0 | 1 = 0): Shape[] {
   }
 }
 
+/**
+ * Outline drawn around a vehicle for the queue pulse (GDD §7): the body's bounding box grown by
+ * a small margin, stroke only, so it never hides the vehicle's own shape.
+ */
+export function vehicleOutline(type: number): Shape[] {
+  const len = VEHICLE_LENGTH[type as VehicleType] ?? 1;
+  const m = 0.08;
+  const x0 = -(len - 1) - 0.5 + GAP / 2 - m;
+  const x1 = 0.5 - GAP / 2 + m;
+  const h = BODY_WIDTH + 2 * m;
+  return [
+    {
+      kind: 'rect',
+      x: x0,
+      y: -h / 2,
+      w: x1 - x0,
+      h,
+      r: h * 0.35,
+      stroke: 'pulse',
+      strokeWidth: 0.09,
+    },
+  ];
+}
+
 // ---------------------------------------------------------------------------------------------
 // Controller glyphs. Units: 1 = the glyph's box; centred on the origin, so it spans [−0.5, 0.5].
 // ---------------------------------------------------------------------------------------------
