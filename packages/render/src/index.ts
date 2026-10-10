@@ -18,6 +18,7 @@ export {
 } from './fake-traffic.js';
 export type { WorkerLike } from './worker/protocol.js';
 export * from './controller-state.js';
+export * from './closures.js';
 export {
   FAKE_ALL_RED_TICKS,
   createFakeWorkerHandler,

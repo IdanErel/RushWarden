@@ -10,8 +10,10 @@ import {
   GRID_WIDTH,
   VehicleType,
   buildWorld,
+  roundWorld,
   type ControllerKind,
   type GridMap,
+  type RoundInput,
   type Side,
   type World,
 } from '@rushwarden/sim';
@@ -27,6 +29,7 @@ import {
   tileIndex,
   type ViewFit,
 } from '../geometry.js';
+import { NO_CLOSURES, closures, type Closures } from '../closures.js';
 import { boxAlpha, readControllers, stopBars, type LiveIntersection } from '../controller-state.js';
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
 import { worldLaneLayout, type LaneLayout } from '../lanes.js';
@@ -67,6 +70,9 @@ export class TrafficScene {
   private readonly mapLayer = new Graphics();
   /** Live controller state: box occupancy tint and signal stop bars (ADR-020 frames). */
   private readonly liveLayer = new Graphics();
+  /** Closed segments of the current round (Parade boss): faded road and end barriers. */
+  private readonly closureLayer = new Graphics();
+  private closed: Closures = NO_CLOSURES;
   private readonly glyphLayer = new Container();
   private readonly vehicleLayer = new Container();
   private readonly vehicles = new Map<number, Graphics>();
@@ -91,7 +97,13 @@ export class TrafficScene {
     this.palette = opts.palette ?? OLD_TOWN;
     this.buffer = new SnapshotBuffer(opts.layout ?? worldLaneLayout(buildWorld(opts.map)));
     this.fit = fitGrid(opts.width, opts.height);
-    this.world.addChild(this.mapLayer, this.liveLayer, this.glyphLayer, this.vehicleLayer);
+    this.world.addChild(
+      this.mapLayer,
+      this.closureLayer,
+      this.liveLayer,
+      this.glyphLayer,
+      this.vehicleLayer,
+    );
     this.ixWorld = intersectionWorld(opts.map);
     app.stage.addChild(this.world);
     this.rebuild();
@@ -169,7 +181,42 @@ export class TrafficScene {
     this.controllers.clear();
     this.ixWorld = intersectionWorld(map);
     this.clearLive();
+    this.closed = NO_CLOSURES;
     this.rebuild();
+  }
+
+  /**
+   * Prepares the scene for a round. Snapshot lane ids refer to `roundWorld(input)` (the map plus
+   * its topology cards, ADR-023), so the default layout is built from it every round; the
+   * controllers frames use its intersection order; and `input.closedSegments` are drawn closed.
+   * Switches map when `input.map` differs. Inputs the sim would reject fall back to the bare map.
+   */
+  setRound(input: RoundInput, layout?: LaneLayout): void {
+    const world = safeWorld(() => roundWorld(input)) ?? safeWorld(() => buildWorld(input.map));
+    if (input.map.id !== this.map.id) {
+      this.map = input.map;
+      this.controllers.clear();
+    }
+    const chosen = layout ?? (world ? worldLaneLayout(world) : null);
+    if (chosen) this.buffer.setLayout(chosen);
+    this.buffer.reset();
+    this.ixWorld = world ?? { intersections: [] };
+    this.clearLive();
+    let closed = NO_CLOSURES;
+    if (world) {
+      try {
+        closed = closures(this.map, world, input.closedSegments);
+      } catch {
+        closed = NO_CLOSURES;
+      }
+    }
+    this.closed = closed;
+    this.rebuild();
+  }
+
+  /** Tiles drawn closed this round (for tests and the dev page). */
+  get closedTiles(): readonly { x: number; y: number }[] {
+    return this.closed.tiles;
   }
 
   resize(width: number, height: number): void {
@@ -198,6 +245,7 @@ export class TrafficScene {
   private rebuild(): void {
     this.world.position.set(this.fit.originX, this.fit.originY);
     this.drawMap();
+    this.drawClosures();
     this.drawLive();
     this.drawGlyphs();
     this.buildVehicleContexts();
@@ -207,6 +255,23 @@ export class TrafficScene {
     this.live = [];
     this.liveBytes = null;
     this.liveKinds = '';
+  }
+
+  private drawClosures(): void {
+    const g = this.closureLayer.clear();
+    const T = this.fit.tilePx;
+    const p = this.palette;
+    for (const { x, y } of this.closed.tiles) {
+      const w = roadWidth(lanesAt(this.map, x, y)) * T;
+      const sides = connections(this.map, x, y);
+      const horizontal = sides.includes('e') || sides.includes('w');
+      if (horizontal) g.rect(x * T, (y + 0.5) * T - w / 2, T, w);
+      else g.rect((x + 0.5) * T - w / 2, y * T, w, T);
+      g.fill({ color: p.ground, alpha: 0.55 });
+    }
+    for (const b of this.closed.barriers) {
+      g.rect(b.x * T, b.y * T, b.w * T, b.h * T).fill(p.stop);
+    }
   }
 
   private drawLive(): void {
@@ -366,6 +431,14 @@ export class TrafficScene {
       this.pool.push(g);
     }
     this.drawn = this.seen.size;
+  }
+}
+
+function safeWorld(make: () => World): World | null {
+  try {
+    return make();
+  } catch {
+    return null;
   }
 }
 

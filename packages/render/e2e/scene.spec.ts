@@ -35,7 +35,21 @@ test('the real sim drives vehicles and live controller frames through the worker
   await page.goto('/?source=sim&seed=6');
   const state = page.locator('#state');
   await expect(state).toHaveAttribute('data-vehicles', /^[1-9]\d*$/, { timeout: 15_000 });
-  // Until P1-SIM-05 the sim reports every intersection uncontrolled; the box count still moves.
-  await expect(state).toHaveAttribute('data-live', /^uncontrolled::\d+$/);
+  // The sim runs the dev page's Smart Signal placement (#32), so its frames show the live phase.
+  await expect(state).toHaveAttribute('data-live', /^signal:(ns|ew|):\d+$/);
+  expect(errors).toEqual([]);
+});
+
+test('a District 1 map with the Parade closure runs on the sim', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  await page.goto('/?source=sim&map=d1-01&boss=parade&seed=4');
+  const state = page.locator('#state');
+  await expect(state).toHaveAttribute('data-closed', /^[1-9]\d*$/);
+  await expect(state).toHaveAttribute('data-vehicles', /^[1-9]\d*$/, { timeout: 15_000 });
+  await page.screenshot({ path: `${SHOTS}/ren-03-parade.png` });
   expect(errors).toEqual([]);
 });
