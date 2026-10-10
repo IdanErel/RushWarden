@@ -6,9 +6,9 @@
  * gesture (or via `bindGestureUnlock`). Until then, and while muted, `play()` is a cheap no-op.
  * Nothing here throws into the game: audio failures only ever mean silence.
  */
-import { hashString, rng, type Rng } from './rng';
-import { makeVariants, synthesize } from './synth';
-import { SFX, type SfxId } from './sfx';
+import { hashString, rng, type Rng } from './rng.js';
+import { makeVariants, synthesize } from './synth.js';
+import { SFX, type SfxId } from './sfx.js';
 
 /** The subset of the Web Audio API the engine uses; a real `AudioContext` satisfies it. */
 export interface AudioParamLike {
@@ -134,9 +134,11 @@ export class AudioEngine {
   /**
    * Creates and resumes the AudioContext. Call it from inside a user gesture handler; browsers and
    * portals (Poki, §9) reject audio started any other way. Idempotent. Returns whether audio is
-   * available.
+   * started. While muted it does nothing and returns false: a muted game never creates or resumes
+   * a context, so the first gesture after sound is turned on is the one that unlocks.
    */
   unlock(): boolean {
+    if (this._muted) return false;
     try {
       if (!this.ctx) {
         const ctx = this.opts.createContext();
@@ -158,8 +160,9 @@ export class AudioEngine {
   }
 
   /**
-   * Unlocks on the first user gesture on `target` (e.g. `window`), then removes its listeners.
-   * Returns a function that removes them early.
+   * Unlocks on the first user gesture on `target` (e.g. `window`) that happens while sound is on,
+   * then removes its listeners. Gestures while muted are ignored and the listeners stay. Returns a
+   * function that removes them early.
    */
   bindGestureUnlock(target: EventTargetLike): () => void {
     const off = (): void => {
@@ -188,9 +191,25 @@ export class AudioEngine {
     return () => doc.removeEventListener('visibilitychange', on);
   }
 
+  /**
+   * Mutes or unmutes. Unmuting here never starts audio by itself (it may run outside a gesture,
+   * e.g. when restoring settings); the next gesture seen by `bindGestureUnlock` starts it. From a
+   * sound toggle's click/tap handler, use `setSoundOnFromGesture` instead.
+   */
   setMuted(muted: boolean): void {
     this._muted = muted;
     this.applyGains();
+  }
+
+  /**
+   * For the settings sound toggle: call it inside the toggle's own gesture handler (click, tap,
+   * key). Turning sound on unmutes and unlocks the AudioContext in that same gesture, so the
+   * player hears the next sound without a second tap. Returns whether audio is started (always
+   * false when turning sound off).
+   */
+  setSoundOnFromGesture(on: boolean): boolean {
+    this.setMuted(!on);
+    return on ? this.unlock() : false;
   }
   setMasterVolume(v: number): void {
     this._master = clamp01(v);
@@ -229,11 +248,12 @@ export class AudioEngine {
         out = g;
       }
       out.connect(this.sfxBus);
-      this.active++;
       src.onended = () => {
         this.active = Math.max(0, this.active - 1);
       };
       src.start(now);
+      // Count the voice only once it actually started, so a throwing start() cannot leak it.
+      this.active++;
       this.lastPlayed.set(id, now);
       return true;
     } catch {

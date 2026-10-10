@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deviceClassFromMs, platformFromFlag, startAnalytics } from './analytics.js';
+import { deviceClassFromMs, platformFromPortalId, startAnalytics } from './analytics.js';
 
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962';
 
@@ -8,7 +8,7 @@ describe('startAnalytics', () => {
     for (const url of [undefined, '', 'http://api.rushwarden.com/ingest', 'false']) {
       const sent: unknown[] = [];
       const storage = new Map<string, string>();
-      const c = startAnalytics({ VITE_INGEST_URL: url }, 10, {
+      const c = startAnalytics({ VITE_INGEST_URL: url }, 'itch', 10, {
         fetch: async (u) => void sent.push(u),
         storage: {
           getItem: (k) => storage.get(k) ?? null,
@@ -27,9 +27,9 @@ describe('startAnalytics', () => {
     const c = startAnalytics(
       {
         VITE_INGEST_URL: 'https://api.rushwarden.com/ingest',
-        VITE_PORTAL: 'itch',
         VITE_APP_VERSION: '0.1.0',
       },
+      'itch',
       30,
       {
         fetch: async (_u, init) => void sent.push(init.body as string),
@@ -50,11 +50,11 @@ describe('startAnalytics', () => {
     });
   });
 
-  it('maps flags and benchmark times', () => {
-    expect(platformFromFlag(undefined)).toBe('web');
-    expect(platformFromFlag('none')).toBe('web');
-    expect(platformFromFlag('poki')).toBe('poki');
-    expect(platformFromFlag('weird')).toBe('web');
+  it('maps portal ids and benchmark times', () => {
+    expect(platformFromPortalId('none')).toBe('web');
+    expect(platformFromPortalId('poki')).toBe('poki');
+    expect(platformFromPortalId('crazygames')).toBe('crazygames');
+    expect(platformFromPortalId('itch')).toBe('itch');
     expect([1, 20, 100].map(deviceClassFromMs)).toEqual(['high', 'mid', 'low']);
   });
 });

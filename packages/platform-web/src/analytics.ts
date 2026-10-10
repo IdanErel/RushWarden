@@ -1,7 +1,7 @@
 import {
   createIngestClient,
+  type PortalAdapter,
   offIngestClient,
-  PLATFORMS,
   type DeviceClass,
   type IngestClient,
   type IngestClientOptions,
@@ -15,14 +15,15 @@ import {
  */
 export interface AnalyticsBuildEnv {
   VITE_INGEST_URL?: string | undefined;
-  VITE_PORTAL?: string | undefined;
   VITE_APP_VERSION?: string | undefined;
 }
 
-/** Maps the portal build flag to the analytics `platform` field; our own site is `web`. */
-export function platformFromFlag(flag: string | undefined): Platform {
-  if (!flag || flag === 'none') return 'web';
-  return (PLATFORMS as readonly string[]).includes(flag) ? (flag as Platform) : 'web';
+/**
+ * Maps the running portal adapter's `id` to the analytics `platform` field. The ids are the same
+ * set; the no-portal adapter (`none`) is our own site, which reports as `web`.
+ */
+export function platformFromPortalId(id: PortalAdapter['id']): Platform {
+  return id === 'none' ? 'web' : id;
 }
 
 /**
@@ -37,6 +38,7 @@ export function deviceClassFromMs(ms: number): DeviceClass {
 
 export function startAnalytics(
   env: AnalyticsBuildEnv,
+  portalId: PortalAdapter['id'],
   benchmarkMs: number,
   deps: Pick<IngestClientOptions, 'storage' | 'fetch' | 'randomUUID'> & { language?: string },
 ): IngestClient {
@@ -44,7 +46,7 @@ export function startAnalytics(
   if (!endpoint.startsWith('https://')) return offIngestClient;
   return createIngestClient({
     endpoint,
-    platform: platformFromFlag(env.VITE_PORTAL),
+    platform: platformFromPortalId(portalId),
     version: env.VITE_APP_VERSION || '0.0.0',
     locale: deps.language ?? 'und',
     deviceClass: deviceClassFromMs(benchmarkMs),

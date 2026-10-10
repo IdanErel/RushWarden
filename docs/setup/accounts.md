@@ -120,6 +120,15 @@ nothing collects until you do the steps below, and **steps 4 and 5 wait until th
    minute per install ID, never per IP). If your plan rejects it on deploy, the team removes the
    block; the Worker works without it.
 
+**Open before step 4 (the server does not go live until both are done):**
+
+- [ ] **Retention purge.** A scheduled Worker job that deletes `events` rows older than the
+      retention period. **Idan picks the period** (the privacy policy must state the same number);
+      the team then adds the cron trigger and the purge with tests.
+- [ ] **Workers logging.** Set Workers Logs / observability explicitly off (or minimal, no request
+      bodies or headers) in `wrangler.toml`, so Cloudflare does not keep event payloads beyond the
+      `events` table.
+
 ## 7. Stripe
 
 1. Create an account as an individual/sole proprietor; complete identity and bank verification.
