@@ -1,5 +1,51 @@
+import {
+  GRID_HEIGHT,
+  GRID_WIDTH,
+  type GridMap,
+  type MapTile,
+  placementError,
+  type Target,
+} from '@rushwarden/sim';
 import { describe, expect, it } from 'vitest';
-import { cardText, getCard, loadCards, PHASE1_BLOCKED, PHASE1_CARD_IDS } from '../src/index.js';
+import {
+  cardText,
+  getCard,
+  loadCards,
+  needsSecondaryTarget,
+  PHASE1_BLOCKED,
+  PHASE1_CARD_IDS,
+  type TargetKind,
+  toPlacement,
+} from '../src/index.js';
+
+/** One straight road down column 3 with a bus stop at (3,4) and an edge at each end. */
+function testMap(): GridMap {
+  const tiles: MapTile[] = [];
+  for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (let x = 0; x < GRID_WIDTH; x++) {
+      tiles.push(
+        x !== 3
+          ? { kind: 'block' }
+          : { kind: 'road', lanes: 1, ...(y === 4 ? { busStop: true } : {}) },
+      );
+    }
+  }
+  return {
+    id: 'phase1-cards',
+    tiles,
+    edges: [
+      { id: 0, tile: { x: 3, y: 0 }, side: 'n' },
+      { id: 1, tile: { x: 3, y: GRID_HEIGHT - 1 }, side: 's' },
+    ],
+  };
+}
+
+const TARGETS: Record<TargetKind, Target> = {
+  intersection: { kind: 'intersection', tile: { x: 3, y: 4 } },
+  segment: { kind: 'segment', from: { x: 3, y: 3 }, to: { x: 3, y: 5 } },
+  edge: { kind: 'edge', edge: 0 },
+  district: { kind: 'district' },
+};
 
 describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
   it('lists 20 cards, 4 per archetype', () => {
@@ -20,6 +66,33 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
   // GDD §4 list items, with the generated text at both tiers. Text is generated, not stored:
   // this table is the evidence that data, text and the brief agree.
   const GDD: [string, string, number, string, string, string, string][] = [
+    [
+      'smart-signal',
+      'intersection',
+      1,
+      'common',
+      'FLOW',
+      'Becomes a signal. Signal is adaptive: the longest queue gets green.',
+      'Becomes a signal. Signal is adaptive: the longest queue gets green. Phases switch 2 ticks faster (4 ticks).',
+    ],
+    [
+      'one-way',
+      'segment',
+      1,
+      'common',
+      'FLOW',
+      'This segment becomes one-way in the direction you place it, with its lanes doubled that way.',
+      'This segment becomes one-way in the direction you place it, with its lanes doubled that way.',
+    ],
+    [
+      'turn-lane',
+      'intersection',
+      1,
+      'common',
+      'FLOW',
+      'Left turns get their own lane and stop blocking through traffic.',
+      'Left and right turns get their own lanes and stop blocking through traffic.',
+    ],
     [
       'speed-limit-up',
       'segment',
@@ -44,8 +117,17 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
       1,
       'common',
       'MASS',
-      'Bus stop on this segment: buses dwell 2 ticks.',
-      'Bus stop on this segment: buses dwell 1 tick.',
+      'Buses dwell 2 ticks at the bus stop on this segment.',
+      'Buses dwell 1 tick at the bus stop on this segment.',
+    ],
+    [
+      'bus-lane',
+      'segment',
+      2,
+      'uncommon',
+      'MASS',
+      'One lane of this segment is reserved for buses and bikes.',
+      'One lane of this segment is reserved for buses and bikes. +1 top speed, up to 2, on this segment for bikes.',
     ],
     [
       'fare-holiday',
@@ -53,8 +135,44 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
       1,
       'common',
       'MASS',
-      '+40% bus spawns. +40% bike spawns. −20% car spawns.',
-      '+60% bus spawns. +60% bike spawns. −30% car spawns.',
+      '+40% bus spawns. +40% bike spawns. \u221220% car spawns.',
+      '+60% bus spawns. +60% bike spawns. \u221230% car spawns.',
+    ],
+    [
+      'detour',
+      'edge',
+      1,
+      'common',
+      'TOLL',
+      '50% of spawns from this edge move to the next edge clockwise.',
+      '50% of spawns from this edge move to an edge you choose.',
+    ],
+    [
+      'toll-booth',
+      'segment',
+      1,
+      'common',
+      'TOLL',
+      'Top speed at most 1 on the first 2 cells of this segment for all vehicles. +1 funds per 4 vehicles through this segment.',
+      '+1 funds per 4 vehicles through this segment.',
+    ],
+    [
+      'staggered-hours',
+      'district',
+      2,
+      'uncommon',
+      'TOLL',
+      'Rush hour spreads out: peak demand 30% lower, spread over the round.',
+      'Rush hour spreads out: peak demand 40% lower, spread over the round.',
+    ],
+    [
+      'delivery-window',
+      'district',
+      1,
+      'common',
+      'TOLL',
+      'Trucks spawn only in the first 5 seconds.',
+      'Trucks spawn only in the first 5 seconds. Trucks score +1.',
     ],
     [
       'roundabout',
@@ -74,6 +192,51 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
       'Uncontrolled intersections resolve 1 tick faster.',
       'Uncontrolled intersections resolve 2 ticks faster.',
     ],
+    [
+      'no-heavy',
+      'segment',
+      1,
+      'common',
+      'CHAOS',
+      'Trucks are banned from this segment and route around it.',
+      'Trucks are banned from every local (1-lane) road in the district and route around them.',
+    ],
+    [
+      'remove-signal',
+      'intersection',
+      1,
+      'common',
+      'CHAOS',
+      'Becomes an uncontrolled junction. +1 energy this round if it replaced a signal.',
+      'Becomes an uncontrolled junction. +2 energy this round if it replaced a signal.',
+    ],
+    [
+      'overtime',
+      'district',
+      1,
+      'common',
+      'TEMPO',
+      '+1 energy next round.',
+      '+2 energy next round.',
+    ],
+    [
+      'second-shift',
+      'district',
+      2,
+      'uncommon',
+      'TEMPO',
+      'Draw 2 extra cards next round.',
+      'Draw 2 extra cards next round. +1 energy next round.',
+    ],
+    [
+      'recount',
+      'district',
+      1,
+      'common',
+      'TEMPO',
+      'Redraw your hand.',
+      'Keep 1 card, then redraw the rest of your hand.',
+    ],
   ];
   it.each(GDD)(
     '%s matches GDD §4 (%s, cost %i, %s, %s)',
@@ -91,5 +254,18 @@ describe('Phase 1 card set (docs/tasks/phase-1.md)', () => {
         .map((c) => c.id)
         .sort(),
     ).toEqual(GDD.map((r) => r[0]).sort());
+  });
+
+  it('every bundled card, at both tiers, passes the sim placement check (ADR-014)', () => {
+    const map = testMap();
+    for (const card of loadCards()) {
+      for (const tier of [1, 2] as const) {
+        const secondary = needsSecondaryTarget(card, tier)
+          ? ({ kind: 'edge', edge: 1 } as const)
+          : undefined;
+        const placement = toPlacement(card, tier, TARGETS[card.target], 0, secondary);
+        expect(placementError(map, placement), `${card.id} tier ${tier}`).toBeNull();
+      }
+    }
   });
 });
