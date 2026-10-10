@@ -1,0 +1,23 @@
+{
+  "name": "@gridlock/golden",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Golden determinism suite: 200 seeded rounds must hash identically on every engine.",
+  "scripts": {
+    "lint": "eslint src test e2e",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:node": "vitest run",
+    "test:browsers": "node src/bundle.mjs && playwright test",
+    "update": "UPDATE_GOLDEN=1 vitest run"
+  },
+  "dependencies": {
+    "@gridlock/sim": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "esbuild": "^0.28.2",
+    "vitest": "~4.1.11"
+  }
+}

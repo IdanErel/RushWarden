@@ -1,0 +1,18 @@
+{
+  "name": "@gridlock/platform-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Capacitor shell for iOS and Android: RevenueCat, share sheet, haptics.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@gridlock/app": "workspace:*"
+  }
+}

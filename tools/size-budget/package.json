@@ -1,0 +1,10 @@
+{
+  "name": "@gridlock/size-budget",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fails CI when the web build exceeds the GDD section 6 download budgets.",
+  "scripts": {
+    "lint": "eslint check.mjs"
+  }
+}
