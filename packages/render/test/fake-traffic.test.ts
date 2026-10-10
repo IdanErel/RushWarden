@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ROUND_TICKS, SNAPSHOT_HEADER, SNAPSHOT_STRIDE, emptyMap } from '@rushwarden/sim';
-import { FakeTraffic, buildRoute } from '../src/fake-traffic.js';
+import { FakeTraffic, buildRoute, fakeDemand } from '../src/fake-traffic.js';
 import { tileLaneLayout, type LanePoint } from '../src/lanes.js';
 
 const VMAX = [3, 3, 2, 2, 4, 2]; // car, taxi, bus, truck, emergency, bike
@@ -89,5 +89,44 @@ describe('fake traffic', () => {
     let s = FakeTraffic.init(emptyMap(), 2);
     while (!s.done) s = FakeTraffic.step(s);
     expect(s.exited).toBeGreaterThan(10);
+  });
+});
+
+describe('fake traffic with a demand profile', () => {
+  const map = emptyMap();
+
+  it('generates a deterministic, sorted demo profile with a peak per edge', () => {
+    const d = fakeDemand(map, 4);
+    expect(d).toEqual(fakeDemand(map, 4));
+    expect(d.length).toBeGreaterThan(50);
+    for (let i = 1; i < d.length; i++) {
+      const a = d[i - 1]!;
+      const b = d[i]!;
+      expect(a.tick < b.tick || (a.tick === b.tick && a.edge < b.edge)).toBe(true);
+    }
+    for (const e of d) expect(e.destinationEdge).not.toBe(e.edge);
+  });
+
+  it('spawns exactly the profile, in order, waiting when the edge is busy', () => {
+    const demand = [
+      { tick: 0, edge: 0, vehicleType: 2, destinationEdge: 2 },
+      { tick: 0, edge: 0, vehicleType: 0, destinationEdge: 2 }, // same edge, same tick: waits
+      { tick: 3, edge: 1, vehicleType: 5, destinationEdge: 3 },
+      { tick: 4, edge: 1, vehicleType: 0, destinationEdge: 99 }, // no route: dropped
+    ] as const;
+    let s = FakeTraffic.init(map, 1, { demand });
+    s = FakeTraffic.step(s);
+    expect(rows(FakeTraffic.snapshot(s)).map((r) => r[4])).toEqual([2]);
+    for (let i = 0; i < 10; i++) s = FakeTraffic.step(s);
+    expect(s.spawned).toBe(3);
+    expect(s.waiting).toEqual([]);
+  });
+
+  it('ends a jammed round as gridlock after 60 still ticks', () => {
+    let s = FakeTraffic.init(map, 2, { demand: fakeDemand(map, 2), jam: true });
+    while (!s.done) s = FakeTraffic.step(s);
+    expect(s.gridlocked).toBe(true);
+    expect(s.tick).toBeLessThan(ROUND_TICKS);
+    expect(s.exited).toBe(0);
   });
 });
