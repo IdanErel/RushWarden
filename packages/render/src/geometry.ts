@@ -157,9 +157,17 @@ export interface ViewFit {
   readonly heightPx: number;
 }
 
-/** Fits the grid into a `width × height` box, centred, with whole-pixel tiles. */
-export function fitGrid(width: number, height: number): ViewFit {
-  const tilePx = Math.max(1, Math.floor(Math.min(width / GRID_WIDTH, height / GRID_HEIGHT)));
+/**
+ * Fits the grid into a `width × height` box, centred, with whole-pixel tiles, leaving at least
+ * `gutterPx` on every side (the demand heat-strips live there).
+ */
+export function fitGrid(width: number, height: number, gutterPx = 0): ViewFit {
+  const tilePx = Math.max(
+    1,
+    Math.floor(
+      Math.min((width - 2 * gutterPx) / GRID_WIDTH, (height - 2 * gutterPx) / GRID_HEIGHT),
+    ),
+  );
   const widthPx = tilePx * GRID_WIDTH;
   const heightPx = tilePx * GRID_HEIGHT;
   return {

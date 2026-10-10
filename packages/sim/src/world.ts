@@ -204,7 +204,18 @@ function onBoundary(x: number, y: number, dir: number): boolean {
  * Builds and validates the world for a map. Pure. Throws `MapError` (a `RangeError`) naming the
  * first broken rule, so content can use it to validate its templates.
  */
-export function buildWorld(map: GridMap): World {
+/**
+ * A per-round change to a link's lane count, from a topology card (`setOneWay`, `setLaneCount`,
+ * P1-SIM-05, ADR-023). It applies to every link that holds `tile` and travels in direction `dir`
+ * there (entering or leaving it). `lanes` is 0..4; 0 closes that direction (one-way).
+ */
+export interface LaneOverride {
+  readonly tile: number;
+  readonly dir: number;
+  readonly lanes: number;
+}
+
+export function buildWorld(map: GridMap, laneOverrides: readonly LaneOverride[] = []): World {
   if (map.tiles.length !== TILE_COUNT) {
     throw new MapError(`map "${map.id}" has ${map.tiles.length} tiles, expected ${TILE_COUNT}`);
   }
@@ -401,7 +412,16 @@ export function buildWorld(map: GridMap): World {
     const first = l.tiles[0]!;
     const reverse = exitLink[first * 4 + opposite(l.entryDirs[0]!)]!;
     const ids: number[] = [];
-    for (let k = 0; k < lanesPerDir[first]!; k++) {
+    let laneCount: number = lanesPerDir[first]!;
+    for (const o of laneOverrides) {
+      for (let k = 0; k < l.tiles.length; k++) {
+        if (l.tiles[k] === o.tile && (l.entryDirs[k] === o.dir || l.exitDirs[k] === o.dir)) {
+          laneCount = o.lanes;
+          break;
+        }
+      }
+    }
+    for (let k = 0; k < laneCount; k++) {
       ids.push(lanes.length);
       lanes.push({
         id: lanes.length,
@@ -758,43 +778,52 @@ export function weightedRoute(
   prev.fill(NONE, 0, n);
   done.fill(0, 0, n);
   heapLen = 0;
-  const relax = (link: number, base: number, p: number): void => {
-    if (world.links[link]!.lanes.length === 0 || (closed && closed[link])) return;
-    const c = cost(link);
-    if (!Number.isInteger(c) || c < 1)
-      throw new RangeError(`link cost must be a positive integer, got ${c}`);
-    const nd = base + c;
-    if (dist[link] === -1 || nd < dist[link]!) {
-      dist[link] = nd;
-      prev[link] = p;
-      heapPush(nd * HEAP_LINKS + link);
-    }
-  };
   const start = world.intersections[from];
   if (!start) throw new RangeError(`intersection index out of range: ${from}`);
-  for (let dir = 0; dir < 4; dir++) {
-    const l = start.outLinks[dir]!;
-    if (l !== NONE && dir !== arrivalSide) relax(l, 0, NONE);
-  }
-  while (heapLen > 0) {
-    // Keys are dist * HEAP_LINKS + link, so the minimum is the lowest distance, then link id.
-    const key = heapPop();
-    const best = key % HEAP_LINKS;
-    if (done[best] || idiv(key, HEAP_LINKS) !== dist[best]) continue; // stale entry
-    done[best] = 1;
-    const link = world.links[best]!;
-    if (link.to.kind === 'edge') {
-      if (link.to.index !== destination) continue;
-      const out: number[] = [];
-      for (let l = best; l !== NONE; l = prev[l]!) out.push(l);
-      return out.reverse();
-    }
-    const ix = world.intersections[link.to.index]!;
-    const arrived = opposite(link.exitDirs[link.exitDirs.length - 1]!);
+  const links = world.links;
+  let node = start;
+  let arrived = arrivalSide;
+  let base = 0;
+  let p = NONE;
+  for (;;) {
+    // Relax the exits of `node` (no U-turn back out of the arrival side).
     for (let dir = 0; dir < 4; dir++) {
-      const l = ix.outLinks[dir]!;
-      if (l !== NONE && dir !== arrived && !done[l]) relax(l, dist[best]!, best);
+      const l = node.outLinks[dir]!;
+      if (l === NONE || dir === arrived || done[l] || links[l]!.lanes.length === 0) continue;
+      if (closed && closed[l]) continue;
+      const c = cost(l);
+      if (!Number.isInteger(c) || c < 1)
+        throw new RangeError(`link cost must be a positive integer, got ${c}`);
+      const nd = base + c;
+      if (dist[l] === -1 || nd < dist[l]!) {
+        dist[l] = nd;
+        prev[l] = p;
+        heapPush(nd * HEAP_LINKS + l);
+      }
     }
+    // Settle the cheapest link that leads on to an intersection or is the destination.
+    let next: Intersection | null = null;
+    while (heapLen > 0) {
+      // Keys are dist * HEAP_LINKS + link, so the minimum is the lowest distance, then link id.
+      const key = heapPop();
+      const best = key % HEAP_LINKS;
+      if (done[best] || idiv(key, HEAP_LINKS) !== dist[best]) continue; // stale entry
+      done[best] = 1;
+      const link = links[best]!;
+      if (link.to.kind === 'edge') {
+        if (link.to.index !== destination) continue;
+        const out: number[] = [];
+        for (let l = best; l !== NONE; l = prev[l]!) out.push(l);
+        return out.reverse();
+      }
+      next = world.intersections[link.to.index]!;
+      arrived = opposite(link.exitDirs[link.exitDirs.length - 1]!);
+      base = dist[best]!;
+      p = best;
+      break;
+    }
+    if (!next) break;
+    node = next;
   }
   return null;
 }

@@ -28,3 +28,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 020 | Intersection controllers and the turn pocket            | Proposed        |
 | 021 | Round demand model, seed salts and District 1 bosses    | Accepted        |
 | 022 | p_slow, the gridlock detector and closed segments       | Proposed        |
+| 023 | Card effects, stacking and controller conflicts         | Proposed        |

@@ -65,3 +65,34 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
 - Observation for the Sim Engineer and Lead: at §3 speeds (vmax 3 cells/tick, 20 ticks/s, 4 cells
   per tile) a car crosses the 9-tile map in about 0.6 s. Interpolation keeps it smooth, but it is
   fast to read on a phone; worth checking against pillar 5 (watchable) once real traffic exists.
+
+## Addendum: readability effects (P1-REN-02)
+
+The brief fixes the effects (§7) and the reduced-motion rules (§8). It does not fix these details:
+
+- **Queue = speed 0 in the snapshot.** The pulse is phase-locked to the clock, so a whole queue
+  pulses together and reads as one queue. A bus dwelling at a stop also has speed 0 and pulses;
+  the snapshot has no dwell flag, and a stopped bus does hold traffic.
+- **Gridlock comes from the round result** (`RoundResult.gridlocked`), not from the renderer.
+  The scene never decides game state. `setGridlock(true)` tints stopped vehicles desaturated red
+  and shakes the camera. The next round (tick 0) clears it.
+- **Reduced motion:**
+  - no trails, as §8 says
+  - no shake, as §8 says
+  - queues get a steady outline instead of a pulse. The brief does not cover this case; a steady
+    outline keeps queues marked without animation.
+- **Heat-strips are at least 6 px thick at the 390 px design width** (Lead's decision,
+  2026-10-10, after review of #24 found them about 4 px). They fill a 6 px margin around the grid
+  edge to edge (`HEAT_STRIP_MIN_PX`, `HEAT_GUTTER_PX`), so they never cover traffic. A wider
+  margin would drop a 390 px phone to 53 px tiles and the car under 12 px, so the strip has no
+  inset. Bin length (about 3 px per second on a phone) is unchanged; the reviewer's other options
+  (a larger strip for a selected edge, coarser bins) stay open for UI-01 and the P1-REV-02 feel
+  check.
+  - Each strip is centred on its edge and runs along the boundary: left to right on n/s edges,
+    top to bottom on e/w edges.
+  - It has 15 one-second bins on a 5-step ramp that darkens with each step, so it reads without
+    colour. Bins are scaled to the busiest second on the whole map, so edges compare directly.
+  - During Go, elapsed seconds dim.
+  - With the margin, a 390 px phone still gets 54 px tiles, and a car is 12.2 px long.
+- **Dev-only jam mode.** The fake worker runs the "Gridlock Drill" boss as a jam, so the gridlock
+  effect shows through the normal `done` path. It goes away with the fake.
