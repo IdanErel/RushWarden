@@ -14,7 +14,9 @@ import {
 } from '@rushwarden/sim';
 import {
   OLD_TOWN,
+  HEAT_GUTTER_PX,
   SimClient,
+  fakeDemand,
   spawnFakeWorker,
   spawnSimWorker,
   TrafficScene,
@@ -29,14 +31,26 @@ const speed = Number(q.get('speed') ?? '1') || 1;
 const ctrl = (q.get('ctrl') ?? 'signal') as ControllerKind;
 const source = q.get('source') === 'sim' ? 'sim' : 'fake';
 let seed = Number(q.get('seed') ?? '1') >>> 0;
+const reducedMotion =
+  q.get('reduced') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** `jam=1` runs the fake in Gridlock Drill jam mode to show the gridlock effect. */
+const jam = q.get('jam') === '1';
 
 const WIDTH = Math.min(window.innerWidth, 430);
-const SCENE_H = Math.round((WIDTH / 7) * 9);
+const SCENE_H = Math.round(((WIDTH - 2 * HEAT_GUTTER_PX) / 7) * 9 + 2 * HEAT_GUTTER_PX);
 const map = emptyMap();
 const state = document.getElementById('state') as HTMLOutputElement;
 
 function input(s: number): RoundInput {
-  return { ...sampleInput(s), seed: s, map, mapId: map.id };
+  const base = sampleInput(s);
+  return {
+    ...base,
+    seed: s,
+    map,
+    mapId: map.id,
+    demandProfile: source === 'fake' ? fakeDemand(map, s) : base.demandProfile,
+    districtRules: { ...base.districtRules, boss: jam ? 'gridlock-drill' : null },
+  };
 }
 
 async function boot(): Promise<void> {
@@ -44,24 +58,40 @@ async function boot(): Promise<void> {
     map,
     width: WIDTH,
     height: SCENE_H,
+    reducedMotion,
   });
   scene.setControllers([{ x: 3, y: 4, kind: ctrl, direction: 'e' }]);
   scene.setSpeed(speed);
   const client = new SimClient(source === 'sim' ? spawnSimWorker() : spawnFakeWorker(), {
     onFrame: (f, now) => scene.pushSnapshot(f, now),
-    onDone: () => {
-      seed = (seed + 1) >>> 0;
-      client.start(input(seed));
+    onDone: (result) => {
+      // Gridlock: hold the red queue on screen for a moment before the next round.
+      if (result.gridlocked) scene.setGridlock(true);
+      setTimeout(
+        () => {
+          seed = (seed + 1) >>> 0;
+          const next = input(seed);
+          scene.setGridlock(false);
+          scene.setDemand(next.demandProfile);
+          client.start(next);
+        },
+        result.gridlocked ? 2500 : 0,
+      );
     },
     onError: (m) => (state.textContent = `error: ${m}`),
   });
   client.setSpeed(speed);
   scene.attach(client);
-  client.start(input(seed));
+  const first = input(seed);
+  scene.setDemand(first.demandProfile);
+  client.start(first);
 
   setInterval(() => {
     state.dataset['tick'] = String(scene.buffer.tick);
     state.dataset['vehicles'] = String(scene.vehicleCount);
+    state.dataset['queued'] = String(scene.stats.queued);
+    state.dataset['trails'] = String(scene.stats.trails);
+    state.dataset['gridlock'] = String(scene.stats.gridlock);
     state.textContent = `seed ${seed} · tick ${scene.buffer.tick} · ${scene.vehicleCount} vehicles`;
   }, 100);
 
