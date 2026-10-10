@@ -49,6 +49,21 @@ export function segmentTiles(
   }
 }
 
+function isRoad(map: GridMap, x: number, y: number): boolean {
+  return tileInBounds({ x, y }) && map.tiles[y * GRID_WIDTH + x]?.kind === 'road';
+}
+
+/** An intersection is a road tile with 3 or 4 road neighbours, as `buildWorld` classifies it. */
+function isIntersection(map: GridMap, t: TileRef): boolean {
+  if (!isRoad(map, t.x, t.y)) return false;
+  const n =
+    Number(isRoad(map, t.x + 1, t.y)) +
+    Number(isRoad(map, t.x - 1, t.y)) +
+    Number(isRoad(map, t.x, t.y + 1)) +
+    Number(isRoad(map, t.x, t.y - 1));
+  return n >= 3;
+}
+
 function targetError(map: GridMap, t: Target): string | null {
   switch (t.kind) {
     case 'district':
@@ -56,7 +71,10 @@ function targetError(map: GridMap, t: Target): string | null {
     case 'edge':
       return map.edges.some((e) => e.id === t.edge) ? null : `unknown edge ${t.edge}`;
     case 'intersection':
-      return tileInBounds(t.tile) ? null : `intersection tile out of bounds`;
+      if (!tileInBounds(t.tile)) return `intersection tile out of bounds`;
+      return isIntersection(map, t.tile)
+        ? null
+        : `no intersection at (${t.tile.x}, ${t.tile.y}): the tile must be a road tile with 3-4 road neighbours`;
     case 'segment':
       return segmentTiles(t, map) ? null : `segment must be a straight in-bounds run of road tiles`;
   }
