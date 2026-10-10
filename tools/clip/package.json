@@ -10,6 +10,7 @@
     "test": "vitest run --coverage",
     "build:page": "vite build",
     "clip": "node cli/clip.ts",
+    "store-assets": "node cli/store.ts",
     "e2e": "playwright test"
   },
   "dependencies": {
