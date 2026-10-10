@@ -36,7 +36,9 @@ golden hashes are unchanged.
     to grey out such targets.
 
 Run-controller effects (`drawModifier`, `energyModifier`, `costModifier`, `redraw`,
-`fundsModifier`) travel in `Placement.effects` but the sim ignores them.
+`fundsModifier`) travel in `Placement.effects` but the sim ignores them. Their numeric ranges
+(for example `costModifier.delta` and `drawModifier.delta`) are bounded by the content schema
+and enforced by the run controller, not by `Sim.init`.
 
 Sim Engineer details:
 
