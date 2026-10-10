@@ -1,0 +1,466 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rushwarden.com/schema/card.schema.json",
+  "title": "Rushwarden card",
+  "description": "One card (GDD section 4). Card text is generated from effects; flavor is the only free text.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 40
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24
+    },
+    "cost": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3,
+      "description": "Energy cost."
+    },
+    "target": {
+      "type": "string",
+      "enum": ["intersection", "segment", "edge", "district"]
+    },
+    "duration": {
+      "type": "string",
+      "enum": ["round", "run"]
+    },
+    "rarity": {
+      "type": "string",
+      "enum": ["common", "uncommon", "rare"]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["FLOW", "MASS", "TOLL", "CHAOS", "TEMPO"]
+      },
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/effect"
+      },
+      "minItems": 1,
+      "maxItems": 6
+    },
+    "upgrade": {
+      "type": "object",
+      "description": "Tier 2: each field given replaces the tier-1 value.",
+      "properties": {
+        "cost": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Tier-2 energy cost."
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          },
+          "minItems": 1,
+          "maxItems": 6
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "flavor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "pattern": "^[^\\n\\r]*$"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "cost",
+    "target",
+    "duration",
+    "rarity",
+    "tags",
+    "effects",
+    "upgrade",
+    "flavor"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "vehicleType": {
+      "type": "string",
+      "enum": ["car", "taxi", "bus", "truck", "emergency", "bike"]
+    },
+    "side": {
+      "type": "string",
+      "enum": ["n", "e", "s", "w"]
+    },
+    "effect": {
+      "oneOf": [
+        {
+          "type": "object",
+          "description": "Replace the intersection controller.",
+          "properties": {
+            "kind": {
+              "const": "setController"
+            },
+            "controller": {
+              "type": "string",
+              "enum": ["uncontrolled", "signal", "roundabout", "stop-all", "priority"]
+            },
+            "direction": {
+              "$ref": "#/$defs/side",
+              "description": "Priority approach; only with controller \"priority\"."
+            },
+            "capacity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16,
+              "description": "Roundabout occupancy; only with controller \"roundabout\"."
+            }
+          },
+          "required": ["kind", "controller"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "setSignalPhase"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["adaptive", "wave", "district-cycle"]
+            },
+            "switchTicks": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300,
+              "description": "Ticks a phase switch takes."
+            }
+          },
+          "required": ["kind", "mode"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "setLaneCount"
+            },
+            "lanes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4,
+              "description": "Lanes per direction."
+            },
+            "scope": {
+              "type": "string",
+              "enum": ["segment", "ring"]
+            }
+          },
+          "required": ["kind", "lanes"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "setSpeedLimit"
+            },
+            "delta": {
+              "type": "integer",
+              "minimum": -4,
+              "maximum": 4,
+              "description": "Change to vmax in cells per tick.",
+              "not": {
+                "const": 0
+              }
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/vehicleType"
+              },
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "description": "Affected types; omitted means all."
+            }
+          },
+          "required": ["kind", "delta"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "banType"
+            },
+            "vehicleType": {
+              "$ref": "#/$defs/vehicleType"
+            }
+          },
+          "required": ["kind", "vehicleType"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "preferType"
+            },
+            "vehicleType": {
+              "$ref": "#/$defs/vehicleType"
+            },
+            "alsoTypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/vehicleType"
+              },
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true
+            }
+          },
+          "required": ["kind", "vehicleType"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "addBusStop"
+            },
+            "dwellTicks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 40
+            }
+          },
+          "required": ["kind", "dwellTicks"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "addBikeLane"
+            },
+            "bikeVmax": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "carVmaxDelta": {
+              "type": "integer",
+              "minimum": -4,
+              "maximum": 0
+            }
+          },
+          "required": ["kind", "bikeVmax", "carVmaxDelta"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "setOneWay"
+            },
+            "direction": {
+              "$ref": "#/$defs/side"
+            },
+            "doubleLanes": {
+              "type": "boolean"
+            }
+          },
+          "required": ["kind", "direction", "doubleLanes"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "reroute"
+            },
+            "percent": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "toEdge": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 63,
+              "description": "Map edge id."
+            },
+            "vehicleTypes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/vehicleType"
+              },
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true
+            }
+          },
+          "required": ["kind", "percent"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "spawnModifier"
+            },
+            "vehicleType": {
+              "$ref": "#/$defs/vehicleType"
+            },
+            "percent": {
+              "type": "integer",
+              "minimum": -100,
+              "maximum": 300,
+              "description": "Whole percent change to spawns of this type.",
+              "not": {
+                "const": 0
+              }
+            }
+          },
+          "required": ["kind", "vehicleType", "percent"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "scoreModifier"
+            },
+            "vehicleType": {
+              "$ref": "#/$defs/vehicleType"
+            },
+            "delta": {
+              "type": "integer",
+              "minimum": -10,
+              "maximum": 10,
+              "not": {
+                "const": 0
+              }
+            },
+            "condition": {
+              "type": "string",
+              "enum": ["above-quota", "same-tick-window", "on-arrival"]
+            }
+          },
+          "required": ["kind", "delta"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "setPSlow"
+            },
+            "deltaPermille": {
+              "type": "integer",
+              "minimum": -1000,
+              "maximum": 1000,
+              "not": {
+                "const": 0
+              }
+            }
+          },
+          "required": ["kind", "deltaPermille"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "yieldRule"
+            },
+            "fasterTicks": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          },
+          "required": ["kind", "fasterTicks"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "drawModifier"
+            },
+            "delta": {
+              "type": "integer",
+              "minimum": -5,
+              "maximum": 5,
+              "not": {
+                "const": 0
+              }
+            }
+          },
+          "required": ["kind", "delta"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "energyModifier"
+            },
+            "delta": {
+              "type": "integer",
+              "minimum": -5,
+              "maximum": 5,
+              "not": {
+                "const": 0
+              }
+            },
+            "perRound": {
+              "type": "boolean"
+            }
+          },
+          "required": ["kind", "delta"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "fundsModifier"
+            },
+            "delta": {
+              "type": "integer",
+              "minimum": -20,
+              "maximum": 20,
+              "not": {
+                "const": 0
+              }
+            },
+            "per": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Earned once per this many vehicles."
+            }
+          },
+          "required": ["kind", "delta"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
