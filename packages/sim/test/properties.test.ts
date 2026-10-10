@@ -2,6 +2,10 @@
  * GDD section 11 sim invariants as fast-check properties (P1-SIM-06): "no two vehicles share a
  * cell, vehicles never move backward, throughput ≤ spawned, hash stable under re-run".
  *
+ * Reading of "throughput ≤ spawned" (accepted by the Lead): throughput is score-weighted (a bus
+ * scores 3), so the literal inequality does not hold. The property checked is that each exit is
+ * counted once, at its own score (max(0, score + modifier)), and spawned = exited + alive ≤ demand.
+ *
  * Rounds come from three sources: `denseInput` (lattices, every vehicle type, p_slow),
  * `cardInput` (Phase 1 cards, so topology, speed and lane effects are covered) and rounds built
  * here from fast-check values (random lattices, controllers of every kind on every intersection,
