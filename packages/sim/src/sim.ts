@@ -4,8 +4,9 @@ import { createPrng, type PrngState } from './prng.js';
 import { controllerFrame } from './controllers.js';
 import { createTraffic, tickTraffic, type Traffic } from './traffic.js';
 import { MAX_VEHICLE_LENGTH, VEHICLE_TYPE_COUNT } from './vehicles.js';
-import { buildWorld, edgeIndex, type World } from './world.js';
+import { buildWorld, closedLinkMask, edgeIndex, type World } from './world.js';
 import {
+  GRIDLOCK_TICKS,
   ROUND_TICKS,
   SNAPSHOT_HEADER,
   SNAPSHOT_STRIDE,
@@ -69,6 +70,9 @@ function validate(input: RoundInput): World {
   if (input.map.id !== input.mapId) {
     throw new RangeError(`map.id "${input.map.id}" does not match mapId "${input.mapId}"`);
   }
+  const pSlow = input.districtRules.pSlowPermille;
+  if (!Number.isInteger(pSlow) || pSlow < 0 || pSlow > 1000)
+    throw new RangeError(`pSlowPermille must be an integer 0..1000, got ${pSlow}`);
   const world = worldFor(input.map);
   let prevTick = 0;
   let prevEdge = -1;
@@ -120,6 +124,8 @@ function inputDigest(input: RoundInput): string {
     placements: input.placements,
     cardState: input.cardState,
     districtRules: input.districtRules,
+    // Only when something is closed, so inputs without closures keep their digests.
+    ...(input.closedSegments?.length ? { closedSegments: input.closedSegments } : {}),
   });
   return h.digest();
 }
@@ -141,6 +147,10 @@ export function init(input: RoundInput): SimState {
     trail: 0,
     frames: input.recordFrames ? [] : null,
   };
+  // Rule 3: the round's PRNG drives p_slow and nothing else in the tick (GDD section 3).
+  state.traffic.prng = state.prng;
+  state.traffic.pSlowPermille = input.districtRules.pSlowPermille;
+  state.traffic.closed = closedLinkMask(world, input.closedSegments ?? []);
   return state;
 }
 
@@ -153,8 +163,7 @@ export function step(s: SimState): SimState {
   const st = asState(s);
   if (st.done) return st;
   const t = st.traffic;
-  // Spawning and tick rules 1, 2, 4, 6 (traffic.ts). Rule 3 (p_slow) and the gridlock detector
-  // arrive in P1-SIM-04, rule 5 (controllers) in P1-SIM-03.
+  // Spawning, rule 5 (controllers) and tick rules 1, 2, 3, 4 and 6 (traffic.ts, controllers.ts).
   tickTraffic(t, st.tick);
   st.trail =
     (Math.imul(st.trail, 31) +
@@ -164,6 +173,14 @@ export function step(s: SimState): SimState {
     0;
   st.tick += 1;
   if (st.frames) st.frames.push(snapshot(st));
+  // Gridlock detector: "if the sum of v across all vehicles is 0 for 60 consecutive ticks, the
+  // round ends". A tick with no vehicle on the map does not count and resets the run.
+  if (t.orderLen > 0 && t.speedSum === 0) st.stalledTicks++;
+  else st.stalledTicks = 0;
+  if (st.stalledTicks >= GRIDLOCK_TICKS) {
+    st.gridlocked = true;
+    st.done = true;
+  }
   if (st.tick >= ROUND_TICKS) st.done = true;
   return st;
 }

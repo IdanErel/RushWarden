@@ -41,6 +41,7 @@ export {
   TileKind,
   Turn,
   type LaneKind,
+  closedLinkMask,
   MapError,
   type World,
   type Link,

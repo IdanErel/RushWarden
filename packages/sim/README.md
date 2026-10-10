@@ -20,6 +20,7 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `locateCell(world, laneId, cell)`                                                   | Tile, offset, travel directions and box quarter of a snapshot's (lane, cell), for the renderer.                              |
 | `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-017).                                                                       |
 | `controllerSnapshot(state)`, `ControllerCode`, `SIGNAL_GREEN_TICKS`, ...            | Per-intersection `[kind, greenMask, boxCount]` for the renderer, and the controller constants (ADR-020).                     |
+| `closedLinkMask(world, segments)`                                                   | Links closed by `RoundInput.closedSegments` (both directions), for routing and drawing (ADR-022).                            |
 | `emptyMap`, `sampleInput`, `latticeMap`, `denseInput`                               | Test and golden fixtures: a plus map with 0–6 vehicles, and lattices of 4–12 intersections with 50–150 vehicles.             |
 
 ## Worker protocol (P1-LEAD-01)
@@ -92,10 +93,11 @@ bus-stop tile.
 
 ## Status
 
-P1-SIM-03: vehicles spawn, follow tick rules 1, 2, 4, 5 and 6, and exit with their score.
-Every controller kind and the turn pocket are implemented (`src/controllers.ts`, ADR-020); all
-intersections start uncontrolled, and cards set them from P1-SIM-05 on. p_slow (rule 3) and the
-gridlock detector follow in P1-SIM-04. `pnpm bench` measures rounds/s.
+P1-SIM-04: vehicles spawn, follow tick rules 1–6 and exit with their score. p_slow (rule 3) comes
+from `DistrictRules.pSlowPermille` and the round PRNG, the gridlock detector ends the round after
+60 ticks with every vehicle stopped, and `RoundInput.closedSegments` closes road segments for
+the round (ADR-022). Controllers (ADR-020) start uncontrolled; cards set them, and add p_slow,
+from P1-SIM-05 on. `pnpm bench` measures rounds/s.
 
 Any change to
 the exported types is an interface change (GDD section 13, rule 6).
