@@ -120,6 +120,47 @@ describe('world lane layout (sim lanes, ADR-012)', () => {
       }
   });
 
+  it('walks back along the path a vehicle took (backPoint)', () => {
+    const q = p();
+    const r = p();
+    const road = world.lanes[0]!;
+    // Same lane: the cell `back` cells upstream.
+    layout.backPoint(road.id, 5, 2, q);
+    layout.cellPoint(road.id, 3, r);
+    expect(q).toEqual(r);
+    // Before the lane's first cell: straight back from it, one cell length per cell.
+    layout.backPoint(road.id, 0, 2, q);
+    layout.cellPoint(road.id, 0, r);
+    expect(Math.hypot(q.x - r.x, q.y - r.y)).toBeCloseTo(2 / CELLS_PER_TILE);
+    // A box lane leads back into its approach lane's last cells.
+    const box = world.lanes.find((l) => l.kind === 'box' && l.cells === 3)!;
+    const ix = world.intersections[box.intersection]!;
+    const approach = world.lanes[world.links[ix.inLinks[(box.entryDir + 2) & 3]!]!.lanes[0]!]!;
+    layout.backPoint(box.id, 2, 1, q);
+    layout.cellPoint(box.id, 1, r);
+    expect(q).toEqual(r);
+    layout.backPoint(box.id, 0, 2, q);
+    layout.cellPoint(approach.id, approach.cells - 2, r);
+    expect(q).toEqual(r);
+    // A pocket sits beside the approach's last cell; behind it is the approach.
+    const pocket = world.lanes.find((l) => l.kind === 'pocket')!;
+    const kerb = world.lanes[world.links[pocket.link]!.lanes[0]!]!;
+    layout.backPoint(pocket.id, 0, 1, q);
+    layout.cellPoint(kerb.id, kerb.cells - 2, r);
+    expect(q).toEqual(r);
+    expect(layout.backPoint(world.lanes.length, 0, 1, q)).toBe(false);
+    // The per-tile layout extends straight back past its tile.
+    const tl = tileLaneLayout(emptyMap());
+    const id = tileLaneId(3, 2, 'n', 0);
+    expect(tl.backPoint(id, 3, 1, q)).toBe(true);
+    tl.cellPoint(id, 2, r);
+    expect(q).toEqual(r);
+    tl.backPoint(id, 0, 1, q);
+    tl.cellPoint(id, 0, r);
+    expect(q.y - r.y).toBeCloseTo(1 / CELLS_PER_TILE);
+    expect(tl.backPoint(-1, 0, 1, q)).toBe(false);
+  });
+
   it('rejects ids and cells the world does not have', () => {
     const a = p();
     const lane = world.lanes[0]!;

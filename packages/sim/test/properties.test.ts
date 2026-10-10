@@ -48,15 +48,22 @@ interface Seen {
   roadLink: number;
 }
 
-/** True when link `b` starts at most two links after link `a` ends (a vehicle moves ≤ 5 cells). */
+/**
+ * True when link `b` starts at most two links after link `a` ends (a vehicle moves ≤ 5 cells),
+ * without a U-turn: no link on the way is the reverse of the link before it.
+ */
 function follows(w: World, a: number, b: number): boolean {
   const end = w.links[a]!.to;
   const start = w.links[b]!.from;
   if (end.kind !== 'intersection' || start.kind !== 'intersection') return false;
-  if (end.index === start.index) return true;
+  if (end.index === start.index) return b !== w.links[a]!.reverse;
   return w.intersections[end.index]!.outLinks.some(
     (m) =>
-      m !== NONE && w.links[m]!.to.kind === 'intersection' && w.links[m]!.to.index === start.index,
+      m !== NONE &&
+      m !== w.links[a]!.reverse &&
+      w.links[m]!.to.kind === 'intersection' &&
+      w.links[m]!.to.index === start.index &&
+      b !== w.links[m]!.reverse,
   );
 }
 
@@ -116,13 +123,23 @@ function runChecked(input: RoundInput): SimState {
         if (cell < prev.cell) back();
         if (t.speed[i] !== cell - prev.cell) back();
       } else if (lane.kind === 'box') {
-        // Into the box of the intersection its last road link (or pocket) ends at.
-        const end = w.links[prev.roadLink]!.to;
-        if (end.kind !== 'intersection' || end.index !== lane.intersection) back();
+        // Into the box of the intersection its last road link (or pocket) ends at, on a movement
+        // entered from that link's side, and never a U-turn.
+        const from = w.links[prev.roadLink]!;
+        if (from.to.kind !== 'intersection' || from.to.index !== lane.intersection) back();
+        if (lane.entryDir !== from.exitDirs[from.exitDirs.length - 1]) back();
+        if (lane.exitDir === ((lane.entryDir + 2) & 3)) back();
       } else if (lane.kind === 'pocket') {
         if (lane.link !== prev.roadLink || w.lanes[prev.lane]!.kind !== 'road') back();
       } else if (lane.link === prev.roadLink || !follows(w, prev.roadLink, lane.link)) {
         back();
+      } else if (w.lanes[prev.lane]!.kind === 'box') {
+        // Out of the box onto the link its movement leads to (the box's exit side).
+        const box = w.lanes[prev.lane]!;
+        const link = w.links[lane.link]!;
+        const start = link.from;
+        if (start.kind !== 'intersection' || start.index !== box.intersection) back();
+        if (link.entryDirs[0] !== box.exitDir) back();
       }
       prev.lane = lane.id;
       prev.cell = cell;
@@ -143,6 +160,26 @@ function runChecked(input: RoundInput): SimState {
     expect(t.spawned).toBeGreaterThanOrEqual(prevSpawned);
     expect(t.spawned).toBeLessThanOrEqual(t.demand.length);
     prevSpawned = t.spawned;
+    // The grant's per-intersection head lists hold exactly the vehicles whose head is on a stop
+    // line (the last cell of an approach or pocket), each once.
+    const listed = new Set<number>();
+    for (let ix = 0; ix < w.intersections.length; ix++)
+      for (let e = t.lineStart[ix]!; e < t.lineStart[ix]! + t.headCount[ix]!; e++) {
+        const j = t.headAt[e]!;
+        if (listed.has(j) || !alive.has(j))
+          throw new Error(`tick ${s.tick}: bad head list entry ${j}`);
+        listed.add(j);
+        const lane = w.lanes[t.lane[j]!]!;
+        expect(t.cell[j]).toBe(lane.cells - 1);
+        expect(t.laneEndIx[lane.id]).toBe(ix);
+      }
+    for (const i of alive) {
+      const lane = w.lanes[t.lane[i]!]!;
+      const atStopLine =
+        lane.kind !== 'box' && t.laneEndIx[lane.id] !== NONE && t.cell[i] === lane.cells - 1;
+      expect(listed.has(i)).toBe(atStopLine);
+      expect(t.atLine[i] !== NONE).toBe(atStopLine);
+    }
     // Every occupied cell belongs to a vehicle.
     let occupied = 0;
     for (let p = 0; p < t.occ.length; p++) if (t.occ[p] !== 0) occupied++;
