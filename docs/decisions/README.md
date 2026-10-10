@@ -22,3 +22,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 013 | Web portal adapters never call portal ad APIs           | Proposed (Idan) |
 | 014 | Effect union v2                                         | Accepted        |
 | 016 | Map template format and variants                        | Accepted        |
+| 017 | Vehicles, intersection boxes and tick mechanics         | Proposed        |
