@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests --dir src",
     "build": "vite build",
+    "package:itch": "VITE_PORTAL=itch vite build && node ../../tools/size-budget/check.mjs dist && node scripts/package-itch.mjs",
     "dev": "vite",
     "preview": "vite preview --port 4173 --strictPort",
     "e2e": "playwright test"

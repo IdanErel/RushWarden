@@ -64,6 +64,15 @@ jobs:
       - run: pnpm --filter @rushwarden/platform-web exec playwright install --with-deps chromium
       - name: E2E (phone and desktop viewports)
         run: pnpm --filter @rushwarden/platform-web run e2e
+      # P1-PLT-01: itch HTML5 zip (itch flavour, size-checked). Runs after e2e because it rebuilds dist/.
+      - name: Package itch zip
+        run: pnpm --filter @rushwarden/platform-web run package:itch
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rushwarden-itch-${{ github.sha }}
+          path: packages/platform-web/itch/rushwarden-itch.zip
+          if-no-files-found: error
+          retention-days: 14
 
   pr-title:
     name: Conventional commit title
