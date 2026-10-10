@@ -13,10 +13,12 @@ test('scene draws the map and interpolated vehicles from the worker', async ({ p
   const state = page.locator('#state');
   await expect(state).toHaveAttribute('data-vehicles', /^[1-9]\d*$/, { timeout: 10_000 });
   await expect(page.locator('canvas')).toHaveCount(2);
-  // Ticks keep advancing: the worker is stepping.
+  // Ticks keep advancing: the worker is stepping. Polled, not a fixed 500 ms wait: a loaded phone
+  // runner can skip display frames for longer than that, and the tick only moves on a frame.
   const t0 = Number(await state.getAttribute('data-tick'));
-  await page.waitForTimeout(500);
-  expect(Number(await state.getAttribute('data-tick'))).toBeGreaterThan(t0);
+  await expect
+    .poll(async () => Number(await state.getAttribute('data-tick')), { timeout: 5_000 })
+    .toBeGreaterThan(t0);
   await page.screenshot({ path: `${SHOTS}/ren-01-phone.png` });
   // Live controller readout (fake controllers frames): a signal with green approaches or all red.
   await expect(state).toHaveAttribute('data-live', /^signal:(ns|ew|):\d+$/);

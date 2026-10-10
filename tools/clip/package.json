@@ -1,0 +1,30 @@
+{
+  "name": "@rushwarden/clip",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Clip tool: renders a seeded rush round from its replay to a 9:16 MP4 and GIF (P1-QA-02).",
+  "scripts": {
+    "lint": "eslint src test page cli e2e",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage",
+    "build:page": "vite build",
+    "clip": "node cli/clip.ts",
+    "store-assets": "node cli/store.ts",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@rushwarden/app": "workspace:*",
+    "@rushwarden/content": "workspace:*",
+    "@rushwarden/render": "workspace:*",
+    "@rushwarden/sim": "workspace:*",
+    "pixi.js": "~8.21.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "~4.1.11",
+    "vite": "~7.3.7",
+    "vitest": "~4.1.11"
+  }
+}
