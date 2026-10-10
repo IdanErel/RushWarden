@@ -17,8 +17,10 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 008 | The game is named Rushwarden                            | Accepted        |
 | 009 | Analytics event time is the server's receipt time       | Accepted        |
 | 010 | How the Phase 1 gate criteria are measured              | Accepted        |
+| 011 | Card data format, schema and generated text             | Accepted        |
 | 012 | World topology rules for maps                           | Proposed        |
 | 013 | Web portal adapters never call portal ad APIs           | Proposed (Idan) |
 | 014 | Effect union v2                                         | Accepted        |
+| 017 | Vehicles, intersection boxes and tick mechanics         | Proposed        |
 | 018 | Run controller rule readings                            | Accepted        |
 | 019 | Balance runner seeds, bots and report format            | Proposed        |
