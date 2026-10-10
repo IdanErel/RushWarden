@@ -28,6 +28,8 @@ the choices in `packages/sim/src/traffic.ts`.
    - Each edge, in index order, spawns from the head of its queue while cell 0 of a spawn lane
      is free. A blocked edge holds its queue (the spill-back is visible in the heat-strip).
    - Spawned vehicles start at v = 0 and take part in the same tick.
+   - A bus or truck spawns holding only cell 0 and grows to its full length as it moves, so for
+     its first 1–2 ticks it is shorter than §3 says: it is still emerging from the edge.
    - Demand must be sorted by (tick, edge) and use valid vehicle types; `Sim.init` rejects it
      otherwise.
 5. **Bus stops.** A bus stops on the downstream cell of each bus-stop tile on its route and stands
@@ -43,6 +45,10 @@ the choices in `packages/sim/src/traffic.ts`.
    functions of the map, so results are identical. The input digest feeds the demand profile as
    integers. The whole input is still covered, so the verifier re-simulates exactly the client's
    input (ADR-001), but final hashes change once (golden regenerated in this PR).
+   The world cache (`WeakMap<GridMap, World>`) is safe only while a `GridMap` and its `World` are
+   never mutated. Topology cards (`setLaneCount`, `setOneWay`, P1-SIM-05) must build a new
+   effective map or world for the round, never change the cached one.
+   `pnpm --filter @rushwarden/sim bench` measures rounds/s (`packages/sim/bench`).
 
 Speeds are the §3 values and are not changed here. At 20 ticks/s a lone car crosses a 9-tile map
 in 0.55–0.65 s, and a median trip under load takes about 0.5 s. That is the Render Engineer's
