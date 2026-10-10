@@ -2,7 +2,7 @@
  * Phase 1 SFX set (P1-AUD-01): card place, Go, vehicle exit, gridlock, quota pass, quota fail.
  * Every sound is a parameter object for the in-repo synth; there are no audio files.
  */
-import type { SfxDef } from './synth';
+import type { SfxDef } from './synth.js';
 
 export const SFX = {
   /** Soft wooden tick when a card lands; pitched per archetype tag at play time. */
