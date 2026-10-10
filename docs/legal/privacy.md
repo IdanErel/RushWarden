@@ -68,8 +68,9 @@ We do not collect free text, and we do not collect anything you type.
   fingerprinting. The random install ID above is the only identifier.
 - No contacts, photos, microphone, or camera.
 - No data from other apps or websites.
-- No cookies for tracking. The install ID and your saved progress are kept in your browser's
-  local storage for the game itself.
+- No cookies. The game keeps two things in your browser's local storage: your saved progress,
+  which the game needs, and the random install ID, which is used only for the analytics described
+  above.
 
 ## Why we collect it
 
@@ -143,7 +144,10 @@ These are legal or policy calls (GDD §13), so the draft does not decide them.
    the EU and UK (ePrivacy rules), since it is not strictly needed to play. Options: (a) ask once
    with a plain yes/no before sending anything, (b) send nothing for EU/UK players, or (c) rely on
    legitimate interest for pseudonymous analytics after legal advice. This draft does not choose.
-   The answer also fills the "Legal basis" placeholder.
+   The answer also fills the "Legal basis" placeholder. **Children (COPPA):** in the US a
+   persistent identifier counts as personal information. Analytics may fall under COPPA's
+   "support for internal operations" exception, but that needs the same legal review; the
+   children section deliberately does not claim it.
 2. **Retention period.** Proposal: raw events 90 days, then only totals without install IDs.
 3. **Where the toy shows the install ID.** Deletion requests only work if players can see their
    ID. The toy has no settings screen, so it needs a small place to show it (for example a line
