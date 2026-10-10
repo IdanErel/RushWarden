@@ -17,6 +17,7 @@ export const RARITIES = ['common', 'uncommon', 'rare'] as const;
 /** Vehicle names in JSON, indexed by `VehicleType` number. */
 export const VEHICLE_NAMES = ['car', 'taxi', 'bus', 'truck', 'emergency', 'bike'] as const;
 export const SIDES = ['n', 'e', 's', 'w'] as const;
+export const ROAD_CLASSES = ['local', 'arterial'] as const;
 export const CONTROLLERS = [
   'uncontrolled',
   'signal',
@@ -79,7 +80,8 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
     properties: {
       kind: kind('setSignalPhase'),
       mode: { type: 'string', enum: ['adaptive', 'wave', 'district-cycle'] },
-      switchTicks: int(1, 300, 'Ticks a phase switch takes.'),
+      switchTicks: int(1, 300, 'Absolute ticks a phase switch takes; overrides the default.'),
+      switchTicksDelta: nonZero(-20, 20, 'Change to DEFAULT_SWITCH_TICKS (-2 = 2 ticks faster).'),
     },
     required: ['kind', 'mode'],
     additionalProperties: false,
@@ -98,15 +100,32 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
     type: 'object',
     properties: {
       kind: kind('setSpeedLimit'),
-      delta: nonZero(-4, 4, 'Change to vmax in cells per tick.'),
+      delta: int(-4, 4, 'Change to vmax in cells per tick; 0 only with max.'),
       types: { ...vehicles, description: 'Affected types; omitted means all.' },
+      max: int(0, 15, 'Absolute vmax cap applied after delta.'),
+      cells: int(1, 36, 'Only this many cells from the upstream end of the segment.'),
     },
     required: ['kind', 'delta'],
     additionalProperties: false,
   },
   banType: {
     type: 'object',
-    properties: { kind: kind('banType'), vehicleType: vehicle },
+    properties: {
+      kind: kind('banType'),
+      vehicleType: vehicle,
+      scope: {
+        description: '"target" (default), or every segment of a road class in the district.',
+        oneOf: [
+          { type: 'string', enum: ['target'] },
+          {
+            type: 'object',
+            properties: { roadClass: { type: 'string', enum: ROAD_CLASSES } },
+            required: ['roadClass'],
+            additionalProperties: false,
+          },
+        ],
+      },
+    },
     required: ['kind', 'vehicleType'],
     additionalProperties: false,
   },
@@ -132,10 +151,26 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
     required: ['kind', 'bikeVmax', 'carVmaxDelta'],
     additionalProperties: false,
   },
+  addTurnLane: {
+    type: 'object',
+    properties: { kind: kind('addTurnLane'), turns: { type: 'string', enum: ['left', 'both'] } },
+    required: ['kind', 'turns'],
+    additionalProperties: false,
+  },
+  reserveLane: {
+    type: 'object',
+    properties: { kind: kind('reserveLane'), vehicleTypes: vehicles },
+    required: ['kind', 'vehicleTypes'],
+    additionalProperties: false,
+  },
   setOneWay: {
     type: 'object',
-    properties: { kind: kind('setOneWay'), direction: side, doubleLanes: { type: 'boolean' } },
-    required: ['kind', 'direction', 'doubleLanes'],
+    properties: {
+      kind: kind('setOneWay'),
+      direction: { ...side, description: 'Omitted: along the placed segment, from -> to.' },
+      doubleLanes: { type: 'boolean' },
+    },
+    required: ['kind', 'doubleLanes'],
     additionalProperties: false,
   },
   reroute: {
@@ -143,10 +178,14 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
     properties: {
       kind: kind('reroute'),
       percent: int(1, 100),
-      toEdge: int(0, 63, 'Map edge id.'),
+      to: {
+        type: 'string',
+        enum: ['adjacent', 'secondary'],
+        description: 'adjacent: next edge clockwise; secondary: the edge the player also picks.',
+      },
       vehicleTypes: vehicles,
     },
-    required: ['kind', 'percent'],
+    required: ['kind', 'percent', 'to'],
     additionalProperties: false,
   },
   spawnModifier: {
@@ -157,6 +196,26 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
       percent: nonZero(-100, 300, 'Whole percent change to spawns of this type.'),
     },
     required: ['kind', 'vehicleType', 'percent'],
+    additionalProperties: false,
+  },
+  smoothDemand: {
+    type: 'object',
+    properties: {
+      kind: kind('smoothDemand'),
+      peakPermille: int(1, 1000, 'Drop in the peak spawn rate, per-mille.'),
+    },
+    required: ['kind', 'peakPermille'],
+    additionalProperties: false,
+  },
+  spawnWindow: {
+    type: 'object',
+    properties: {
+      kind: kind('spawnWindow'),
+      vehicleType: vehicle,
+      fromTick: int(0, 299),
+      toTick: int(1, 300),
+    },
+    required: ['kind', 'vehicleType', 'fromTick', 'toTick'],
     additionalProperties: false,
   },
   scoreModifier: {
@@ -194,8 +253,36 @@ export const EFFECT_SCHEMAS: EffectSchemas = {
       kind: kind('energyModifier'),
       delta: nonZero(-5, 5),
       perRound: { type: 'boolean' },
+      when: { type: 'string', enum: ['now', 'next-round'] },
+      condition: { type: 'string', enum: ['replaced-signal'] },
     },
-    required: ['kind', 'delta'],
+    required: ['kind', 'delta', 'when'],
+    additionalProperties: false,
+  },
+  costModifier: {
+    type: 'object',
+    properties: {
+      kind: kind('costModifier'),
+      cards: {
+        oneOf: [
+          { const: 'all' },
+          {
+            type: 'array',
+            items: { type: 'string', pattern: '^[a-z0-9]+(-[a-z0-9]+)*$' },
+            minItems: 1,
+            uniqueItems: true,
+          },
+        ],
+      },
+      delta: nonZero(-3, 3),
+    },
+    required: ['kind', 'cards', 'delta'],
+    additionalProperties: false,
+  },
+  redraw: {
+    type: 'object',
+    properties: { kind: kind('redraw'), keep: int(0, 1) },
+    required: ['kind', 'keep'],
     additionalProperties: false,
   },
   fundsModifier: {
