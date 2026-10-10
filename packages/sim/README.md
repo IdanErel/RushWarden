@@ -48,7 +48,7 @@ while (!state.done) {
 ## Effects
 
 `Effect` (types.ts) is the Effect union v2 from ADR-014. The sim validates placements in
-`Sim.init` (for example, Express Stop needs a segment that already has a bus stop) and applies
+`Sim.init` (for example, Express Stop's `setBusStopDwell` needs a segment that already has a bus stop) and applies
 the effects from P1-SIM-05 on. `DEFAULT_SWITCH_TICKS` is the default phase-switch time.
 
 ## Status
