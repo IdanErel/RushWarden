@@ -44,7 +44,8 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
    Cloudflare Registrar sells at cost with no markup on renewals and you need a Cloudflare account
    anyway (step 6), so it is the cheapest option. Use a registrar with free WHOIS
    privacy. Cloudflare Registrar sells at cost once you have the Cloudflare account (step 6).
-2. Point nameservers at Cloudflare.
+2. Point nameservers at Cloudflare. The privacy policy is published at
+   `https://rushwarden.com/privacy` (ADR-025), and nothing is collected until it is live.
 3. Reserve matching social handles (X, Bluesky, Reddit, TikTok, YouTube) at the same time.
 
 ## 3. itch.io
@@ -71,15 +72,34 @@ UK, before paying for listings; our screen is in [name-search.md](name-search.md
 
 ## 5. Web portals
 
+What each portal allows for a no-ads game with one unlock is in
+[ADR-024](../decisions/ADR-024-portal-monetisation.md). In short: Poki is fine for the player-fit
+test, but sells nothing (no purchases, ads are its only revenue, default deals are 5-year web
+exclusive); CrazyGames Basic Launch is fine, and selling the unlock there is invite-only through
+its Xsolla IAP. Portal builds send no analytics to us.
+
 1. **Poki:** apply at https://developers.poki.com with the itch link once the toy exists. They run
-   the player-fit test; no payment.
+   the player-fit test; no payment. **Do not accept a web-exclusive deal** without deciding it
+   first: it would take the game off itch, our website and CrazyGames for 5 years.
 2. **CrazyGames:** create a developer account at https://developer.crazygames.com; Basic Launch
    upload is yours. Payouts and IAP need your tax details there later.
+3. **Ask in writing before submitting** (email developer support; keep the replies, the team
+   records them in ADR-024). The Lead can draft the emails.
+   - Poki: does a game that never calls `commercialBreak()` or `rewardedBreak()` pass QA for the
+     Web Fit test and for release? What deal is possible for a no-ads game: non-exclusive, flat
+     fee or none?
+   - CrazyGames: is a game that never requests ads eligible for Basic Launch and Full Launch? Can
+     a no-ads game with a one-time unlock be invited to in-game purchases, and what is the
+     revenue split on Xsolla purchases?
+4. Give each portal the privacy policy URL `https://rushwarden.com/privacy` (Poki wants a hosted
+   page, not a Google Doc).
 
 ## 6. Cloudflare
 
 1. Create an account (free plan). Add `rushwarden.com`.
-2. Workers & Pages: nothing to create by hand; Wrangler in CI creates them.
+2. Workers & Pages: nothing to create by hand; Wrangler in CI creates them. Leave Workers Logs
+   and Logpush off for the analytics Worker (ADR-025). Cloudflare's Data Processing Addendum
+   applies to self-serve accounts automatically; nothing to sign.
 3. My Profile → API Tokens → create a token with "Edit Cloudflare Workers", D1 Edit, Workers KV
    Edit, Cloudflare Pages Edit, scoped to your account. GitHub secrets: `CLOUDFLARE_API_TOKEN`,
    `CLOUDFLARE_ACCOUNT_ID`.
