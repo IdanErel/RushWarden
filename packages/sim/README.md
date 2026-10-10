@@ -5,14 +5,30 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 
 ## Public API
 
-| Export                                                                              | Purpose                                                                                  |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `Sim.simulate(input: RoundInput): RoundResult`                                      | Runs a whole round headless. Pure.                                                       |
-| `Sim.init(input)`, `Sim.step(state)`, `Sim.snapshot(state)`, `Sim.result(state)`    | Tick-by-tick mode for the render worker. `step` returns the state to use next (ADR-002). |
-| `Sim.stateHash(state)`                                                              | 64-bit hash of the current state, 16 hex chars.                                          |
-| `RoundInput`, `RoundResult`, `Placement`, `Effect`, `GridMap`, `DemandProfile`, ... | Types in `src/types.ts`.                                                                 |
-| `createPrng`, `nextU32`, `nextInt`, `chancePermille`                                | xoshiro128** owned by the round.                                                         |
-| `idiv`, `imod`, `pct`, `clamp`                                                      | Integer math; `src/math.ts` is the only file allowed to use `/`.                         |
+| Export                                                                              | Purpose                                                                                                                      |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `Sim.simulate(input: RoundInput): RoundResult`                                      | Runs a whole round headless. Pure.                                                                                           |
+| `Sim.init(input)`, `Sim.step(state)`, `Sim.snapshot(state)`, `Sim.result(state)`    | Tick-by-tick mode for the render worker. `step` returns the state to use next (ADR-002).                                     |
+| `Sim.stateHash(state)`                                                              | 64-bit hash of the current state, 16 hex chars.                                                                              |
+| `RoundInput`, `RoundResult`, `Placement`, `Effect`, `GridMap`, `DemandProfile`, ... | Types in `src/types.ts`.                                                                                                     |
+| `createPrng`, `nextU32`, `nextInt`, `chancePermille`                                | xoshiro128** owned by the round.                                                                                             |
+| `placementError(map, placement)`, `segmentTiles(target)`                            | Placement validation (ADR-014): why a card cannot go on a target, or null. Used by `Sim.init`; the UI greys targets with it. |
+| `idiv`, `imod`, `pct`, `clamp`                                                      | Integer math; `src/math.ts` is the only file allowed to use `/`.                                                             |
+
+## Worker protocol (P1-LEAD-01)
+
+`createSimWorkerHandler(post)` runs inside the sim worker. The main thread owns timing and pulls
+ticks: `start {roundId, input}` → `step {roundId, ticks}` (≤ 60) → `frames` replies with
+transferable snapshot buffers, then one `done {result}`. `finish` runs the rest at once, `abort`
+drops the round, and bad input yields `error`. Frames equal a headless `recordFrames` run
+(tested over `worker_threads`).
+
+```ts
+// sim.worker.ts
+import { createSimWorkerHandler } from '@rushwarden/sim';
+const handle = createSimWorkerHandler((m, t) => self.postMessage(m, t));
+self.onmessage = (e) => handle(e.data);
+```
 
 ## Example
 
@@ -28,6 +44,12 @@ while (!state.done) {
   const frame = Sim.snapshot(state); // Uint16Array [tick, count, ...(id, lane, cell, speed, type)]
 }
 ```
+
+## Effects
+
+`Effect` (types.ts) is the Effect union v2 from ADR-014. The sim validates placements in
+`Sim.init` (for example, Express Stop needs a segment that already has a bus stop) and applies
+the effects from P1-SIM-05 on. `DEFAULT_SWITCH_TICKS` is the default phase-switch time.
 
 ## Status
 
