@@ -1,11 +1,12 @@
 # Rushwarden privacy policy
 
-**Status: DRAFT, not published.** Phase 1 task P1-BE-02 (GDD §10, ADR-007). Idan decides whether
-and when to publish it and whether the toy collects anything at all (GDD §13: legal and policy
-questions go to Idan). Until this page is live on the website, `/ingest` stays switched off in
-every public build (ADR-007 point 5).
+**Status: DRAFT, not published.** Phase 1 task P1-BE-02 (GDD §10, ADR-007, ADR-009). Idan has
+approved collecting in the toy once this policy is published; publishing it is his call (GDD §13:
+legal and policy questions go to Idan). Until this page is live on the website, `/ingest` stays
+switched off in every public build (ADR-007 point 5).
 
-Scope: the Phase 1 validation toy (web, itch.io). It lists only the four events ADR-007 allows.
+Scope: the Phase 1 validation toy (web, itch.io). It lists only the four events ADR-007 allows,
+and the event time as ADR-009 defines it (server receipt time, no client timestamp).
 When any event, field or surface is added (GDD §10 requires an ADR for a new event), this page
 is updated in the same PR, before the change ships.
 
@@ -50,7 +51,9 @@ Every event also carries:
 - **Language setting** of the game or browser, for example "en-US".
 - **Device class**: "low", "mid" or "high", worked out from a short performance test inside the
   game. It is not your device model.
-- **The time the event happened**, so we can measure session length.
+- **The time our server receives the event.** The game does not send its own clock time. Events
+  are sent one at a time as they happen, so the receipt time is what lets us measure session
+  length.
 
 We do not collect free text, and we do not collect anything you type.
 
@@ -90,11 +93,12 @@ contain no install ID (for example "median session length on itch in October") f
 
 ## Your choices
 
-- **Turn it off:** [describe the setting or opt-out, once the game has one].
-- **Reset or delete:** clearing this site's data in your browser deletes your saved progress and
-  the install ID, and the game will make a new random one. Because we cannot link the ID to you,
-  we cannot find your events by name or email. If you want the events from an install deleted,
-  contact us with that install ID [explain where the player can see it] and we will delete them.
+- **No opt-out yet.** This early test version of the game has no settings screen, so it has no
+  switch to turn analytics off. A later version will add one, together with a "delete my data"
+  button.
+- **Reset:** the install ID is a random value stored only in your browser. Clearing this site's
+  data in your browser deletes it (and your saved progress), and the game makes a new random one
+  next time. Because the ID is not linked to you, we cannot look up your events by name or email.
 - You can contact us about this data at any time at [contact email].
 
 If you are in the EU, UK or a similar jurisdiction, you have the right to access, correct, delete
@@ -122,23 +126,16 @@ change goes live.
 
 These are legal or policy calls (GDD §13), so the draft does not decide them.
 
-1. **Collect at all in the toy?** ADR-007 leaves this to you. Without `/ingest`, gate criterion 1
-   (median session > 2 min on itch) cannot be measured, because itch does not report session
-   length.
-2. **Timestamp.** GDD §10 lists the client fields as install UUID, platform, app version, locale
-   and device class "and nothing else". Session length needs the time of each event, so this
-   draft discloses it. P1-BE-01 should either send a client timestamp or use the server's receive
-   time; either way it is listed above. Please confirm, or the Lead records it in an ADR.
-3. **EU/UK consent.** A random ID stored in the browser for analytics may need opt-in consent in
+1. **EU/UK consent.** A random ID stored in the browser for analytics may need opt-in consent in
    the EU and UK (ePrivacy rules), since it is not strictly needed to play. Options: (a) ask once
    with a plain yes/no before sending anything, (b) send nothing for EU/UK players, or (c) rely on
    legitimate interest for pseudonymous analytics after legal advice. This draft does not choose.
-4. **Retention period.** Proposal: raw events 90 days, then only totals without install IDs.
-5. **Opt-out and deletion in the toy.** The full game has a settings toggle and a "delete my
-   data" button (GDD §10). The toy has no settings screen yet. Either the toy gets a small
-   opt-out and a visible install ID (UI Engineer), or the policy says deletion is by clearing
-   site data only.
-6. **Identity and contact.** Developer name, contact email, and whether a postal address is
-   required where you live.
-7. **Hosting.** The policy needs a public URL (planned: `rushwarden.com/privacy`, GDD §10 and §12)
-   and a link from the itch page.
+   The answer also fills the "Legal basis" placeholder.
+2. **Retention period.** Proposal: raw events 90 days, then only totals without install IDs.
+3. **Identity, contact and URL.** Developer name, contact email, whether a postal address is
+   required where you live, and the public URL (planned: `rushwarden.com/privacy`, GDD §10 and
+   §12), linked from the itch page.
+
+Settled by the Lead (2026-10-10): Idan approved collecting once this is published; the event time
+is the server's receipt time with unbatched events (ADR-009); the toy has no opt-out yet, as stated
+above.
