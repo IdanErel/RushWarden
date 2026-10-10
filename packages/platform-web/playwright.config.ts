@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const executablePath = process.env['PW_CHROMIUM_PATH'];
 // WEB_E2E_PORT moves both preview servers (public on it, hooks build on it + 1) off 4173/4174
-// when another checkout is using them. e2e/ports.ts reads the same variable.
+// when another checkout is using them. e2e/hooks.spec.ts reads the same variable.
 const port = Number(process.env['WEB_E2E_PORT'] ?? '4173');
 const hooksPort = port + 1;
 
