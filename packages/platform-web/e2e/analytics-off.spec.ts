@@ -8,7 +8,10 @@ test('default build sends no analytics and stores no install ID', async ({ page,
   const requests: string[] = [];
   page.on('request', (r) => requests.push(r.url()));
   await page.goto('/');
+  // Go is a no-op until the Pixi scene and the sim worker are up (they start async).
+  await expect(page.locator('.rw-map canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Go: start the rush hour' }).click();
+  await expect(page.getByRole('progressbar')).toBeVisible();
   await expect(page.getByRole('heading', { name: /Quota met|Quota missed|Gridlock/ })).toBeVisible({
     timeout: 60_000,
   });
