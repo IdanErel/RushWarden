@@ -5,9 +5,9 @@ import {
   normalizeLocale,
   offIngestClient,
   type IngestClientOptions,
-} from '../src/ingest/client.js';
-import { validateEvent } from '../src/ingest/events.js';
-import { INSTALL } from './fixtures.js';
+} from '../src/analytics/client.js';
+import { validateEvent } from '../src/analytics/events.js';
+import { INSTALL } from './analytics-fixtures.js';
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EVENT_NAMES, validateEvent } from '../src/ingest/events.js';
-import { VALID } from './fixtures.js';
+import { EVENT_NAMES, validateEvent } from '../src/analytics/events.js';
+import { VALID } from './analytics-fixtures.js';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 

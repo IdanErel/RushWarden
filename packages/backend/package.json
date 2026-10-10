@@ -13,6 +13,7 @@
     "test": "vitest run --coverage"
   },
   "dependencies": {
+    "@rushwarden/app": "workspace:*",
     "@rushwarden/sim": "workspace:*"
   }
 }

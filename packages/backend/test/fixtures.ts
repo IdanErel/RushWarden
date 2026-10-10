@@ -1,4 +1,4 @@
-import type { AnalyticsEvent } from '../src/ingest/events.js';
+import type { AnalyticsEvent } from '@rushwarden/app';
 
 export const INSTALL = '3b241101-e2bb-4255-8caf-4136c566a962';
 export const INSTALL_2 = '9f8c1a52-0d3e-4c1b-b7a4-2e6f5d9c8b71';

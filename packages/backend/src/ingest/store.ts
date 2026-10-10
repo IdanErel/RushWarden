@@ -1,4 +1,4 @@
-import type { AnalyticsEvent, EventName, Platform } from './events.js';
+import type { AnalyticsEvent, EventName, Platform } from '@rushwarden/app';
 
 /**
  * The slice of Cloudflare's D1 binding we use. Declared here so the package needs no

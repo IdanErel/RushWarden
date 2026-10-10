@@ -6,7 +6,7 @@ import {
   type IngestClient,
   type IngestClientOptions,
   type Platform,
-} from '@rushwarden/backend';
+} from '@rushwarden/app';
 
 /**
  * Analytics wiring for the web build (P1-BE-01). Collection is OFF unless the build sets

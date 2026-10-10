@@ -1,4 +1,4 @@
-import { MAX_BODY_BYTES, PLATFORMS, validateEvent, type Platform } from './events.js';
+import { MAX_BODY_BYTES, PLATFORMS, validateEvent, type Platform } from '@rushwarden/app';
 import { summarizeSessions } from './sessions.js';
 import { D1EventStore, type D1Database, type EventStore } from './store.js';
 
