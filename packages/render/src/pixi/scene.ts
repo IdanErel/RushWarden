@@ -13,6 +13,7 @@ import {
   type ControllerKind,
   type GridMap,
   type Side,
+  type World,
 } from '@rushwarden/sim';
 import {
   LANE_WIDTH,
@@ -26,6 +27,7 @@ import {
   tileIndex,
   type ViewFit,
 } from '../geometry.js';
+import { boxAlpha, readControllers, stopBars, type LiveIntersection } from '../controller-state.js';
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
 import { worldLaneLayout, type LaneLayout } from '../lanes.js';
 import { OLD_TOWN, type Palette } from '../palette.js';
@@ -63,6 +65,8 @@ export class TrafficScene {
   private fit: ViewFit;
   private readonly world = new Container();
   private readonly mapLayer = new Graphics();
+  /** Live controller state: box occupancy tint and signal stop bars (ADR-020 frames). */
+  private readonly liveLayer = new Graphics();
   private readonly glyphLayer = new Container();
   private readonly vehicleLayer = new Container();
   private readonly vehicles = new Map<number, Graphics>();
@@ -73,6 +77,11 @@ export class TrafficScene {
   /** Second beacon frame for emergency vehicles. */
   private beaconAlt: GraphicsContext | null = null;
   private controllers = new Map<number, ControllerMark>();
+  /** Intersection order of the controllers frames: the sim world of the current map. */
+  private ixWorld: Pick<World, 'intersections'> = { intersections: [] };
+  private live: LiveIntersection[] = [];
+  private liveBytes: Uint8Array | null = null;
+  private liveKinds = '';
   private drawn = 0;
   private source: { update(now: number): void } | null = null;
 
@@ -82,7 +91,8 @@ export class TrafficScene {
     this.palette = opts.palette ?? OLD_TOWN;
     this.buffer = new SnapshotBuffer(opts.layout ?? worldLaneLayout(buildWorld(opts.map)));
     this.fit = fitGrid(opts.width, opts.height);
-    this.world.addChild(this.mapLayer, this.glyphLayer, this.vehicleLayer);
+    this.world.addChild(this.mapLayer, this.liveLayer, this.glyphLayer, this.vehicleLayer);
+    this.ixWorld = intersectionWorld(opts.map);
     app.stage.addChild(this.world);
     this.rebuild();
     app.ticker.add(() => this.frame(performance.now()));
@@ -118,6 +128,29 @@ export class TrafficScene {
     this.buffer.push(snapshot, now);
   }
 
+  /**
+   * Feeds the controller frame released with a snapshot (`SimClient` `onFrame`'s third
+   * argument): signal stop bars, box occupancy, and live controller glyphs. Redraws only when the
+   * frame's bytes change.
+   */
+  pushControllers(frame: Uint8Array): void {
+    const prev = this.liveBytes;
+    if (prev && prev.length === frame.length && prev.every((b, i) => b === frame[i])) return;
+    this.liveBytes = frame.slice();
+    this.live = readControllers(frame, this.ixWorld);
+    this.drawLive();
+    const kinds = this.live.map((l) => l.kind).join();
+    if (kinds !== this.liveKinds) {
+      this.liveKinds = kinds;
+      this.drawGlyphs();
+    }
+  }
+
+  /** Last decoded controller state, in intersection order (for tests and test hooks). */
+  get liveControllers(): readonly LiveIntersection[] {
+    return this.live;
+  }
+
   /** Sim speed multiplier, so interpolation spans one tick at that speed. */
   setSpeed(speed: number): void {
     this.buffer.tickMs = TICK_MS / (speed > 0 ? speed : 1);
@@ -134,6 +167,8 @@ export class TrafficScene {
     this.buffer.setLayout(layout);
     this.buffer.reset();
     this.controllers.clear();
+    this.ixWorld = intersectionWorld(map);
+    this.clearLive();
     this.rebuild();
   }
 
@@ -163,8 +198,34 @@ export class TrafficScene {
   private rebuild(): void {
     this.world.position.set(this.fit.originX, this.fit.originY);
     this.drawMap();
+    this.drawLive();
     this.drawGlyphs();
     this.buildVehicleContexts();
+  }
+
+  private clearLive(): void {
+    this.live = [];
+    this.liveBytes = null;
+    this.liveKinds = '';
+  }
+
+  private drawLive(): void {
+    const g = this.liveLayer.clear();
+    const T = this.fit.tilePx;
+    const p = this.palette;
+    for (const l of this.live) {
+      const a = boxAlpha(l.box);
+      if (a > 0) {
+        const w = roadWidth(lanesAt(this.map, l.x, l.y)) * T;
+        g.rect((l.x + 0.5) * T - w / 2, (l.y + 0.5) * T - w / 2, w, w).fill({
+          color: p.signalAmber,
+          alpha: a,
+        });
+      }
+      for (const b of stopBars(this.map, l)) {
+        g.rect(b.x * T, b.y * T, b.w * T, b.h * T).fill(b.green ? p.signalGreen : p.signalRed);
+      }
+    }
   }
 
   private buildVehicleContexts(): void {
@@ -253,7 +314,11 @@ export class TrafficScene {
     for (const c of this.glyphLayer.removeChildren()) c.destroy();
     const T = this.fit.tilePx;
     for (const { x, y } of intersections(this.map)) {
-      const mark = this.controllers.get(tileIndex(x, y));
+      // A glyph the UI set wins; otherwise the live controller kind from the worker, if any.
+      const live = this.live.find((l) => l.x === x && l.y === y);
+      const mark =
+        this.controllers.get(tileIndex(x, y)) ??
+        (live && live.kind !== 'uncontrolled' ? { x, y, kind: live.kind } : undefined);
       if (!mark) continue;
       const size = roadWidth(lanesAt(this.map, x, y)) * T * 0.78;
       const g = new Graphics();
@@ -301,5 +366,14 @@ export class TrafficScene {
       this.pool.push(g);
     }
     this.drawn = this.seen.size;
+  }
+}
+
+/** The sim world's intersection order for a map, or none if the map does not build. */
+function intersectionWorld(map: GridMap): Pick<World, 'intersections'> {
+  try {
+    return buildWorld(map);
+  } catch {
+    return { intersections: [] };
   }
 }

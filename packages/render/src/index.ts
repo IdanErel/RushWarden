@@ -17,7 +17,12 @@ export {
   type FakeTrafficState,
 } from './fake-traffic.js';
 export type { WorkerLike } from './worker/protocol.js';
-export { createFakeWorkerHandler } from './worker/fake-handler.js';
+export * from './controller-state.js';
+export {
+  FAKE_ALL_RED_TICKS,
+  createFakeWorkerHandler,
+  fakeControllerFrame,
+} from './worker/fake-handler.js';
 export {
   SimClient,
   spawnFakeWorker,

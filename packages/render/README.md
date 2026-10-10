@@ -7,17 +7,18 @@ receives per-tick `Uint16Array` snapshots through the shared protocol in `@rushw
 
 ## Public API
 
-| Export                                                                   | What it is                                                                                                                                                                                  |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TrafficScene.create(parent, { map, width, height, palette?, layout? })` | Pixi app + scene: roads, intersections, controller glyphs, vehicles. `setControllers`, `pushSnapshot`, `attach(client)`, `setSpeed`, `setMap`, `resize`, `destroy`, `vehicleCount`, `view`. |
-| `SimClient(worker, { onFrame, onDone, onError })`                        | Main-thread side of the worker protocol. Owns timing: call `update(now)` per frame (or `scene.attach(client)`); `start`, `pause`, `resume`, `setSpeed`, `stop`, `dispose`.                  |
-| `spawnSimWorker()` / `spawnFakeWorker()`                                 | Worker factories (real sim; fake traffic for dev and tests).                                                                                                                                |
-| `SnapshotBuffer`                                                         | Last-two-snapshot interpolation; never predicts past the newest snapshot.                                                                                                                   |
-| `LaneLayout`, `worldLaneLayout(world)`, `tileLaneLayout(map)`            | (lane, cell) → map point. `worldLaneLayout` reads the sim's lanes (scene default); `tileLaneLayout` is for fake traffic only.                                                               |
-| `vehicleShapes`, `controllerShapes`, `drawShapes`                        | Shape grammar as data, and its Pixi drawer. Reused by card glyphs and `/dev/style`.                                                                                                         |
-| `OLD_TOWN`, `contrast`                                                   | District 1 palette tokens and the WCAG contrast check.                                                                                                                                      |
-| `FakeTraffic`, `createFakeWorkerHandler`                                 | Deterministic fake traffic in the `Sim.snapshot` format, until the sim spawns vehicles.                                                                                                     |
-| geometry helpers                                                         | `fitGrid`, `roadRuns`, `intersections`, `connections`, `roadWidth`, …                                                                                                                       |
+| Export                                                                   | What it is                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TrafficScene.create(parent, { map, width, height, palette?, layout? })` | Pixi app + scene: roads, intersections, controller glyphs, vehicles. `setControllers`, `pushSnapshot`, `pushControllers`, `liveControllers`, `attach(client)`, `setSpeed`, `setMap`, `resize`, `destroy`, `vehicleCount`, `view`.                              |
+| `SimClient(worker, { onFrame, onDone, onError })`                        | Main-thread side of the worker protocol. `onFrame(snapshot, now, controllers?)` also gets the same tick's controllers frame. Owns timing: call `update(now)` per frame (or `scene.attach(client)`); `start`, `pause`, `resume`, `setSpeed`, `stop`, `dispose`. |
+| `spawnSimWorker()` / `spawnFakeWorker()`                                 | Worker factories (real sim; fake traffic for dev and tests).                                                                                                                                                                                                   |
+| `SnapshotBuffer`                                                         | Last-two-snapshot interpolation; never predicts past the newest snapshot.                                                                                                                                                                                      |
+| `LaneLayout`, `worldLaneLayout(world)`, `tileLaneLayout(map)`            | (lane, cell) → map point. `worldLaneLayout` reads the sim's lanes (scene default); `tileLaneLayout` is for fake traffic only.                                                                                                                                  |
+| `vehicleShapes`, `controllerShapes`, `drawShapes`                        | Shape grammar as data, and its Pixi drawer. Reused by card glyphs and `/dev/style`.                                                                                                                                                                            |
+| `OLD_TOWN`, `contrast`                                                   | District 1 palette tokens and the WCAG contrast check.                                                                                                                                                                                                         |
+| `FakeTraffic`, `createFakeWorkerHandler`, `fakeControllerFrame`          | Deterministic fake traffic in the `Sim.snapshot` format, with fake controllers frames, for the dev page and tests.                                                                                                                                             |
+| `readControllers`, `stopBars`, `boxAlpha`                                | Live controller state (ADR-020 frames) decoded, and the signal stop bars and box tint drawn from it.                                                                                                                                                           |
+| geometry helpers                                                         | `fitGrid`, `roadRuns`, `intersections`, `connections`, `roadWidth`, …                                                                                                                                                                                          |
 
 ## Example
 
@@ -56,5 +57,8 @@ innermost lane. The layout dispatches on `Lane.kind`. `FakeTraffic` still number
 ## Status
 
 Done (P1-REN-01): map, glyphs, vehicles, worker playback, interpolation, sim lane geometry.
+REN-03 (live readouts): signal stop bars, box occupancy and live glyphs from the worker's
+controllers frames; turn pockets (#33). Waiting on #30 and #32: closed segments
+(`closedLinkMask`) and a per-round `roundWorld(input)` lane layout.
 Next (P1-REN-02, #24): §7 motion feedback (trails, queue pulse, gridlock red and shake),
 demand heat-strips and reduced motion. Not yet measured: frame time at 120 vehicles (§6).

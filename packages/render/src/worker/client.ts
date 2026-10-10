@@ -10,8 +10,11 @@ import { TICK_MS } from '../interpolate.js';
 import { MAX_TICKS_PER_STEP, type WorkerLike } from './protocol.js';
 
 export interface SimClientHandlers {
-  /** One snapshot, released at its tick time. `now` is the `update` time that released it. */
-  onFrame?: (snapshot: Uint16Array, now: number) => void;
+  /**
+   * One snapshot, released at its tick time. `now` is the `update` time that released it.
+   * `controllers` is the same tick's controller frame (ADR-020) when the worker sent one.
+   */
+  onFrame?: (snapshot: Uint16Array, now: number, controllers?: Uint8Array) => void;
   /** The round ended and every frame has been released. */
   onDone?: (result: RoundResult) => void;
   onError?: (message: string) => void;
@@ -37,6 +40,8 @@ const LOOKAHEAD_MS = 150;
 export class SimClient {
   private roundId = 0;
   private queue: Uint16Array[] = [];
+  /** Controller frames, aligned with `queue`; undefined where the producer sent none. */
+  private ctrlQueue: (Uint8Array | undefined)[] = [];
   private inFlight = 0;
   private result: RoundResult | null = null;
   private running = false;
@@ -55,6 +60,7 @@ export class SimClient {
       switch (m.type) {
         case 'frames':
           this.queue.push(...m.frames);
+          for (let k = 0; k < m.frames.length; k++) this.ctrlQueue.push(m.controllers?.[k]);
           this.inFlight = Math.max(0, this.inFlight - m.frames.length);
           break;
         case 'done':
@@ -73,6 +79,7 @@ export class SimClient {
   start(input: RoundInput): void {
     this.roundId++;
     this.queue = [];
+    this.ctrlQueue = [];
     this.inFlight = 0;
     this.result = null;
     this.running = true;
@@ -110,6 +117,7 @@ export class SimClient {
     if (this.running) this.worker.postMessage({ type: 'abort', roundId: this.roundId });
     this.running = false;
     this.queue = [];
+    this.ctrlQueue = [];
   }
 
   /** Call once per display frame with a monotonic time in ms. */
@@ -123,8 +131,9 @@ export class SimClient {
     this.last = now;
     while (this.acc >= TICK_MS && this.queue.length > 0) {
       const f = this.queue.shift();
+      const c = this.ctrlQueue.shift();
       this.acc -= TICK_MS;
-      if (f) this.handlers.onFrame?.(f, now);
+      if (f) this.handlers.onFrame?.(f, now, c);
     }
     // Starved (worker late): do not bank time, or playback would jump when frames arrive.
     if (this.queue.length === 0) this.acc = Math.min(this.acc, TICK_MS);

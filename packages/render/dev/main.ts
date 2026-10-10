@@ -1,6 +1,8 @@
 /**
- * Render dev page: the plus map (`emptyMap`) with fake traffic stepped in the sim worker,
- * interpolated by the scene, plus a legend of every controller glyph and vehicle type.
+ * Render dev page: the plus map (`emptyMap`) with traffic stepped in a worker (the renderer's
+ * fake traffic by default, the real sim with `source=sim`), interpolated by the scene, with the
+ * live controller readouts (signal stop bars, box occupancy) and a legend of every controller
+ * glyph and vehicle type.
  * Not shipped; `pnpm --filter @rushwarden/render dev` serves it.
  */
 import { Application, Container, Graphics, GraphicsContext, Text } from 'pixi.js';
@@ -9,6 +11,7 @@ import {
   emptyMap,
   sampleInput,
   type ControllerKind,
+  type Placement,
   type RoundInput,
   type VehicleType,
 } from '@rushwarden/sim';
@@ -36,8 +39,17 @@ const SCENE_H = Math.round((WIDTH / 7) * 9);
 const map = emptyMap();
 const state = document.getElementById('state') as HTMLOutputElement;
 
+/** The `ctrl` controller on the centre intersection, as a card placement would set it. */
+const placement: Placement = {
+  cardId: 'dev-controller',
+  tier: 1,
+  target: { kind: 'intersection', tile: { x: 3, y: 4 } },
+  effects: [{ kind: 'setController', controller: ctrl, direction: 'e' }],
+  order: 0,
+};
+
 function input(s: number): RoundInput {
-  return { ...sampleInput(s), seed: s, map, mapId: map.id };
+  return { ...sampleInput(s), seed: s, map, mapId: map.id, placements: [placement] };
 }
 
 async function boot(): Promise<void> {
@@ -51,7 +63,10 @@ async function boot(): Promise<void> {
   scene.setControllers([{ x: 3, y: 4, kind: ctrl, direction: 'e' }]);
   scene.setSpeed(speed);
   const client = new SimClient(source === 'sim' ? spawnSimWorker() : spawnFakeWorker(), {
-    onFrame: (f, now) => scene.pushSnapshot(f, now),
+    onFrame: (f, now, controllers) => {
+      scene.pushSnapshot(f, now);
+      if (controllers) scene.pushControllers(controllers);
+    },
     onDone: () => {
       seed = (seed + 1) >>> 0;
       client.start(input(seed));
@@ -65,6 +80,9 @@ async function boot(): Promise<void> {
   setInterval(() => {
     state.dataset['tick'] = String(scene.buffer.tick);
     state.dataset['vehicles'] = String(scene.vehicleCount);
+    // Live readout of the centre intersection: kind, green approaches, vehicles in the box.
+    const live = scene.liveControllers[0];
+    state.dataset['live'] = live ? `${live.kind}:${live.green.join('')}:${live.box}` : '';
     state.textContent = `seed ${seed} · tick ${scene.buffer.tick} · ${scene.vehicleCount} vehicles`;
   }, 100);
 

@@ -59,6 +59,24 @@ cell)`. Until P1-SIM-01 is on `main`, `tileLaneLayout` uses a provisional per-ti
   light `vehicleBody`), not darker than the road: on District 1's dark road a dark truck would
   fall under the 3:1 contrast floor.
 
+## Live controller readouts (REN-03, 2026-10-10)
+
+The sim worker's `frames` carry `controllers` (ADR-020 point 10): `[kind, greenMask, boxCount]`
+per intersection, for the same tick as each snapshot. `SimClient` releases each one with its
+snapshot, and the scene draws:
+
+- **Signal stop bars.** For a signalled intersection, there is one bar per approach, just outside
+  the box and across that approach's inbound lanes. It is green when the approach may enter and red
+  otherwise, so all four are red during the all-red clearance. The bars are drawn from the live
+  mask, not from the glyph, so they show the real phase. Other controller kinds have no bars.
+- **Box occupancy.** The box square gets an amber tint that rises per vehicle inside it, up to
+  alpha 0.5 at 4 vehicles (one per quarter, so the box is full). It sits under the glyph and the
+  vehicles, so it reads as a box filling up without hiding what is in it.
+- **Live glyphs.** A glyph the UI set wins. Otherwise the scene shows the live controller kind
+  from the frame. Until P1-SIM-05 the sim reports every intersection as uncontrolled, so in play
+  only the box tint moves. The dev page's fake traffic sends fake frames that honour
+  `setController` placements and alternate signal phases, so the readouts can be seen now.
+
 ## Consequences
 
 - Swapping in the sim's lane geometry touches `lanes.ts` (and the fake) only.

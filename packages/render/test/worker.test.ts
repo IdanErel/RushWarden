@@ -184,3 +184,28 @@ describe('fake worker handler', () => {
     expect(out.at(-1)!.type).toBe('done');
   });
 });
+
+describe('controllers frames through the client (ADR-020)', () => {
+  it('hands each frame its own tick’s controller frame from the sim worker', () => {
+    const w = memoryWorker(createSimWorkerHandler);
+    const got: [number, number][] = [];
+    const client = new SimClient(w, {
+      onFrame: (f, _now, c) => got.push([f[0]!, c?.length ?? -1]),
+    });
+    client.start(sampleInput(6));
+    play(client, w, 0, 500);
+    expect(got.length).toBeGreaterThan(5);
+    // One intersection on the plus map: 3 bytes per frame.
+    for (const [, len] of got) expect(len).toBe(3);
+  });
+
+  it('passes controllers from the fake worker, aligned with its frames', () => {
+    const w = memoryWorker(createFakeWorkerHandler);
+    const lens: number[] = [];
+    const client = new SimClient(w, { onFrame: (_f, _now, c) => lens.push(c?.length ?? -1) });
+    client.start({ ...sampleInput(3), map: emptyMap() });
+    play(client, w, 0, 300);
+    expect(lens.length).toBeGreaterThan(0);
+    expect(new Set(lens)).toEqual(new Set([3]));
+  });
+});

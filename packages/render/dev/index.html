@@ -54,8 +54,9 @@
       <div id="scene"></div>
       <div id="legend"></div>
       <footer>
-        Fake traffic in a Web Worker until the sim spawns vehicles. Query: seed, speed, ctrl (signal
-        | roundabout | stop-all | priority | uncontrolled), source (fake | sim).
+        Traffic from a Web Worker: the renderer's fake traffic, or the real sim with source=sim.
+        Signal stop bars and the box tint are the live controller readouts. Query: seed, speed, ctrl
+        (signal | roundabout | stop-all | priority | uncontrolled), source (fake | sim).
       </footer>
     </main>
     <script type="module" src="./main.ts"></script>
