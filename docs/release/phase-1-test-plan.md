@@ -9,7 +9,8 @@ things:
 2. The device and browser matrix for Phase 1.
 3. How each of the four gate criteria is measured.
 
-The specs themselves land in a second P1-QA-01 PR once P1-UI-01 gives us a playable run screen.
+The specs are in `packages/platform-web/e2e/toy/` (the second P1-QA-01 PR). They report fixme until
+P1-WEB-01 mounts the run screen in the platform-web build; a follow-up PR removes the fixmes.
 
 Sources: GDD §2 (core loop), §8 (screens, input), §9 (portal rules), §11 (test layers, device
 matrix, bug policy), §13 (Phase 1 gate); ADR-006 (Steam gate, accepted); ADR-007 (Phase 1 scope); ADR-008 (name); ADR-009 (event time
@@ -90,11 +91,32 @@ All specs run on every PR in the `web` CI job (§11: "E2E … Every PR"), on the
 | E2E-17 | Reduced motion                         | Emulate `prefers-reduced-motion: reduce` (or the in-game setting if it exists) and play a gridlock round.       | No camera shake and no trails (§8). Checked through an H2 attribute or a screenshot diff.                                                                            |
 | E2E-18 | Landscape desktop                      | Desktop project at 1280×720 and 1920×1080.                                                                      | Run screen fits with the HUD rearranged to the right (§8); no clipped controls.                                                                                      |
 
-The seeds S1–S3 are chosen by QA once the run controller (P1-BAL-01) exists, using the headless
-runner to find seeds with the needed outcome. They are written into the spec with a comment that
-says how they were found. If the content or sim changes and a seed no longer gives its outcome,
-the spec fails with a message that names the seed. That is a signal to pick a new seed, not to
+The seeds S1–S3 are not hard-coded. A headless seed finder (`e2e/toy/headless.ts`) replays the
+toy run in Node with the same wiring the game uses, `toyRunConfig({ seed, cards: loadCards(),
+startingDeck: startingDeck() })` with content's `setupRound`, playing no cards. It scans seeds
+1–600 once per Playwright worker and takes the lowest seed for each outcome:
+
+| Seed | Outcome (no cards played)                | Used by                                            | At the time of writing  |
+| ---- | ---------------------------------------- | -------------------------------------------------- | ----------------------- |
+| S1   | Round 1 passes                           | E2E-01 to E2E-08, E2E-11 to E2E-13, E2E-16, E2E-18 | 1 (five passes, win)    |
+| S2   | A round fails on quota, without gridlock | E2E-06, E2E-09                                     | 416 (round 5 fails)     |
+| S3   | A round gridlocks                        | E2E-06, E2E-10                                     | 246 (round 5 gridlocks) |
+
+The scan stops once S1–S3 are found (about 25 s on a dev container). A seed whose no-card run
+ends on approval is used by E2E-09 if the scan meets one; with the current content none does, so
+"zero approval ends the run" is covered by the run controller's unit tests until content tuning
+(P1-CON-05) makes one. Content tuning changes which seed does what, which is why the seeds are
+found when the specs run. If no seed in range gives S1, S2 or S3, the specs that need it fail with
+a message that names the outcome. That is a signal to widen the range or script a play, not to
 change the expected outcome.
+
+The same headless runs give E2E-06 its reference hashes, so a wiring difference between the game
+and `toyRunConfig` fails E2E-06 on the first round.
+
+**Proving the specs before P1-WEB-01.** `TOY_E2E_URL` points the specs at another page with the
+hooks, such as the run screen's dev page in `packages/ui` (#31), with `TOY_E2E_TARGET=ui-dev`. That
+page has stand-in cards and fake traffic, so E2E-06, E2E-09, E2E-10 and E2E-13 (real content or
+the H4 spy) skip there and say why.
 
 ### 2.3 Other automated checks QA relies on in Phase 1
 
@@ -117,8 +139,16 @@ itch:
 - Add a **WebKit phone** project (iPhone 12 profile, 390×844) to the `web` job, so Safari-family
   layout and input are covered on every PR, not only by Idan's phone.
 
-These change `packages/platform-web/playwright.config.ts` and `.github/workflows/ci.yml`. The
-Lead approved both; QA adds them in the e2e specs PR (the second half of P1-QA-01).
+Both projects are in `packages/platform-web/playwright.config.ts` (the specs PR). Notes:
+
+- Both phone projects render at device pixel ratio 1. Headless browsers draw WebGL in software:
+  at the Pixel 5's ratio of 2.75 the run screen measured 2 fps and a 15 s round took 31 s of wall
+  time, against 17 fps and 16.8 s at ratio 1. Layout depends on CSS pixels, so 390×844 is still
+  tested exactly; sharpness on real screens is item 9 of the §3.3 device checklist.
+- The `web` CI job installs only Chromium. Until `.github/workflows/ci.yml` (Lead) adds `webkit`
+  to its `playwright install` line, the config leaves `phone-webkit` out wherever WebKit is not
+  installed and prints a warning. `PW_WEBKIT=1` forces the project in, so a missing browser
+  fails instead of being skipped.
 
 ## 3. Device and browser matrix (Phase 1)
 
@@ -129,12 +159,12 @@ emulators").
 
 ### 3.1 Automated (CI, every PR)
 
-| Engine   | Viewport                        | Projects                                 |
-| -------- | ------------------------------- | ---------------------------------------- |
-| Chromium | 390×844 (specs PR; Pixel 5 now) | `phone`, all specs                       |
-| Chromium | Desktop 1280×720 and 1920×1080  | `desktop`, all specs except E2E-03       |
-| WebKit   | iPhone 12, 390×844 (specs PR)   | `phone-webkit`, E2E-01 to E2E-12         |
-| Firefox  | n/a                             | Golden hashes only (already on every PR) |
+| Engine   | Viewport                       | Projects                                 |
+| -------- | ------------------------------ | ---------------------------------------- |
+| Chromium | Pixel 5 profile at 390×844     | `phone`, all specs                       |
+| Chromium | Desktop 1280×720 and 1920×1080 | `desktop`, all specs except E2E-03       |
+| WebKit   | iPhone 12 profile at 390×844   | `phone-webkit`, the toy specs (§2.2)     |
+| Firefox  | n/a                            | Golden hashes only (already on every PR) |
 
 ### 3.2 Real devices (Idan, before the itch build goes public and again before the Poki/CrazyGames submission)
 
@@ -256,9 +286,10 @@ shows the data next to the bar so Idan can see how close it was.
 
 ## 6. Open items
 
-| Item                                               | Status / owner                                        | Blocks                    |
-| -------------------------------------------------- | ----------------------------------------------------- | ------------------------- |
-| Test hooks H1–H5 (approved)                        | Built by Render/UI (H2, H3, H5) and Platform (H1, H4) | Most of the specs in §2.2 |
-| 390×844 and WebKit phone projects in CI (approved) | QA adds them in the specs PR                          | §3.1 rows                 |
-| Measurement definitions (ADR-010, accepted)        | Idan may override at the gate review                  | The gate page             |
-| Privacy policy published (enables `/ingest`)       | Idan (ADR-007)                                        | Criterion 1               |
+| Item                                             | Status / owner                                        | Blocks                    |
+| ------------------------------------------------ | ----------------------------------------------------- | ------------------------- |
+| Test hooks H1–H5 (approved)                      | Built by Render/UI (H2, H3, H5) and Platform (H1, H4) | Most of the specs in §2.2 |
+| 390×844 and WebKit phone projects (approved)     | In the config; CI needs `webkit` installed (Lead)     | `phone-webkit` in CI      |
+| Run screen in the platform-web build (P1-WEB-01) | Platform; then QA removes the fixmes                  | Every toy spec in CI      |
+| Measurement definitions (ADR-010, accepted)      | Idan may override at the gate review                  | The gate page             |
+| Privacy policy published (enables `/ingest`)     | Idan (ADR-007)                                        | Criterion 1               |
