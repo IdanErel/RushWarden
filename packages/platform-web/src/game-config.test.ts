@@ -10,13 +10,15 @@ const portal = (id: 'none' | 'itch' | 'poki' | 'crazygames') => ({
 });
 
 describe('uiConfigFor', () => {
-  it('links the privacy policy on our site and itch, never on Poki or CrazyGames', () => {
-    for (const id of ['none', 'itch'] as const)
+  it('links the privacy policy on every build, portals included (ADR-024 point 5)', () => {
+    for (const id of ['none', 'itch', 'poki', 'crazygames'] as const)
       expect(uiConfigFor({ VITE_PRIVACY_URL: POLICY }, portal(id)).privacyUrl).toBe(POLICY);
-    for (const id of ['poki', 'crazygames'] as const) {
-      expect(isPortalBuild(id)).toBe(true);
-      expect(uiConfigFor({ VITE_PRIVACY_URL: POLICY }, portal(id)).privacyUrl).toBe('');
-    }
+  });
+
+  it('treats Poki and CrazyGames as portal builds', () => {
+    expect(['none', 'itch', 'poki', 'crazygames'].map((id) => isPortalBuild(id as 'none'))).toEqual(
+      [false, false, true, true],
+    );
   });
 
   it('shows no link until a policy https URL is set', () => {

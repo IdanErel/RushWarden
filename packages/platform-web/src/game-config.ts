@@ -4,29 +4,30 @@ import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
 
 /** Build-time settings the run screen reads (see vite-env.d.ts). */
 export interface GameBuildEnv {
-  /** Privacy policy URL; unset until the policy is published (P1-BE-02). */
+  /** Privacy policy URL; unset until the policy is published (P1-BE-02, ADR-025 point 5). */
   VITE_PRIVACY_URL?: string | undefined;
 }
 
 /**
- * Portals whose builds show no outbound link and no unlock (GDD §9 portal rules, ADR-024). The
- * toy has no unlock screen yet; when it gets one, it checks `canSellInPortal()` as well.
+ * Poki and CrazyGames builds: no unlock button, no price and no links except the portal's own
+ * share URL and the privacy policy (ADR-024 points 2, 3 and 5). The toy has no unlock screen and
+ * no other links yet; whatever adds one checks this.
  */
 export function isPortalBuild(portalId: WebPortalAdapter['id']): boolean {
   return (NO_ANALYTICS_PORTALS as readonly string[]).includes(portalId);
 }
 
 /**
- * The run screen's config for this build. Portal builds get no privacy link (the policy lives on
- * our site, which Poki and CrazyGames do not allow linking to) and the portal's own share link.
+ * The run screen's config for this build: the privacy policy link (https only; every build,
+ * portals included, per ADR-024 point 5 and ADR-025) and the portal's own share link.
  */
 export function uiConfigFor(
   env: GameBuildEnv,
-  portal: Pick<WebPortalAdapter, 'id' | 'shareUrl'>,
+  portal: Pick<WebPortalAdapter, 'shareUrl'>,
 ): UiConfig {
   const privacy = env.VITE_PRIVACY_URL ?? '';
   return {
-    privacyUrl: !isPortalBuild(portal.id) && privacy.startsWith('https://') ? privacy : '',
+    privacyUrl: privacy.startsWith('https://') ? privacy : '',
     shareUrl: portal.shareUrl(),
   };
 }

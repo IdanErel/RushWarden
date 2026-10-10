@@ -45,9 +45,9 @@ test('H4: the spy records the portal call pattern on window', async ({ page }) =
     const round = (await calls()).slice(boot.length);
     expect(round).toEqual(['gameplayStart', 'gameplayStop']);
     expect(external).toEqual([]);
-    // Portal builds: no unlock button and no outbound links (GDD §9, ADR-024).
+    // Portal builds: no unlock button, and no links but the privacy policy (ADR-024 points 2, 5).
     await expect(page.getByRole('button', { name: /unlock/i })).toHaveCount(0);
-    await expect(page.locator('a[href]')).toHaveCount(0);
+    await expect(page.locator('a[href]:not([href*="privacy"])')).toHaveCount(0);
   }
 });
 
