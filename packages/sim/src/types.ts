@@ -108,10 +108,20 @@ export type Target =
   | { readonly kind: 'edge'; readonly edge: number }
   | { readonly kind: 'district' };
 
+/** Default ticks a signal takes to switch phase; `setSignalPhase.switchTicksDelta` adjusts it. */
+export const DEFAULT_SWITCH_TICKS = 6;
+
 /**
- * The effect primitives the sim understands. Cards are data built from these; a card that needs
- * a new primitive gets it added here with tests first. Parameter shapes are owned by the Sim
- * Engineer and will be refined in Phase 1 through the interface-change process.
+ * Road class, derived from the map rather than authored: a segment with 1 lane per direction is
+ * `local`, one with 2 or more is `arterial` (ADR-014).
+ */
+export type RoadClass = 'local' | 'arterial';
+
+/**
+ * The effect primitives the sim understands (Effect union v2, ADR-014). Cards are data built from
+ * these; a card that needs a new primitive gets it added here with tests first. Run-controller
+ * effects (`drawModifier`, `energyModifier`, `costModifier`, `redraw`, `fundsModifier`) are
+ * carried for completeness and ignored by the sim.
  */
 export type Effect =
   | {
@@ -123,7 +133,10 @@ export type Effect =
   | {
       readonly kind: 'setSignalPhase';
       readonly mode: 'adaptive' | 'wave' | 'district-cycle';
+      /** Absolute phase-switch ticks; overrides the default when set. */
       readonly switchTicks?: number;
+      /** Change to `DEFAULT_SWITCH_TICKS` (e.g. -2 = switches 2 ticks faster). */
+      readonly switchTicksDelta?: number;
     }
   | {
       readonly kind: 'setLaneCount';
@@ -132,25 +145,70 @@ export type Effect =
     }
   | {
       readonly kind: 'setSpeedLimit';
+      /** Added to each affected type's vmax. */
       readonly delta: number;
       readonly types?: readonly VehicleType[];
+      /** Absolute vmax cap applied after `delta` (e.g. Toll Booth slows to 1). */
+      readonly max?: number;
+      /** Applies only to this many cells from the segment's upstream end; whole segment if absent. */
+      readonly cells?: number;
     }
-  | { readonly kind: 'banType'; readonly vehicleType: VehicleType }
+  | {
+      readonly kind: 'banType';
+      readonly vehicleType: VehicleType;
+      /** `target` (default) bans on the placed target; `{ roadClass }` bans on every segment of that class in the district. */
+      readonly scope?: 'target' | { readonly roadClass: RoadClass };
+    }
   | {
       readonly kind: 'preferType';
       readonly vehicleType: VehicleType;
       readonly alsoTypes?: readonly VehicleType[];
     }
-  | { readonly kind: 'addBusStop'; readonly dwellTicks: number }
+  | {
+      readonly kind: 'addBusStop';
+      /**
+       * Bus dwell at the stop. Changing dwell (Express Stop) is valid only on a segment that already
+       * has a bus stop; `Sim.init` rejects it elsewhere and the UI greys such targets out.
+       */
+      readonly dwellTicks: number;
+    }
   | { readonly kind: 'addBikeLane'; readonly bikeVmax: number; readonly carVmaxDelta: number }
-  | { readonly kind: 'setOneWay'; readonly direction: Side; readonly doubleLanes: boolean }
+  | {
+      readonly kind: 'setOneWay';
+      /** Direction of travel; when absent it follows the placed segment target's `from` → `to`. */
+      readonly direction?: Side;
+      readonly doubleLanes: boolean;
+    }
+  | {
+      readonly kind: 'addTurnLane';
+      /** `left`: a reservation cell for left turns; `both`: for left and right turns. */
+      readonly turns: 'left' | 'both';
+    }
+  | {
+      readonly kind: 'reserveLane';
+      /** Only these types may use the reserved (kerb) lane; others lose it (Bus Lane). */
+      readonly vehicleTypes: readonly VehicleType[];
+    }
   | {
       readonly kind: 'reroute';
       readonly percent: number;
-      readonly toEdge?: number;
+      /** `adjacent`: the next edge clockwise; `secondary`: the edge in `Placement.secondaryTarget`. */
+      readonly to: 'adjacent' | 'secondary';
       readonly vehicleTypes?: readonly VehicleType[];
     }
   | { readonly kind: 'spawnModifier'; readonly vehicleType: VehicleType; readonly percent: number }
+  | {
+      /** Spreads the demand profile: the peak per-second spawn rate drops by `peakPermille`. */
+      readonly kind: 'smoothDemand';
+      readonly peakPermille: number;
+    }
+  | {
+      /** Spawns of `vehicleType` happen only in ticks [fromTick, toTick) (Delivery Window). */
+      readonly kind: 'spawnWindow';
+      readonly vehicleType: VehicleType;
+      readonly fromTick: number;
+      readonly toTick: number;
+    }
   | {
       readonly kind: 'scoreModifier';
       readonly vehicleType?: VehicleType;
@@ -159,8 +217,27 @@ export type Effect =
     }
   | { readonly kind: 'setPSlow'; readonly deltaPermille: number }
   | { readonly kind: 'yieldRule'; readonly fasterTicks: number }
+  /** Extra cards in the next round's draw. */
   | { readonly kind: 'drawModifier'; readonly delta: number }
-  | { readonly kind: 'energyModifier'; readonly delta: number; readonly perRound?: boolean }
+  | {
+      readonly kind: 'energyModifier';
+      readonly delta: number;
+      readonly perRound?: boolean;
+      readonly when: 'now' | 'next-round';
+      /** `replaced-signal`: applies only if the placement replaced a signal (Remove Signal). */
+      readonly condition?: 'replaced-signal';
+    }
+  | {
+      /** Changes the energy cost of the named cards (or all cards) (Pilot Program). */
+      readonly kind: 'costModifier';
+      readonly cards: readonly string[] | 'all';
+      readonly delta: number;
+    }
+  | {
+      /** Redraws the hand, keeping `keep` cards first (Recount). */
+      readonly kind: 'redraw';
+      readonly keep: 0 | 1;
+    }
   | { readonly kind: 'fundsModifier'; readonly delta: number; readonly per?: number };
 
 export type EffectKind = Effect['kind'];
@@ -170,6 +247,8 @@ export interface Placement {
   readonly cardId: string;
   readonly tier: 1 | 2;
   readonly target: Target;
+  /** A second target the player picked, for cards that need one (Detour's tier-2 `reroute`). */
+  readonly secondaryTarget?: Target;
   readonly effects: readonly Effect[];
   /** Order of play within the round; later placements win controller conflicts. */
   readonly order: number;
