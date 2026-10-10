@@ -33,5 +33,5 @@ export {
   TUNING_WARNINGS,
   roundsOf,
 } from './balance.js';
-export { candidateTargets, spread } from './targets.js';
+export { candidateTargets, directedRuns, spread } from './targets.js';
 export { CARDS, CONTENT_ENV, STARTING_DECK } from './data.js';
