@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SFX, SFX_IDS, TAG_PITCH, exitPitch } from '../src/sfx';
-import { makeVariants, sfxDuration, synthesize } from '../src/synth';
+import { SFX, SFX_IDS, TAG_PITCH, exitPitch } from '../src/sfx.js';
+import { makeVariants, sfxDuration, synthesize } from '../src/synth.js';
 
 const SR = 22050;
 const peak = (x: Float32Array): number => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);

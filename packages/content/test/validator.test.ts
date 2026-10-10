@@ -177,8 +177,8 @@ describe('parseCard: card rules beyond the schema', () => {
     ],
     [
       'upgrade effect on a wrong target',
-      { upgrade: { effects: [{ kind: 'addBusStop', dwellTicks: 2 }] } },
-      'upgrade/effects/0: addBusStop cannot act on target "intersection"',
+      { upgrade: { effects: [{ kind: 'setBusStopDwell', dwellTicks: 2 }] } },
+      'upgrade/effects/0: setBusStopDwell cannot act on target "intersection"',
     ],
     [
       'direction without priority',
@@ -244,6 +244,32 @@ describe('parseCard: card rules beyond the schema', () => {
       'directionless one-way off a segment',
       { target: 'district', effects: [{ kind: 'setOneWay', doubleLanes: false }] },
       'effects/0: a one-way without direction needs a segment target',
+    ],
+    [
+      'costModifier with both delta and next',
+      {
+        target: 'district',
+        effects: [{ kind: 'costModifier', cards: 'all', delta: -1, next: 1, cost: 0 }],
+      },
+      'effects/0: costModifier needs either delta, or next and cost',
+    ],
+    [
+      'costModifier with neither',
+      { target: 'district', effects: [{ kind: 'costModifier', cards: 'all' }] },
+      'effects/0: costModifier needs either delta, or next and cost',
+    ],
+    [
+      'costModifier next without cost',
+      { target: 'district', effects: [{ kind: 'costModifier', cards: 'all', next: 2 }] },
+      'effects/0: costModifier next and cost go together',
+    ],
+    [
+      'target-class ban off a segment',
+      {
+        target: 'district',
+        effects: [{ kind: 'banType', vehicleType: 'truck', scope: 'target-class' }],
+      },
+      'effects/0: scope "target-class" needs a segment target',
     ],
     [
       'empty spawn window',

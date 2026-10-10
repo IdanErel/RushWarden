@@ -2,7 +2,7 @@
  * @rushwarden/audio — in-repo zzfx-class synth, SFX definitions and mixer (GDD §7). No audio files.
  * Owner: Audio Engineer.
  */
-export { rng, hashString, type Rng } from './rng';
+export { rng, hashString, type Rng } from './rng.js';
 export {
   synthesize,
   makeVariants,
@@ -12,8 +12,8 @@ export {
   type Shape,
   type Voice,
   type SfxDef,
-} from './synth';
-export { SFX, SFX_IDS, TAG_PITCH, exitPitch, type SfxId, type Tag } from './sfx';
+} from './synth.js';
+export { SFX, SFX_IDS, TAG_PITCH, exitPitch, type SfxId, type Tag } from './sfx.js';
 export {
   AudioEngine,
   GESTURE_EVENTS,
@@ -26,4 +26,4 @@ export {
   type BufferSourceLike,
   type GainNodeLike,
   type EventTargetLike,
-} from './engine';
+} from './engine.js';

@@ -229,11 +229,11 @@
               "$ref": "#/$defs/vehicleType"
             },
             "scope": {
-              "description": "\"target\" (default), or every segment of a road class in the district.",
+              "description": "\"target\" (default); \"target-class\": the placed segment's road class district-wide; or a fixed road class district-wide.",
               "oneOf": [
                 {
                   "type": "string",
-                  "enum": ["target"]
+                  "enum": ["target", "target-class"]
                 },
                 {
                   "type": "object",
@@ -278,7 +278,7 @@
           "type": "object",
           "properties": {
             "kind": {
-              "const": "addBusStop"
+              "const": "setBusStopDwell"
             },
             "dwellTicks": {
               "type": "integer",
@@ -580,12 +580,25 @@
               "type": "integer",
               "minimum": -3,
               "maximum": 3,
+              "description": "Relative change; or use next + cost.",
               "not": {
                 "const": 0
               }
+            },
+            "next": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2,
+              "description": "The next N cards played this round..."
+            },
+            "cost": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3,
+              "description": "...cost exactly this much energy."
             }
           },
-          "required": ["kind", "cards", "delta"],
+          "required": ["kind", "cards"],
           "additionalProperties": false
         },
         {
