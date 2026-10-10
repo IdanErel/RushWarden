@@ -20,6 +20,9 @@ no `Math.random`, no floating point; ESLint enforces these in `src/`. Owner: Sim
 | `locateCell(world, laneId, cell)`                                                   | Tile, offset, travel directions and box quarter of a snapshot's (lane, cell), for the renderer.                              |
 | `VEHICLE_SPECS`, `BUS_DWELL_TICKS`, `BIKE_SHARED_VMAX`, `TAXI_LOAD_COST`            | The GDD §3 vehicle table and tick constants (ADR-017).                                                                       |
 | `controllerSnapshot(state)`, `ControllerCode`, `SIGNAL_GREEN_TICKS`, ...            | Per-intersection `[kind, greenMask, boxCount]` for the renderer, and the controller constants (ADR-020).                     |
+| `resolvePlacements(runEffects, placements)`                                         | Stacking and controller conflicts (ADR-023): applied, refunded and ignored placements, and `replacedController`.             |
+| `roundWorld(input)`                                                                 | The world a round runs on, with its topology cards. Snapshot lane ids refer to it; use it for the lane layout.               |
+| `PHASE1_CARDS`, `CARD_MAP`, `cardInput`                                             | The 20 Phase 1 cards as sim effects on a 4-intersection lattice, and golden rounds that place them.                          |
 | `closedLinkMask(world, segments)`                                                   | Links closed by `RoundInput.closedSegments` (both directions), for routing and drawing (ADR-022).                            |
 | `emptyMap`, `sampleInput`, `latticeMap`, `denseInput`                               | Test and golden fixtures: a plus map with 0–6 vehicles, and lattices of 4–12 intersections with 50–150 vehicles.             |
 
@@ -93,11 +96,12 @@ bus-stop tile.
 
 ## Status
 
-P1-SIM-04: vehicles spawn, follow tick rules 1–6 and exit with their score. p_slow (rule 3) comes
-from `DistrictRules.pSlowPermille` and the round PRNG, the gridlock detector ends the round after
-60 ticks with every vehicle stopped, and `RoundInput.closedSegments` closes road segments for
-the round (ADR-022). Controllers (ADR-020) start uncontrolled; cards set them, and add p_slow,
-from P1-SIM-05 on. `pnpm bench` measures rounds/s.
+P1-SIM-05: vehicles spawn, follow tick rules 1–6 and exit with their score. Card effects apply
+before the first tick (`src/effects.ts`, ADR-023): `resolvePlacements` applies the stacking and
+controller-conflict rules, topology cards give the round its own world (`roundWorld(input)`),
+demand cards transform the demand profile, and the rest configure controllers, speed caps, bans,
+reserved lanes, dwell, score and tolls. p_slow and gridlock follow ADR-022. `pnpm bench`
+measures rounds/s.
 
 Any change to
 the exported types is an interface change (GDD section 13, rule 6).

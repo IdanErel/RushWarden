@@ -24,3 +24,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 017 | Vehicles, intersection boxes and tick mechanics         | Proposed        |
 | 020 | Intersection controllers and the turn pocket            | Proposed        |
 | 022 | p_slow, the gridlock detector and closed segments       | Proposed        |
+| 023 | Card effects, stacking and controller conflicts         | Proposed        |
