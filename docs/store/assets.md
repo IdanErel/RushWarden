@@ -55,19 +55,21 @@ with the clip director's plays (One-Way, 300 through against a quota of 266).
 round with nothing played, which gridlocks. The capsules crop the "no cards" map mid-round,
 when the queues are building.
 
-| File                                | Size      | Content                                                    |
-| ----------------------------------- | --------- | ---------------------------------------------------------- |
-| `steam-header-920x430.png`          | 920×430   | Map crop + wordmark plate                                  |
-| `steam-small-462x174.png`           | 462×174   | Same, wordmark nearly filling the capsule                  |
-| `steam-main-1232x706.png`           | 1232×706  | Same                                                       |
-| `steam-vertical-748x896.png`        | 748×896   | Same, wordmark on two lines                                |
-| `steam-background-1438x810.png`     | 1438×810  | Map crop, washed out; no text                              |
-| `steam-library-capsule-600x900.png` | 600×900   | Map crop + two-line wordmark                               |
-| `steam-library-header-920x430.png`  | 920×430   | Same layout as the store header                            |
-| `steam-library-hero-3840x1240.png`  | 3840×1240 | Map only, rendered at 10×; no text                         |
-| `steam-library-logo-1280x720.png`   | 1280×720  | Wordmark on a transparent background                       |
-| `promo-1…6-1920x1080.png`           | 1920×1080 | Captioned clip-HUD images for itch, press and social posts |
-| `itch-cover-630x500.png`            | 630×500   | Map crop + two-line wordmark                               |
+| File                                | Size      | Content                                                      |
+| ----------------------------------- | --------- | ------------------------------------------------------------ |
+| `steam-header-920x430.png`          | 920×430   | Map crop + wordmark plate                                    |
+| `steam-small-462x174.png`           | 462×174   | Same, wordmark nearly filling the capsule                    |
+| `steam-main-1232x706.png`           | 1232×706  | Same                                                         |
+| `steam-vertical-748x896.png`        | 748×896   | Same, wordmark on two lines                                  |
+| `steam-background-1438x810.png`     | 1438×810  | Map crop, washed out; no text                                |
+| `steam-library-capsule-600x900.png` | 600×900   | Map crop + two-line wordmark                                 |
+| `steam-library-header-920x430.png`  | 920×430   | Same layout as the store header                              |
+| `steam-library-hero-3840x1240.png`  | 3840×1240 | Map only, rendered at 10×; no text                           |
+| `steam-library-logo-1280x720.png`   | 1280×720  | Wordmark on a transparent background                         |
+| `promo-1…6-1920x1080.png`           | 1920×1080 | Captioned clip-HUD images for itch, press and social posts   |
+| `itch-cover-630x500.png`            | 630×500   | Map crop + two-line wordmark                                 |
+| `portal-thumbnail-512x512.png`      | 512×512   | Map crop + two-line wordmark (Poki and CrazyGames)           |
+| `portal-cover-1920x1080.png`        | 1920×1080 | Clip frame (HUD) + large wordmark (Poki and CrazyGames 16:9) |
 
 The promo images are **not Steam screenshots**: they carry captions, which Steam does not allow.
 Their captions are "Place the rules", "Watch rush hour", "Beat the quota", "Name the jam",

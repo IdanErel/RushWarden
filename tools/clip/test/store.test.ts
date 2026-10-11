@@ -47,7 +47,7 @@ function bounds(op: StoreOp): { x0: number; y0: number; x1: number; y1: number }
 describe('store assets', () => {
   const assets = storeAssets(frames());
 
-  it('has every current Steamworks size (ADR-029), six promo images and the itch cover', () => {
+  it('has every current Steamworks size (ADR-029), six promo images, the itch cover and the portal images', () => {
     const sizes = assets.map((a) => `${a.store} ${a.width}x${a.height}`);
     for (const s of [
       'steam 920x430',
@@ -59,6 +59,8 @@ describe('store assets', () => {
       'steam 3840x1240',
       'steam 1280x720',
       'itch 630x500',
+      'portal 512x512',
+      'portal 1920x1080',
     ])
       expect(sizes).toContain(s);
     expect(sizes.filter((s) => s === 'steam 920x430')).toHaveLength(2); // header + library header
