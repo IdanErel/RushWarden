@@ -162,6 +162,11 @@ export function costOf(state: RunState, card: DeckCard): number {
   return Math.max(0, cost);
 }
 
+/** ADR-030: the district-curve round run round `round` plays (the toy samples D1's curve). */
+function curveRoundOf(config: RunConfig, round: number): number {
+  return config.curveRounds?.[round - 1] ?? round;
+}
+
 function rushOf(config: RunConfig, round: number) {
   return config.rushRounds.find((r) => r.round === round) ?? null;
 }
@@ -171,8 +176,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
   const prng = clonePrng(state.prng);
   const roundSeed = nextU32(prng);
   const rush = rushOf(state.config, round);
-  // ADR-030: the round of the district curve this run round plays (the toy samples D1's curve).
-  const curveRound = state.config.curveRounds?.[round - 1] ?? round;
+  const curveRound = curveRoundOf(state.config, round);
   const setup = env.setupRound({
     district: state.config.district,
     round: curveRound,
@@ -411,9 +415,12 @@ export function roundInput(state: RunState): RoundInput {
     demandProfile: state.demandProfile,
     placements: state.plays.map((p) => p.placement),
     cardState: { runEffects: state.runEffects },
+    // The sim's district rules describe the district round being played: with curveRounds
+    // (ADR-030) that is the sampled curve round, matching its quota, rush and boss. The run's own
+    // round counter (1..rounds) stays in RunState and the analytics events.
     districtRules: {
       district: state.config.district,
-      round: state.round,
+      round: curveRoundOf(state.config, state.round),
       rush: state.rush,
       boss: state.boss,
       quota: state.quota,
