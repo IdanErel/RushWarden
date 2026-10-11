@@ -170,6 +170,8 @@ async function boot(): Promise<void> {
     state.dataset['queued'] = String(scene.stats.queued);
     state.dataset['trails'] = String(scene.stats.trails);
     state.dataset['gridlock'] = String(scene.stats.gridlock);
+    const o = scene.gridlockOrigin;
+    state.dataset['gridlockOrigin'] = o ? `${o.x},${o.y}` : '';
     state.dataset['closed'] = String(scene.closedTiles.length);
     // Live readout of the first intersection: kind, green approaches, vehicles in the box.
     const live = scene.liveControllers[0];

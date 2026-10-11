@@ -40,13 +40,14 @@ import {
 import { GLYPH_SIZE, cardGlyph } from './glyph.js';
 import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
+import { cardAtJunction, type JamPoint } from './jam.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
 import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
 import { fitNames } from './fit-text.js';
 import { displayName } from './names.js';
 import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
-import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
+import type { PlacedCard, RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
 
@@ -114,6 +115,10 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const client = useRef<SimClient | null>(null);
   const counter = useRef(new ExitCounter());
   const [live, setLive] = useState(0);
+  /** Where the last round's gridlock started (the scene's red ring), or null. */
+  const [jam, setJam] = useState<JamPoint | null>(null);
+  /** The cards placed when Go was pressed: their marks stay up through Go and the result. */
+  const goPlaced = useRef<readonly PlacedCard[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [offerCursor, setOfferCursor] = useState(0);
@@ -242,7 +247,11 @@ export function Game(props: GameOptions): preact.JSX.Element {
         },
         onDone: (r: RoundResult) => {
           run.finishRound(r);
-          if (r.gridlocked) sc.setGridlock(true);
+          if (r.gridlocked) {
+            sc.setGridlock(true);
+            const o = sc.gridlockOrigin;
+            setJam(o ? { x: o.x, y: o.y } : null);
+          }
           const st = run.state();
           // Gridlock has its own sting; otherwise the quota pass or fail.
           if (r.gridlocked) sound?.play?.('gridlock');
@@ -290,6 +299,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
     if (!scene || s.phase !== 'place') return;
     prepare(scene, roundInput);
     scene.setGridlock(false);
+    setJam(null);
   }, [scene, s.phase, s.round, roundInput]);
 
   // Targets, ghost, placed marks and controller glyphs.
@@ -300,9 +310,11 @@ export function Game(props: GameOptions): preact.JSX.Element {
       : null;
     scene.setTargets(targets, cursor, ghost);
     scene.setMarks(
-      s.placed.map((p) => ({
+      (s.phase === 'place' ? s.placed : goPlaced.current).map((p) => ({
         target: p.target,
         color: TAG_COLOR[p.card.tags[0] ?? 'FLOW'],
+        // A road card outlines its whole run, so the run reads as one piece under traffic.
+        ...(p.segment ? { span: p.segment } : {}),
         // One-Way shows which way it runs (GDD §4 "in the chosen direction").
         ...(p.card.directional && p.segment ? { arrow: p.segment } : {}),
       })),
@@ -382,6 +394,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
     }
     goPending.current = false;
     const input = run.roundInput();
+    goPlaced.current = s.placed;
     run.go();
     if (scene) prepare(scene, input);
     setAskConsent(false);
@@ -567,6 +580,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
           : [],
         selected,
         cursor,
+        gridlockOrigin: jam,
         audio: sound ? (sound.started ? 'started' : 'idle') : 'none',
         muted: sound ? sound.muted : true,
         live: scene?.liveControllers ?? [],
@@ -712,6 +726,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
       {s.phase === 'result' && s.last && (
         <Result
           outcome={s.last}
+          jam={jam}
+          jamCard={jam ? (cardAtJunction(goPlaced.current, jam)?.card.name ?? null) : null}
           approval={s.approval}
           offer={s.offer}
           cursor={offerCursor}
@@ -840,6 +856,9 @@ function Glyph(p: { card: UiCard }): preact.JSX.Element {
 
 function Result(p: {
   outcome: RoundOutcome;
+  /** The junction the scene ringed after a gridlock, and the card placed there. */
+  jam: JamPoint | null;
+  jamCard: string | null;
   approval: number;
   offer: readonly UiCard[] | null;
   cursor: number;
@@ -853,6 +872,11 @@ function Result(p: {
       <h2 id="rw-result-title" class={o.pass ? 'pass' : 'fail'}>
         {title}
       </h2>
+      {o.gridlocked && p.jam && (
+        <p class="rw-jam">
+          {p.jamCard ? t('result.jamCard', { name: p.jamCard }) : t('result.jam')}
+        </p>
+      )}
       <p>{t('result.score', { n: o.throughput, quota: o.quota })}</p>
       <p>
         {o.pass ? t('result.funds', { n: o.fundsEarned }) : t('result.approval', { n: p.approval })}

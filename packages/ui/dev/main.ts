@@ -1,7 +1,7 @@
 /**
  * Run screen dev page: the real run controller (P1-BAL-01) with dev stand-in cards, fake traffic
  * in the worker (or `source=sim`), test hooks on. Query: `seed` (H1-style run seed), `privacy`
- * (policy URL), `share` (share URL), `rounds`, `reduced=1`, `source=sim`, `portal` (`poki`,
+ * (policy URL), `share` (share URL), `rounds`, `reduced=1`, `jam=1`, `source=sim`, `portal` (`poki`,
  * `crazygames`, ...), `analytics=1` (a stand-in consent surface; `consent=yes|no` presets the
  * answer, `deleteFail=1` fails the delete). Sound is the real engine; e2e reads `playCalls`. Not shipped; Platform mounts the game in platform-web.
  */
@@ -96,13 +96,24 @@ const shortRun =
     ? { rounds, rushRounds: [], curveRounds: (toy.curveRounds ?? []).slice(0, rounds) }
     : {};
 
+const run = new ControllerRun({
+  config: { ...toy, ...shortRun },
+  env: devEnv,
+  catalog: devCatalog,
+  analytics,
+});
+// `jam=1`: every round runs the fake traffic in Gridlock Drill jam mode, so it gridlocks (the
+// gridlock origin ring and result line). Fake traffic only; the sim ignores the boss name here.
+if (q.get('jam') === '1' && !sim) {
+  const input = run.roundInput.bind(run);
+  run.roundInput = () => {
+    const i = input();
+    return { ...i, districtRules: { ...i.districtRules, boss: 'gridlock-drill' } };
+  };
+}
+
 mountGame(document.getElementById('app') as HTMLElement, {
-  run: new ControllerRun({
-    config: { ...toy, ...shortRun },
-    env: devEnv,
-    catalog: devCatalog,
-    analytics,
-  }),
+  run,
   spawnWorker: sim ? spawnSimWorker : spawnFakeWorker,
   ...(sim ? {} : { layout: tileLaneLayout }),
   config: {

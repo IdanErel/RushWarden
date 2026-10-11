@@ -52,6 +52,7 @@ import {
   type MotionPrefs,
 } from '../effects.js';
 import { drawShapes } from './draw.js';
+import { JamTracer, type JamOrigin } from '../jam.js';
 import {
   rectToPx,
   targetKey,
@@ -82,11 +83,19 @@ export interface TrafficSceneOptions {
   readonly reducedMotion?: boolean;
 }
 
-/** A placed card shown on the map: a small badge in its tag colour at the target. */
+/**
+ * A placed card shown on the map, drawn above the traffic so it stays readable during Go (#81):
+ * an outline in its tag colour around the target (the whole run for `span`) and a badge.
+ */
 export interface PlacedMark {
   readonly target: TargetMark;
   /** 0xRRGGBB, e.g. the card's tag colour. */
   readonly color: number;
+  /** A segment card's whole straight run, end tiles inclusive; outlined instead of one tile. */
+  readonly span?: {
+    readonly from: { readonly x: number; readonly y: number };
+    readonly to: { readonly x: number; readonly y: number };
+  };
   /**
    * A direction of travel along a straight run of tiles (One-Way, GDD §4): an arrow from the
    * centre of `from` to the centre of `to`, drawn in `color`.
@@ -134,7 +143,12 @@ export class TrafficScene {
   private readonly glyphLayer = new Container();
   private readonly targetLayer = new Graphics();
   private readonly ghostLayer = new Graphics();
+  /** Placed-card outlines, badges and One-Way arrows: above the traffic. */
   private readonly markLayer = new Graphics();
+  /** The ring on the junction where a gridlock started: topmost. */
+  private readonly jamLayer = new Graphics();
+  private readonly jam: JamTracer;
+  private jamOrigin: JamOrigin | null = null;
   private targets: readonly TargetMark[] = [];
   private cursor: number | null = null;
   private ghost: ControllerMark | null = null;
@@ -169,7 +183,9 @@ export class TrafficScene {
     this.app = app;
     this.map = opts.map;
     this.palette = opts.palette ?? OLD_TOWN;
-    this.buffer = new SnapshotBuffer(opts.layout ?? worldLaneLayout(buildWorld(opts.map)));
+    const layout = opts.layout ?? worldLaneLayout(buildWorld(opts.map));
+    this.buffer = new SnapshotBuffer(layout);
+    this.jam = new JamTracer(opts.map, layout);
     this.motion = { reducedMotion: opts.reducedMotion ?? false };
     this.fit = fitGrid(opts.width, opts.height, HEAT_GUTTER_PX);
     this.world.addChild(
@@ -179,11 +195,12 @@ export class TrafficScene {
       this.heatProgress,
       this.liveLayer,
       this.glyphLayer,
-      this.markLayer,
       this.targetLayer,
       this.ghostLayer,
       this.trailLayer,
       this.vehicleLayer,
+      this.markLayer,
+      this.jamLayer,
     );
     this.ixWorld = intersectionWorld(opts.map);
     app.stage.addChild(this.world);
@@ -219,6 +236,7 @@ export class TrafficScene {
   /** Feeds one snapshot released by the client. */
   pushSnapshot(snapshot: Uint16Array, now = performance.now()): void {
     this.buffer.push(snapshot, now);
+    this.jam.push(snapshot);
   }
 
   /**
@@ -259,6 +277,8 @@ export class TrafficScene {
     this.map = map;
     this.buffer.setLayout(layout);
     this.buffer.reset();
+    this.jam.setMap(map, layout);
+    this.jamOrigin = null;
     this.controllers.clear();
     this.ixWorld = intersectionWorld(map);
     this.clearLive();
@@ -284,6 +304,8 @@ export class TrafficScene {
     const chosen = layout ?? (world ? worldLaneLayout(world) : null);
     if (chosen) this.buffer.setLayout(chosen);
     this.buffer.reset();
+    this.jam.setMap(this.map, chosen ?? undefined);
+    this.jamOrigin = null;
     this.ixWorld = world ?? { intersections: [] };
     this.clearLive();
     let closed = NO_CLOSURES;
@@ -317,10 +339,18 @@ export class TrafficScene {
   /**
    * Gridlock feedback (GDD §7): stopped vehicles turn desaturated red and the camera shakes 4 px
    * for 300 ms (no shake under reduced motion). Call with the round result's `gridlocked`; a new
-   * round (tick 0) clears it.
+   * round (tick 0) clears it. On, it also rings the junction where the jam started (`JamTracer`
+   * over the snapshots fed so far), so the player can trace it to a card (#81).
    */
   setGridlock(on: boolean, now = performance.now()): void {
     this.gridlockAt = on ? now : null;
+    this.jamOrigin = on ? this.jam.origin() : null;
+    this.drawJam();
+  }
+
+  /** The junction ringed after a gridlock, or null (no gridlock, or none could be traced). */
+  get gridlockOrigin(): JamOrigin | null {
+    return this.jamOrigin;
   }
 
   setReducedMotion(on: boolean): void {
@@ -405,6 +435,7 @@ export class TrafficScene {
     this.drawGlyphs();
     this.drawTargets();
     this.drawMarks();
+    this.drawJam();
     this.buildVehicleContexts();
   }
 
@@ -580,20 +611,49 @@ export class TrafficScene {
   private drawMarks(): void {
     const g = this.markLayer.clear();
     const T = this.fit.tilePx;
+    const outline = this.palette.outline;
     const seen = new Map<string, number>();
     for (const m of this.marks) {
-      const r = targetTileRect(m.target, this.map);
+      const r = m.span ? spanRect(m.span) : targetTileRect(m.target, this.map);
       if (!r) continue;
-      // Stack badges on the same target side by side.
+      // Outline the target (not the district: that is the whole map) in the tag colour, over a
+      // dark line so it reads on road, block and traffic alike.
+      if (m.target.kind !== 'district') {
+        const inset = T * 0.04;
+        const [x, y, w, h] = [
+          r.x * T + inset,
+          r.y * T + inset,
+          r.w * T - 2 * inset,
+          r.h * T - 2 * inset,
+        ];
+        const width = Math.max(3, T * 0.07);
+        g.roundRect(x, y, w, h, T * 0.14).stroke({ color: outline, width: width + 3, alpha: 0.8 });
+        g.roundRect(x, y, w, h, T * 0.14).stroke({ color: m.color, width });
+      }
+      // A badge at the target's top-left corner; badges on the same target stack side by side.
       const k = targetKey(m.target);
       const n = seen.get(k) ?? 0;
       seen.set(k, n + 1);
-      const rad = Math.max(4, T * 0.09);
-      const cx = r.x * T + rad + 3 + n * (rad * 2 + 2);
-      const cy = r.y * T + rad + 3;
-      g.circle(cx, cy, rad).fill(m.color).stroke({ color: this.palette.outline, width: 1.5 });
+      const rad = Math.max(7, T * 0.15);
+      const cx = r.x * T + rad + 2 + n * (rad * 2 + 2);
+      const cy = r.y * T + rad + 2;
+      g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
+      g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
     for (const m of this.marks) if (m.arrow) this.drawArrow(g, m.arrow.from, m.arrow.to, m.color);
+  }
+
+  /** A red ring round the junction where the gridlock started, over everything else. */
+  private drawJam(): void {
+    const g = this.jamLayer.clear();
+    const o = this.jamOrigin;
+    if (!o) return;
+    const T = this.fit.tilePx;
+    const [cx, cy] = [(o.x + 0.5) * T, (o.y + 0.5) * T];
+    const rad = T * 0.62;
+    const width = Math.max(4, T * 0.1);
+    g.circle(cx, cy, rad).stroke({ color: this.palette.outline, width: width + 4 });
+    g.circle(cx, cy, rad).stroke({ color: this.palette.signalRed, width });
   }
 
   /** A travel arrow from tile `a`'s centre to tile `b`'s, with a head at `b`. */
@@ -614,6 +674,9 @@ export class TrafficScene {
     const head = Math.max(8, T * 0.35);
     const [hx, hy] = [x1 - ux * head, y1 - uy * head];
     const outline = { color: this.palette.outline, width: 1.5, alpha: 0.9 };
+    g.moveTo(x0, y0)
+      .lineTo(hx, hy)
+      .stroke({ color: this.palette.outline, width: w + 3, cap: 'round', alpha: 0.8 });
     g.moveTo(x0, y0).lineTo(hx, hy).stroke({ color, width: w, cap: 'round' });
     g.poly([
       x1,
@@ -706,7 +769,14 @@ export class TrafficScene {
     const T = this.fit.tilePx;
     const cellPx = T / CELLS_PER_TILE;
     const tick = this.buffer.tick;
-    if (tick < this.lastTick) this.gridlockAt = null; // a new round started
+    if (tick < this.lastTick) {
+      // A new round started.
+      this.gridlockAt = null;
+      if (this.jamOrigin) {
+        this.jamOrigin = null;
+        this.drawJam();
+      }
+    }
     if (tick !== this.lastTick) this.drawHeatProgress(tick);
     this.lastTick = tick;
 
@@ -808,4 +878,16 @@ function intersectionWorld(map: GridMap): Pick<World, 'intersections'> {
   } catch {
     return { intersections: [] };
   }
+}
+
+/** The tile rect covering a straight run between two tiles, ends inclusive. */
+function spanRect(span: NonNullable<PlacedMark['span']>): Rect {
+  const x = Math.min(span.from.x, span.to.x);
+  const y = Math.min(span.from.y, span.to.y);
+  return {
+    x,
+    y,
+    w: Math.abs(span.to.x - span.from.x) + 1,
+    h: Math.abs(span.to.y - span.from.y) + 1,
+  };
 }
