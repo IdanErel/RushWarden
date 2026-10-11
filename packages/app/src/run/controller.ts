@@ -162,6 +162,11 @@ export function costOf(state: RunState, card: DeckCard): number {
   return Math.max(0, cost);
 }
 
+/** ADR-030: the district-curve round run round `round` plays (the toy samples D1's curve). */
+function curveRoundOf(config: RunConfig, round: number): number {
+  return config.curveRounds?.[round - 1] ?? round;
+}
+
 function rushOf(config: RunConfig, round: number) {
   return config.rushRounds.find((r) => r.round === round) ?? null;
 }
@@ -171,9 +176,10 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
   const prng = clonePrng(state.prng);
   const roundSeed = nextU32(prng);
   const rush = rushOf(state.config, round);
+  const curveRound = curveRoundOf(state.config, round);
   const setup = env.setupRound({
     district: state.config.district,
-    round,
+    round: curveRound,
     rush: rush !== null,
     boss: rush?.boss ?? null,
     seed: roundSeed,
@@ -192,7 +198,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
     rush: rush !== null,
     boss: rush?.boss ?? null,
-    quota: roundQuota(state.config.district, round, rush !== null, state.config.quotaPermille),
+    quota: roundQuota(state.config.district, curveRound, rush !== null, state.config.quotaPermille),
     hand: dealt.drawn,
     drawPile: dealt.drawPile,
     spent: dealt.spent,
@@ -211,6 +217,11 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
 export function startRun(config: RunConfig, env: RunEnv): { state: RunState; events: RunEvent[] } {
   const index = cardIndex(config);
   for (const id of config.startingDeck) if (!index.has(id)) throw new Error(`unknown card ${id}`);
+  const curve = config.curveRounds;
+  if (curve && (curve.length !== config.rounds || curve.some((r) => !Number.isInteger(r) || r < 1)))
+    throw new RangeError(
+      `curveRounds must list a curve round ≥ 1 for each of the ${config.rounds} rounds, got [${curve.join(', ')}]`,
+    );
   for (const card of config.cards)
     for (const tier of [1, 2] as const)
       for (const e of resolveTier(card, tier).effects) {
@@ -404,9 +415,12 @@ export function roundInput(state: RunState): RoundInput {
     demandProfile: state.demandProfile,
     placements: state.plays.map((p) => p.placement),
     cardState: { runEffects: state.runEffects },
+    // The sim's district rules describe the district round being played: with curveRounds
+    // (ADR-030) that is the sampled curve round, matching its quota, rush and boss. The run's own
+    // round counter (1..rounds) stays in RunState and the analytics events.
     districtRules: {
       district: state.config.district,
-      round: state.round,
+      round: curveRoundOf(state.config, state.round),
       rush: state.rush,
       boss: state.boss,
       quota: state.quota,

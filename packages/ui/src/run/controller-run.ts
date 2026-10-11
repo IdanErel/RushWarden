@@ -111,6 +111,11 @@ function controllerOf(card: RunCard): UiCard['controller'] {
   return undefined;
 }
 
+/** A segment target longer than one tile: it has a direction from `from` to `to`. */
+export function hasDirection(t: Target): boolean {
+  return t.kind === 'segment' && (t.from.x !== t.to.x || t.from.y !== t.to.y);
+}
+
 /** A segment card whose direction comes from the placed target (`setOneWay` without one). */
 function isDirectional(card: RunCard): boolean {
   return (
@@ -210,10 +215,15 @@ export class ControllerRun implements RunPort {
     const d = s.hand[handIndex];
     const def = d && this.cards.get(d.id);
     if (this.going || s.phase !== 'place' || !def) return [];
-    // The controller is the rules: offer exactly the targets it would accept.
-    return candidateTargets(def.target, s.map).filter(
-      (t) => step(s, { type: 'play', handIndex, target: toSimTarget(t, s.map) }, this.opts.env).ok,
-    );
+    // The controller is the rules: offer exactly the targets it would accept. A directional card
+    // (One-Way) also needs a run with from != to, which the sim requires to know its direction
+    // (ADR-031; the balance bots use the same rule).
+    const directional = isDirectional(def);
+    return candidateTargets(def.target, s.map).filter((t) => {
+      const target = toSimTarget(t, s.map);
+      if (directional && !hasDirection(target)) return false;
+      return step(s, { type: 'play', handIndex, target }, this.opts.env).ok;
+    });
   }
 
   place(handIndex: number, target: TargetMark): void {
