@@ -1,6 +1,6 @@
 import type { UiConfig, UiPortal } from '@rushwarden/ui';
 import type { WebPortalAdapter } from './portal/types.js';
-import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
+import { NO_ANALYTICS_PORTALS, privacyUrlFrom } from './portal/flag.js';
 
 /** Build-time settings the run screen reads (see vite-env.d.ts). */
 export interface GameBuildEnv {
@@ -26,9 +26,8 @@ export function uiConfigFor(
   env: GameBuildEnv,
   portal: Pick<WebPortalAdapter, 'id' | 'shareUrl' | 'openExternalLink'>,
 ): UiConfig {
-  const privacy = env.VITE_PRIVACY_URL ?? '';
   return {
-    privacyUrl: privacy.startsWith('https://') ? privacy : '',
+    privacyUrl: privacyUrlFrom(env),
     shareUrl: portal.shareUrl(),
     openExternalLink: (url) => portal.openExternalLink(url),
     portal: uiPortalFor(portal.id),

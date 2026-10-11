@@ -6,7 +6,7 @@ import {
   createPortalAdapter,
   parsePortalFlag,
 } from './index.js';
-import { checkBuildEnv } from './flag.js';
+import { checkBuildEnv, privacyUrlFrom } from './flag.js';
 import { fakeEnv } from './fake-env.test-helper.js';
 
 const SHARE = 'https://rushwarden.com/';
@@ -33,12 +33,44 @@ describe('checkBuildEnv (ADR-024 point 4)', () => {
       );
   });
 
-  it('allows portal builds without it, and itch or own-site builds with it', () => {
+  it('allows portal builds without it, and itch or own-site builds with it and a policy', () => {
+    const P = 'https://rushwarden.com/privacy';
     expect(checkBuildEnv({ VITE_PORTAL: 'poki' })).toBe('poki');
     expect(checkBuildEnv({ VITE_PORTAL: 'crazygames', VITE_INGEST_URL: '' })).toBe('crazygames');
-    expect(checkBuildEnv({ VITE_PORTAL: 'itch', VITE_INGEST_URL: URL })).toBe('itch');
-    expect(checkBuildEnv({ VITE_INGEST_URL: URL })).toBe('none');
+    expect(checkBuildEnv({ VITE_PORTAL: 'itch', VITE_INGEST_URL: URL, VITE_PRIVACY_URL: P })).toBe(
+      'itch',
+    );
+    expect(checkBuildEnv({ VITE_INGEST_URL: URL, VITE_PRIVACY_URL: P })).toBe('none');
     expect(() => checkBuildEnv({ VITE_PORTAL: 'Poki' })).toThrow(/VITE_PORTAL/);
+  });
+});
+
+describe('checkBuildEnv (ADR-025 point 5)', () => {
+  const URL = 'https://api.rushwarden.com/ingest';
+
+  it('fails any build that sets VITE_INGEST_URL without an https VITE_PRIVACY_URL', () => {
+    for (const portal of [undefined, 'none', 'itch'])
+      for (const policy of [undefined, '', 'http://rushwarden.com/privacy', '/privacy', 'https://'])
+        expect(
+          () =>
+            checkBuildEnv({ VITE_PORTAL: portal, VITE_INGEST_URL: URL, VITE_PRIVACY_URL: policy }),
+          `${portal} ${policy}`,
+        ).toThrow(/needs an https VITE_PRIVACY_URL/);
+  });
+
+  it('does not need a policy while collection is off', () => {
+    expect(checkBuildEnv({})).toBe('none');
+    expect(checkBuildEnv({ VITE_PORTAL: 'itch', VITE_INGEST_URL: '' })).toBe('itch');
+  });
+});
+
+describe('privacyUrlFrom', () => {
+  it('returns the URL only when it is an absolute https URL', () => {
+    expect(privacyUrlFrom({ VITE_PRIVACY_URL: 'https://rushwarden.com/privacy' })).toBe(
+      'https://rushwarden.com/privacy',
+    );
+    for (const bad of [undefined, '', 'http://x.com/', '/privacy', 'https://', 'javascript:x'])
+      expect(privacyUrlFrom({ VITE_PRIVACY_URL: bad }), String(bad)).toBe('');
   });
 });
 

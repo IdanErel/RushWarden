@@ -8,7 +8,7 @@ import {
   type Platform,
 } from '@rushwarden/app';
 import type { PrivacyControls } from '@rushwarden/ui';
-import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
+import { NO_ANALYTICS_PORTALS, privacyUrlFrom } from './portal/flag.js';
 
 /**
  * Analytics wiring for the web build (P1-BE-01). Collection is OFF unless the build sets
@@ -17,6 +17,8 @@ import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
  */
 export interface AnalyticsBuildEnv {
   VITE_INGEST_URL?: string | undefined;
+  /** Collection also needs the published policy (ADR-025 point 5); see `privacyUrlFrom`. */
+  VITE_PRIVACY_URL?: string | undefined;
   VITE_APP_VERSION?: string | undefined;
 }
 
@@ -46,6 +48,9 @@ export function startAnalytics(
 ): IngestClient {
   const endpoint = env.VITE_INGEST_URL ?? '';
   if (!endpoint.startsWith('https://')) return offIngestClient;
+  // ADR-025 point 5: no collection before the privacy policy is published and linked. The build
+  // check fails such a build; this is the runtime backstop.
+  if (privacyUrlFrom(env) === '') return offIngestClient;
   // Portal builds collect nothing (ADR-024 point 4, ADR-025 point 3), whatever the build sets.
   if ((NO_ANALYTICS_PORTALS as readonly string[]).includes(portalId)) return offIngestClient;
   return createIngestClient({
