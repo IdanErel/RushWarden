@@ -98,6 +98,23 @@ for (const size of [
   });
 }
 
+test('landscape: the consent question opens in the right column, not over the board', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'runs on the desktop project');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/?seed=1&analytics=1');
+  await expect(page.locator('.rw-map canvas')).toBeVisible();
+  const panel = page.getByRole('region', { name: 'Help balance Rushwarden?' });
+  await expect(panel).toBeVisible();
+  const map = await box(page, '.rw-map canvas');
+  const b = await panel.boundingBox();
+  if (!b) throw new Error('no consent box');
+  expect(b.x).toBeGreaterThanOrEqual(map.x + map.width);
+  expect(b.x + b.width).toBeLessThanOrEqual(1280);
+  await page.screenshot({ path: `${SHOTS}/ui-03-landscape-consent-1280x720.png` });
+});
+
 test('portrait phone keeps the column, and the raised card clears the hint', async ({
   page,
 }, info) => {

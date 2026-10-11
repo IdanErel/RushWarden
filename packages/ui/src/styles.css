@@ -400,3 +400,10 @@
 .rw-wide .rw-menu {
   top: 72px;
 }
+.rw-wide .rw-consent {
+  left: auto;
+  right: 16px;
+  top: 72px;
+  width: var(--side);
+  box-sizing: border-box;
+}
