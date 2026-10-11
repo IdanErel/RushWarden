@@ -136,8 +136,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 104px !important;
-  padding: 22px 6px 6px;
+  min-height: 150px !important;
+  padding: 24px 6px 6px;
   background: var(--card);
   border: 2px solid;
   text-align: left;
@@ -162,6 +162,11 @@
   left: 6px;
   font-size: 14px;
   color: var(--muted);
+}
+.rw-glyph {
+  align-self: center;
+  flex: none;
+  margin-bottom: 2px;
 }
 .rw-name {
   font-size: 14px;
@@ -290,6 +295,37 @@
   border-radius: 8px;
   background: var(--ground);
   user-select: all;
+}
+/* ADR-025 consent: non-blocking, over the top of the map; Yes and No identical in size and style. */
+.rw-consent {
+  position: absolute;
+  top: 56px;
+  left: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 2px solid var(--road);
+  border-radius: 12px;
+}
+.rw-consent p {
+  margin: 0;
+}
+.rw-answer {
+  flex: 1;
+}
+.rw-link {
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  padding: 0 8px;
+}
+.rw-switch[aria-checked='true'] {
+  background: var(--road);
+  color: #fff !important;
 }
 .rw-toast {
   position: absolute;

@@ -26,10 +26,14 @@ export {
 } from './run/controller-run.js';
 export {
   DEFAULT_CONFIG,
-  type InstallIdProvider,
+  portalRules,
+  type PortalRules,
+  type PrivacyControls,
   type SoundControl,
   type UiConfig,
+  type UiPortal,
 } from './config.js';
+export { GLYPH_SIZE, TIER2_GOLD, cardGlyph, type GlyphElement } from './glyph.js';
 export { shareLine, shareText, copyText, MARK_GLYPH } from './share.js';
 export { keyAction, type KeyAction } from './keys.js';
 export { stateAttributes, type UiFlags } from './hooks.js';
