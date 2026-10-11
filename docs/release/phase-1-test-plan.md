@@ -78,7 +78,8 @@ projects unless the row says otherwise, in `packages/platform-web/e2e/toy/`. Per
 - `phone-webkit` runs the whole suite nightly.
 
 E2E-04 compares paused frames with reduced motion on, because the §7 queue pulse keeps animating
-while paused.
+while paused. E2E-10 also checks H2 `data-gridlock-origin` (#90): set to the ringed junction on a
+gridlocked round's result, and empty on every other result and every place phase.
 
 | ID     | Flow                                   | Steps                                                                                                           | Pass when                                                                                                                                                            |
 | ------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

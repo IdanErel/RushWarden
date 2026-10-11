@@ -91,16 +91,17 @@ WEB_E2E_PORT=4831 CI=1 pnpm --filter @rushwarden/platform-web run store-shots
 `store-shots` is a Playwright spec (`packages/platform-web/e2e/store/`) that plays the toy
 through the test hooks, as the e2e does. It exists only with `STORE_SHOTS=1`, so CI never runs
 it. The sim is seeded, but each moment is taken by wall-clock time, so a re-run gives the same
-scenes, not byte-identical files. Re-capture after any visible UI or render change.
+scenes, not byte-identical files. Re-capture after any visible UI or render change. The current
+set is from `main` at 72bb91f, after the HUD fix (#89) and the gridlock ring and card marks (#90).
 
-| File                                 | Scene                                                                                               |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `steam-run-1-place-1920x1080.png`    | Market Day, round 1 (seed 93): Roundabout selected, its targets highlighted, the hand and Go button |
-| `steam-run-2-rush-1920x1080.png`     | The same round 6 s into Go, with the roundabout placed and the queues building                      |
-| `steam-run-3-gridlock-1920x1080.png` | The same round's gridlock and its result: −1 approval                                               |
-| `steam-run-4-offer-1920x1080.png`    | Another seed's round 1: quota met and the 3-card offer                                              |
-| `steam-run-5-parade-1920x1080.png`   | Its round 2, the Parade, with a street closed                                                       |
-| `steam-run-6-run-end-1920x1080.png`  | Its run end, "District held", with the share line                                                   |
+| File                                 | Scene                                                                                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steam-run-1-place-1920x1080.png`    | Market Day, round 1 (seed 6, the lowest that still gridlocks with the card): Roundabout selected, its targets highlighted, the hand and Go button |
+| `steam-run-2-rush-1920x1080.png`     | The same round 6 s into Go, with the roundabout's mark above the traffic and the queues building                                                  |
+| `steam-run-3-gridlock-1920x1080.png` | The same round's gridlock: the junction where it began ringed in red, and the result naming it, −1 approval                                       |
+| `steam-run-4-offer-1920x1080.png`    | Another seed's round 1: quota met and the 3-card offer                                                                                            |
+| `steam-run-5-parade-1920x1080.png`   | Its round 2, the Parade, with a street closed                                                                                                     |
+| `steam-run-6-run-end-1920x1080.png`  | Its run end, "District held", with the share line                                                                                                 |
 
 The second seed is the lowest whose no-card run passes round 1 and gets furthest (the spec finds
 it headlessly), so the run end shows a full row of squares. The cards in those shots are not
