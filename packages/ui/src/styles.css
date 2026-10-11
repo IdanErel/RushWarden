@@ -57,6 +57,14 @@
   background: transparent;
   font-size: 20px;
 }
+.rw-icon + .rw-icon {
+  margin-left: 0;
+}
+.rw-sound {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .rw-map {
   display: flex;
   justify-content: center;

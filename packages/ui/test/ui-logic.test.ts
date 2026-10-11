@@ -63,6 +63,9 @@ describe('keyboard map (GDD §8)', () => {
     expect(keyAction('place', ' ')).toEqual({ type: 'go' });
     expect(keyAction('place', 'Escape')).toEqual({ type: 'undo' });
     expect(keyAction('place', 'r')).toEqual({ type: 'flip' });
+    expect(keyAction('place', 'm')).toEqual({ type: 'mute' });
+    expect(keyAction('go', 'M')).toEqual({ type: 'mute' });
+    expect(keyAction('end', 'm')).toEqual({ type: 'mute' });
     expect(keyAction('go', 'r')).toBeNull();
     expect(keyAction('place', 'x')).toBeNull();
   });
@@ -100,9 +103,14 @@ describe('live throughput', () => {
       ]),
     );
     expect(c.push(snap([[1, 0, 1, 1, 0]]))).toBe(3); // the bus left
+    expect(c.exits).toEqual([3]);
     expect(c.push(snap([]))).toBe(4);
+    expect(c.exits).toEqual([1]);
+    expect(c.push(snap([]))).toBe(4);
+    expect(c.exits).toEqual([]);
     c.reset();
     expect(c.total).toBe(0);
+    expect(c.exits).toEqual([]);
   });
 });
 
@@ -130,6 +138,8 @@ describe('test hooks H2/H5', () => {
       'data-selected': '1',
       'data-cursor': '',
       'data-won': '',
+      'data-audio': 'none',
+      'data-muted': 'true',
       'data-reduced-motion': 'false',
     });
     expect(a['data-hand']!.split(',')).toHaveLength(5);

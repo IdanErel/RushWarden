@@ -7,6 +7,7 @@
  * Input: touch, mouse and keyboard (§8: 1–5, arrows, Enter, Space, Esc). Targets ≥ 44 px, text
  * ≥ 14 px. The map is the renderer's Pixi scene; the sim runs in a worker via `SimClient`.
  */
+import { TAG_PITCH, exitPitch } from '@rushwarden/audio';
 import { render } from 'preact';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
 import {
@@ -33,6 +34,7 @@ import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
+import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
 import { TURN_ALLOWANCE_PX, fitMap } from './fit.js';
 import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
@@ -64,17 +66,15 @@ export interface GameOptions {
    */
   readonly privacy?: PrivacyControls;
   /**
-   * @deprecated Ignored: the Privacy panel reads the install ID from `privacy`. Kept so the web
-   * build compiles until it passes `privacy` (the ID is null until the player says yes, and only
-   * `privacy` can ask, so nothing shown changes).
-   */
-  readonly installId?: () => string | null;
-  /**
    * Opens the unlock screen (GDD §8 screen 11). Offered on the run end after a win. Never shown
    * on Poki or CrazyGames builds (ADR-024), whatever is passed.
    */
   readonly unlock?: () => void;
-  readonly sound?: SoundControl;
+  /**
+   * Sound (P1-AUD-01). Omitted: the screen makes its own (`createGameSound`: off until the player
+   * turns it on, remembered in localStorage, started by a gesture). `null`: no sound at all.
+   */
+  readonly sound?: SoundControl | null;
   /** Render the H2/H5 test-hook node (dev and e2e builds). */
   readonly testHooks?: boolean;
   readonly reducedMotion?: boolean;
@@ -85,6 +85,11 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const { run, events } = props;
   const config = props.config ?? DEFAULT_CONFIG;
   const [, bump] = useReducer((n: number) => n + 1, 0);
+  // Created once for the screen's life (it binds the gesture and visibility listeners).
+  const [sound] = useState<SoundControl | undefined>(() =>
+    props.sound === null ? undefined : (props.sound ?? createGameSound()),
+  );
+  const exitSound = useRef(new Throttle(EXIT_SOUND_GAP_MS));
   const s = run.state();
 
   const mapEl = useRef<HTMLDivElement>(null);
@@ -185,12 +190,19 @@ export function Game(props: GameOptions): preact.JSX.Element {
           // Live signal phases, box occupancy and controller glyphs (ADR-020 point 10).
           if (controllers) sc.pushControllers(controllers);
           const n = counter.current.push(f);
+          // One pluck per burst of exits, pitched by the best vehicle's score value (GDD §7).
+          const exits = counter.current.exits;
+          if (exits.length > 0 && exitSound.current.pass(performance.now()))
+            sound?.play?.('vehicleExit', { pitch: exitPitch(Math.max(...exits)) });
           setLive((prev) => (prev === n ? prev : n));
         },
         onDone: (r: RoundResult) => {
           run.finishRound(r);
           if (r.gridlocked) sc.setGridlock(true);
           const st = run.state();
+          // Gridlock has its own sting; otherwise the quota pass or fail.
+          if (r.gridlocked) sound?.play?.('gridlock');
+          else if (st.last) sound?.play?.(st.last.pass ? 'quotaPass' : 'quotaFail');
           if (st.last) events?.roundEnd?.(st.last);
           if (st.phase === 'end') events?.runEnd?.(st);
           setSpeed(1);
@@ -282,12 +294,14 @@ export function Game(props: GameOptions): preact.JSX.Element {
       if (selected === null) return;
       const target = targets[idx];
       if (!target) return;
+      const tag = s.hand[selected]?.tags[0];
       run.place(selected, target);
+      sound?.play?.('cardPlace', { pitch: tag ? TAG_PITCH[tag] : 0 });
       setSelected(null);
       setCursor(null);
       bump(0);
     },
-    [selected, targets, run],
+    [selected, targets, run, s],
   );
 
   const undo = useCallback(
@@ -336,12 +350,34 @@ export function Game(props: GameOptions): preact.JSX.Element {
     client.current.setSpeed(1);
     // The round's 15 s count from the Go press, however late the next display frame is.
     client.current.start(input, performance.now());
+    sound?.play?.('go');
     events?.roundStart?.(s.round);
     bump(0);
   }, [s, run, scene, events, prepare]);
   useEffect(() => {
     if (scene && goPending.current) go();
   }, [scene, go]);
+
+  /** Sound on/off from a click, tap or key (a gesture, so turning it on can start audio). */
+  const toggleSound = (): void => {
+    if (!sound) return;
+    sound.setSoundOnFromGesture(sound.muted);
+    bump(0);
+  };
+  // `data-audio` follows the engine, which starts on a gesture outside Preact: until it has
+  // started, re-render after each gesture so the hook and the toggle show the new state.
+  const audioStarted = sound?.started ?? false;
+  useEffect(() => {
+    if (!sound || audioStarted) return;
+    const after = (): void => {
+      setTimeout(() => bump(0), 0);
+    };
+    const gestures = ['pointerdown', 'keydown', 'touchend', 'click'] as const;
+    for (const g of gestures) window.addEventListener(g, after, { passive: true });
+    return () => {
+      for (const g of gestures) window.removeEventListener(g, after);
+    };
+  }, [sound, audioStarted]);
 
   const setFast = useCallback(
     (fast: boolean) => {
@@ -462,6 +498,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
         if (s.offer) pick(null);
         else next();
         break;
+      case 'mute':
+        toggleSound();
+        break;
     }
   };
   useEffect(() => {
@@ -484,6 +523,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
           : [],
         selected,
         cursor,
+        audio: sound ? (sound.started ? 'started' : 'idle') : 'none',
+        muted: sound ? sound.muted : true,
         live: scene?.liveControllers ?? [],
         reducedMotion: props.reducedMotion ?? false,
       })
@@ -509,6 +550,16 @@ export function Game(props: GameOptions): preact.JSX.Element {
           label={t('hud.approval', { n: s.approval, max: s.maxApproval })}
           kind="approval"
         />
+        {sound && (
+          <button
+            class="rw-icon rw-sound"
+            aria-label={t('sound.toggle')}
+            aria-pressed={!sound.muted}
+            onClick={toggleSound}
+          >
+            <SpeakerIcon on={!sound.muted} />
+          </button>
+        )}
         <button class="rw-icon" aria-label={t('hud.menu')} onClick={pause}>
           ☰
         </button>
@@ -641,7 +692,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
       {menu === 'pause' && (
         <PauseMenu
           inGo={s.phase === 'go'}
-          sound={props.sound}
+          sound={sound}
           onResume={resume}
           onPrivacy={() => openPrivacy('pause')}
           onChange={() => bump(0)}
@@ -992,6 +1043,31 @@ function Privacy(p: {
 }
 
 /** Mounts the run screen into `el`; returns an unmount function. */
+/** Speaker glyph for the HUD sound toggle: waves when on, a cross when off. */
+function SpeakerIcon(p: { on: boolean }): preact.JSX.Element {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <path d="M3 8h4l5-4v14l-5-4H3z" fill="currentColor" />
+      {p.on ? (
+        <path
+          d="M15 7.5a5 5 0 0 1 0 7M17.5 5a8.5 8.5 0 0 1 0 12"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        />
+      ) : (
+        <path
+          d="M15 8l5 6M20 8l-5 6"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        />
+      )}
+    </svg>
+  );
+}
+
 export function mountGame(el: HTMLElement, opts: GameOptions): () => void {
   render(<Game {...opts} />, el);
   return () => render(null, el);
