@@ -33,9 +33,14 @@ export function fitMap(availWidth: number, availHeight: number): { width: number
 /** Landscape layout (GDD §8): page padding and the gap between the map and the right column. */
 export const WIDE_PAD = 16;
 export const WIDE_GAP = 24;
-/** The right column (HUD, controls, hand): 28% of the width, within these bounds. */
+/**
+ * The right column (HUD, controls, hand) takes the width the full-height board leaves, within
+ * these bounds; below the minimum the board gives up width instead.
+ */
 export const SIDE_MIN_W = 380;
-export const SIDE_MAX_W = 520;
+export const SIDE_MAX_W = 640;
+/** Landscape this tall or taller shows the hand as larger cards with their rules text. */
+export const ROOMY_MIN_H = 680;
 
 /**
  * Landscape: wider than tall and room for the right column next to a usable map. A phone held
@@ -45,19 +50,25 @@ export function isWide(viewW: number, viewH: number): boolean {
   return viewW > viewH && viewW >= SIDE_MIN_W + MAP_MIN_W + WIDE_GAP + 2 * WIDE_PAD + 120;
 }
 
+/** Landscape with the height for the larger 3 + 2 hand (cards show their rules text). */
+export function isRoomy(viewW: number, viewH: number): boolean {
+  return isWide(viewW, viewH) && viewH >= ROOMY_MIN_H;
+}
+
 /**
  * Landscape layout: the board stays upright (7×9) on the left and grows to the full height left
- * after the page padding; the HUD, controls and hand go in a right column of width `side`.
+ * after the page padding; the HUD, controls and hand go in a right column of width `side`, which
+ * takes the width the board leaves (between `SIDE_MIN_W` and `SIDE_MAX_W`).
  */
 export function wideLayout(
   viewW: number,
   viewH: number,
 ): { side: number; map: { width: number; height: number } } {
-  const side = Math.round(Math.min(SIDE_MAX_W, Math.max(SIDE_MIN_W, viewW * 0.28)));
-  const availW = viewW - side - WIDE_GAP - 2 * WIDE_PAD;
   const availH = viewH - 2 * WIDE_PAD;
-  let width = Math.max(availW, MAP_MIN_W);
-  if (mapHeightFor(width) > availH) width = mapWidthFor(availH);
+  const room = viewW - WIDE_GAP - 2 * WIDE_PAD;
+  let width = mapWidthFor(availH);
+  if (room - width < SIDE_MIN_W) width = room - SIDE_MIN_W;
   width = Math.max(MAP_MIN_W, Math.floor(width));
+  const side = Math.round(Math.min(SIDE_MAX_W, Math.max(SIDE_MIN_W, room - width)));
   return { side, map: { width, height: mapHeightFor(width) } };
 }

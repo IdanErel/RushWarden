@@ -40,3 +40,11 @@ export { stateAttributes, type UiFlags } from './hooks.js';
 export { ExitCounter } from './live.js';
 export { t, format, setLanguage, type StringKey } from './i18n.js';
 export { TAG_COLOR } from './tags.js';
+export {
+  SOUND_KEY,
+  createGameSound,
+  loadSoundOn,
+  saveSoundOn,
+  type GameSoundOptions,
+  type SoundEngine,
+} from './sound.js';

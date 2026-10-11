@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@rushwarden/app": "workspace:*",
+    "@rushwarden/audio": "workspace:*",
     "@rushwarden/render": "workspace:*",
     "@rushwarden/sim": "workspace:*",
     "preact": "~10.29.8"

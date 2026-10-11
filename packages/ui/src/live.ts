@@ -11,10 +11,13 @@ export class ExitCounter {
   private prev = new Map<number, number>();
   private next = new Map<number, number>();
   total = 0;
+  /** Score values of the vehicles that left in the last snapshot pushed (for the exit sound). */
+  exits: number[] = [];
 
   reset(): void {
     this.prev.clear();
     this.total = 0;
+    this.exits = [];
   }
 
   /** Feeds the next released snapshot; returns the running total. */
@@ -25,8 +28,13 @@ export class ExitCounter {
       const o = SNAPSHOT_HEADER + i * SNAPSHOT_STRIDE;
       this.next.set(s[o] ?? 0, s[o + 4] ?? 0);
     }
+    this.exits = [];
     for (const [id, type] of this.prev)
-      if (!this.next.has(id)) this.total += SCORE_VALUE[type as keyof typeof SCORE_VALUE] ?? 1;
+      if (!this.next.has(id)) {
+        const value = SCORE_VALUE[type as keyof typeof SCORE_VALUE] ?? 1;
+        this.total += value;
+        this.exits.push(value);
+      }
     [this.prev, this.next] = [this.next, this.prev];
     return this.total;
   }

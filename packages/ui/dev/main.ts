@@ -1,15 +1,16 @@
 /**
  * Run screen dev page: the real run controller (P1-BAL-01) with dev stand-in cards, fake traffic
  * in the worker (or `source=sim`), test hooks on. Query: `seed` (H1-style run seed), `privacy`
- * (policy URL), `share` (share URL), `rounds`, `reduced=1`, `source=sim`, `portal` (`poki`, `crazygames`, ...), `analytics=1`
- * (a stand-in consent surface; `consent=yes|no` presets the answer, `deleteFail=1` fails the
- * delete). Not shipped; Platform mounts the game in platform-web.
+ * (policy URL), `share` (share URL), `rounds`, `reduced=1`, `source=sim`, `portal` (`poki`,
+ * `crazygames`, ...), `analytics=1` (a stand-in consent surface; `consent=yes|no` presets the
+ * answer, `deleteFail=1` fails the delete). Sound is the real engine; e2e reads `playCalls`. Not shipped; Platform mounts the game in platform-web.
  */
 import { toyRunConfig, type RunAnalytics } from '@rushwarden/app';
 import { spawnSimWorker, tileLaneLayout } from '@rushwarden/render';
 import { spawnFakeWorker } from '@rushwarden/render/fake-worker';
 import {
   ControllerRun,
+  createGameSound,
   mountGame,
   type PrivacyControls,
   type SoundControl,
@@ -21,14 +22,29 @@ const q = new URLSearchParams(location.search);
 const seed = Number(q.get('seed') ?? '1') >>> 0;
 const sim = q.get('source') === 'sim';
 
-/** Records toggle calls so e2e can check the gesture rule (AUD note on PR #15). */
+/**
+ * The real sound (`createGameSound`: Web Audio, saved choice, gesture unlock), with its toggle
+ * calls (the gesture rule, AUD note on PR #15) and plays recorded for e2e. A play records
+ * whether the engine actually played it (false before audio starts or while muted).
+ */
 const soundCalls: boolean[] = [];
-const sound: SoundControl & { muted: boolean } = {
-  muted: true,
+const playCalls: { id: string; played: boolean; t: number }[] = [];
+const real = createGameSound();
+const sound: SoundControl = {
+  get muted() {
+    return real.muted;
+  },
+  get started() {
+    return real.started ?? false;
+  },
   setSoundOnFromGesture(on: boolean) {
     soundCalls.push(on);
-    this.muted = !on;
-    return true;
+    return real.setSoundOnFromGesture(on);
+  },
+  play(id, options) {
+    const played = real.play?.(id, options) ?? false;
+    playCalls.push({ id, played, t: performance.now() });
+    return played;
   },
 };
 
@@ -100,4 +116,4 @@ mountGame(document.getElementById('app') as HTMLElement, {
   testHooks: true,
   reducedMotion: q.get('reduced') === '1',
 });
-Object.assign(window, { soundCalls, trackCalls, privacyCalls, unlockCalls, linkCalls });
+Object.assign(window, { soundCalls, playCalls, trackCalls, privacyCalls, unlockCalls, linkCalls });

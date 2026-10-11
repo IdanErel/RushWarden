@@ -1,3 +1,5 @@
+import type { SfxId } from '@rushwarden/audio';
+
 /**
  * Settings the platform layer passes in. `privacyUrl` is set by config and empty until the policy
  * is live at https://rushwarden.com/privacy (ADR-025 point 5); the Privacy panel then shows
@@ -66,9 +68,16 @@ export interface PrivacyControls {
   deleteData(): Promise<boolean>;
 }
 
-/** The audio surface the UI uses (satisfied by `AudioEngine` from @rushwarden/audio). */
+/**
+ * The audio surface the UI uses: `createGameSound()` (the default), or `AudioEngine` from
+ * @rushwarden/audio itself.
+ */
 export interface SoundControl {
   readonly muted: boolean;
+  /** True once audio has started (an AudioContext exists, after a gesture with sound on). */
+  readonly started?: boolean;
   /** Call only from inside the toggle's own click/tap/key handler (AUD note on PR #15). */
   setSoundOnFromGesture(on: boolean): boolean;
+  /** Plays a sound; a no-op (false) before audio starts or while muted. */
+  play?(id: SfxId, options?: { readonly pitch?: number; readonly volume?: number }): boolean;
 }
