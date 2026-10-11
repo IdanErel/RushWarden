@@ -151,3 +151,61 @@ test('turning the window between portrait and landscape re-lays the screen', asy
     .poll(async () => (await box(page, '.rw-map canvas')).height / 720)
     .toBeGreaterThanOrEqual(0.9);
 });
+
+/** Every hand card's name stays inside its card's padding (no name touches the border). */
+async function namesInside(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('.rw-hand .rw-card')).flatMap((card) => {
+      const name = card.querySelector('.rw-name');
+      if (!name) return [];
+      const c = card.getBoundingClientRect();
+      const n = name.getBoundingClientRect();
+      const fits =
+        name.scrollWidth <= name.clientWidth + 1 && n.left >= c.left + 4 && n.right <= c.right - 4;
+      return fits ? [] : [name.textContent ?? ''];
+    }),
+  );
+}
+
+test('long card names stay inside the card, portrait and landscape (QA #80)', async ({
+  page,
+}, info) => {
+  if (info.project.name === 'desktop') await page.setViewportSize({ width: 1920, height: 1080 });
+  // A seed whose first hand holds Roundabout, the longest single-word name.
+  let found = false;
+  for (let seed = 1; seed < 40 && !found; seed++) {
+    await page.goto(`/?seed=${seed}`);
+    await expect(state(page)).toHaveAttribute('data-phase', 'place');
+    found = ((await state(page).getAttribute('data-hand')) ?? '').includes('roundabout');
+  }
+  expect(found).toBe(true);
+  await expect(page.locator('.rw-hand .rw-card')).toHaveCount(5);
+  expect(await namesInside(page)).toEqual([]);
+});
+
+test('tall landscape: no empty band above the controls, cards show their text (QA #80)', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop', 'runs on the desktop project');
+  for (const size of [
+    { width: 1920, height: 1080 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto('/?seed=1');
+    await expect(page.locator('.rw-map canvas')).toBeVisible();
+    await expect(page.locator('.rw-game')).toHaveClass(/rw-roomy/);
+    const hud = await box(page, '.rw-hud');
+    const controls = await box(page, '.rw-place');
+    expect(
+      (controls.y - (hud.y + hud.height)) / size.height,
+      'band above the controls',
+    ).toBeLessThanOrEqual(0.25);
+    expect(controls.y + controls.height).toBeLessThanOrEqual(size.height);
+    await expect(page.locator('.rw-hand .rw-text').first()).toBeVisible();
+  }
+  // A short landscape (a phone held sideways) keeps the compact 5-card row.
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator('.rw-game')).not.toHaveClass(/rw-roomy/);
+  await expect(page.locator('.rw-hand .rw-text').first()).toBeHidden();
+});

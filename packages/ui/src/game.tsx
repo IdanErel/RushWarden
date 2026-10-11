@@ -35,7 +35,7 @@ import { t } from './i18n.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
 import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
-import { fitMap, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
+import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
 import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
@@ -123,6 +123,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
   // GDD §8 "landscape rearranges HUD to the right": on a wide screen the board sits on the left
   // at full height and the HUD, controls and hand form a right column.
   const [wide, setWide] = useState(() => isWide(window.innerWidth, window.innerHeight));
+  // Tall landscape: the hand as 3 + 2 larger cards with their rules text (fills the column).
+  const [roomy, setRoomy] = useState(() => isRoomy(window.innerWidth, window.innerHeight));
   const side = wide ? wideLayout(window.innerWidth, window.innerHeight).side : 0;
   const measureMap = (): { width: number; height: number } => {
     // The landscape board's size depends only on the viewport, never on the controls beside it.
@@ -169,6 +171,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
   useEffect(() => {
     const onResize = (): void => {
       setWide(isWide(window.innerWidth, window.innerHeight));
+      setRoomy(isRoomy(window.innerWidth, window.innerHeight));
       fitRef.current();
     };
     window.addEventListener('resize', onResize);
@@ -547,7 +550,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
 
   return (
     <div
-      class={wide ? 'rw-game rw-wide' : 'rw-game'}
+      class={`rw-game${wide ? ' rw-wide' : ''}${wide && roomy ? ' rw-roomy' : ''}`}
       style={wide ? { '--side': `${side}px` } : undefined}
       ref={rootEl}
     >
@@ -774,6 +777,10 @@ function Card(p: {
       <span class="rw-cost">{c.cost}</span>
       <Glyph card={c} />
       <span class="rw-name">{c.name}</span>
+      {/* Shown on the larger landscape cards only; the accessible name already has it. */}
+      <span class="rw-text" aria-hidden="true">
+        {c.text}
+      </span>
       <span class="rw-tag" style={{ color }}>
         {c.tags.join(' ')}
       </span>
