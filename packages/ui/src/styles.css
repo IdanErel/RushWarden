@@ -48,6 +48,10 @@
 .rw-hud > span:first-child {
   font-weight: 650;
 }
+/* HUD labels never wrap: "Quota / 177" on two lines broke the one-line HUD (#86 review). */
+.rw-hud > span {
+  white-space: nowrap;
+}
 .rw-rush {
   color: var(--fail);
 }
@@ -182,10 +186,15 @@
   font-size: 14px;
   font-weight: 650;
   line-height: 1.2;
-  /* Long names ("Roundabout") break inside the card instead of touching its border. */
+  /*
+   * A name too wide for its card breaks only at a space, a hyphen or one of the soft hyphens
+   * `displayName` puts in ("Round-about"), never at a dictionary guess. `overflow-wrap` is the
+   * last resort for a future name with no entry, so it never pokes past the card border.
+   */
   max-width: 100%;
+  min-width: 0;
   overflow-wrap: anywhere;
-  hyphens: auto;
+  hyphens: manual;
 }
 .rw-card {
   min-width: 0;
@@ -455,4 +464,28 @@
   font-size: 14px;
   line-height: 1.3;
   color: var(--muted);
+}
+
+/*
+ * The 390-px design phone (GDD §1 point 5) and anything as narrow. The HUD holds round, quota,
+ * approval, sound and menu on one line: 14-px text (the GDD §8 phone minimum) and tighter
+ * spacing; the 44-px touch targets stay. The five-across hand gives names more room; `fitNames`
+ * (fit-text.ts) then sizes them so no word breaks mid-word on whatever font the device has.
+ */
+@media (max-width: 430px) {
+  .rw-hud {
+    gap: 4px;
+    padding: 4px 2px 4px 10px;
+    font-size: 14px;
+  }
+  .rw-hand {
+    gap: 4px;
+  }
+  .rw-hand .rw-card {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .rw-hand .rw-name {
+    font-size: 13px;
+  }
 }

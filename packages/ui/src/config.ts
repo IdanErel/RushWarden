@@ -80,4 +80,9 @@ export interface SoundControl {
   setSoundOnFromGesture(on: boolean): boolean;
   /** Plays a sound; a no-op (false) before audio starts or while muted. */
   play?(id: SfxId, options?: { readonly pitch?: number; readonly volume?: number }): boolean;
+  /**
+   * Removes its gesture and visibility listeners and closes its AudioContext. The run screen calls
+   * it on unmount for the sound it made itself (`sound` omitted); a passed sound is the caller's.
+   */
+  dispose?(): void;
 }
