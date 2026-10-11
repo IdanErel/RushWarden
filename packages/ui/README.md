@@ -7,27 +7,30 @@ Owner: UI Engineer. Section 8 of the GDD defines the screens, and section 13 def
 
 ## Public API
 
-| Export                                                                    | What it is                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mountGame(el, opts)` / `Game`                                            | Mounts the run screen. Returns an unmount function.                                                                                                                                                                                             |
-| `GameOptions`                                                             | `run`, `spawnWorker`, `layout?`, `config?` (`UiConfig`), `installId?`, `sound?`, `testHooks?`, `reducedMotion?`, `events?`                                                                                                                      |
-| `ControllerRun`                                                           | A `RunPort` over the P1-BAL-01 `RunController`. Go sends `roundInput()` to the sim worker and passes the worker's `RoundResult` to `resolve(result)`. The controller emits `run_start`, `round_end` and `run_end` to the `track()` it receives. |
-| `ControllerRunOptions`                                                    | `config` (`RunConfig`), `env` (`RunEnv`), `catalog` (`CardCatalog`: card id and tier to name and text), `analytics?` (`{ track }`, structurally the ingest client)                                                                              |
-| `RunPort`, `RunState`, `UiCard`, ...                                      | The screen's view of a run, from `run/port.ts`                                                                                                                                                                                                  |
-| `candidateTargets`, `segmentAt`, `toSimTarget`, `markOf`, `DISTRICT_NAME` | Pure helpers for target and share-mark logic                                                                                                                                                                                                    |
-| `UiConfig`, `DEFAULT_CONFIG`                                              | `privacyUrl` and `shareUrl`. Both are empty by default. An empty privacy URL shows "coming soon".                                                                                                                                               |
-| `InstallIdProvider`                                                       | `() => string \| null`. Pass `() => ingest.install`. A null ID means collection is off, and About says so. The UI never makes an ID of its own.                                                                                                 |
-| `SoundControl`                                                            | `muted` and `setSoundOnFromGesture(on)`. The toggle calls the second one inside its own click, tap or key handler. Platform code restores the saved setting at boot with `setMuted`.                                                            |
-| `shareLine`, `shareText`, `copyText`, `MARK_GLYPH`                        | The §5 share line                                                                                                                                                                                                                               |
-| `keyAction`                                                               | The §8 keyboard map: 1–5 select a card, the arrows move the cursor, Enter places, Space is Go, Esc undoes or pauses                                                                                                                             |
-| `stateAttributes`                                                         | The pure H2 attribute map                                                                                                                                                                                                                       |
-| `ExitCounter`, `t`, `format`, `setLanguage`, `TAG_COLOR`                  | The live counter, i18n (`i18n/en.json`) and tag colours                                                                                                                                                                                         |
+| Export                                                                    | What it is                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mountGame(el, opts)` / `Game`                                            | Mounts the run screen. Returns an unmount function.                                                                                                                                                                                                |
+| `GameOptions`                                                             | `run`, `spawnWorker`, `layout?`, `config?` (`UiConfig`), `privacy?`, `unlock?`, `sound?` (omitted: `createGameSound()`; `null`: no sound), `testHooks?`, `reducedMotion?`, `events?`                                                               |
+| `ControllerRun`                                                           | A `RunPort` over the P1-BAL-01 `RunController`. Go sends `roundInput()` to the sim worker and passes the worker's `RoundResult` to `resolve(result)`. The controller emits `run_start`, `round_end` and `run_end` to the `track()` it receives.    |
+| `ControllerRunOptions`                                                    | `config` (`RunConfig`), `env` (`RunEnv`), `catalog` (`CardCatalog`: card id and tier to name and text), `analytics?` (`{ track }`, structurally the ingest client)                                                                                 |
+| `RunPort`, `RunState`, `UiCard`, ...                                      | The screen's view of a run, from `run/port.ts`                                                                                                                                                                                                     |
+| `candidateTargets`, `segmentAt`, `toSimTarget`, `markOf`, `DISTRICT_NAME` | Pure helpers for target and share-mark logic                                                                                                                                                                                                       |
+| `UiConfig`, `DEFAULT_CONFIG`                                              | `privacyUrl` and `shareUrl`. Both are empty by default. An empty privacy URL shows "coming soon".                                                                                                                                                  |
+| `PrivacyControls`                                                         | The ingest client's consent surface (ADR-025): `install`, `consent`, `setConsent(yes)`, `deletePending?`, `deleteData()`. Pass it only when collection is on; the Privacy panel shows the install ID from it. The UI never makes an ID of its own. |
+| `SoundControl`                                                            | `muted`, `started?`, `setSoundOnFromGesture(on)` and `play?(id, options)`. The toggle calls `setSoundOnFromGesture` inside its own click, tap or key handler.                                                                                      |
+| `createGameSound`, `SOUND_KEY`, `loadSoundOn`, `saveSoundOn`              | The default `SoundControl` (P1-AUD-01): an `AudioEngine` that starts muted, keeps the on/off choice in localStorage (guarded), unlocks on a gesture and mutes in the background.                                                                   |
+| `shareLine`, `shareText`, `copyText`, `MARK_GLYPH`                        | The §5 share line                                                                                                                                                                                                                                  |
+| `keyAction`                                                               | The §8 keyboard map: 1–5 select a card, the arrows move the cursor, Enter places, Space is Go, Esc undoes or pauses                                                                                                                                |
+| `stateAttributes`                                                         | The pure H2 attribute map                                                                                                                                                                                                                          |
+| `ExitCounter`, `t`, `format`, `setLanguage`, `TAG_COLOR`                  | The live counter, i18n (`i18n/en.json`) and tag colours                                                                                                                                                                                            |
 
 ### Test hooks (ADR-010, docs/release/phase-1-test-plan.md §2.1)
 
 - **H2:** with `testHooks: true`, a hidden `#game-state` node carries `data-phase`, `data-round`,
   `data-approval`, `data-energy`, `data-hand`, `data-throughput`, `data-quota`, `data-speed`,
-  `data-paused`, `data-round-hash`, `data-placed`, `data-selected` and `data-cursor`.
+  `data-paused`, `data-round-hash`, `data-placed`, `data-selected`, `data-cursor`,
+  `data-reduced-motion`, `data-audio`, `data-muted` and, after a gridlock, `data-gridlock-origin`
+  (`x,y` of the junction where it started).
 - **H3:** every control has an accessible name, and the e2e finds them all by role and name.
 - **H5:** `data-target-rects` lists the selected card's valid targets as canvas-relative CSS px
   rects. The keyboard path does the same placements without a pointer.
@@ -48,8 +51,9 @@ const run = new ControllerRun({
 mountGame(document.getElementById('app')!, {
   run,
   spawnWorker: spawnSimWorker,
-  installId: () => ingest.install,
-  sound: audio,
+  // The consent surface, only when collection is on (ADR-025); platform-web builds it with
+  // `privacyControlsFor(ingest)`. Sound defaults to `createGameSound()`.
+  ...(privacy ? { privacy } : {}),
   config: { privacyUrl: '', shareUrl: '' },
 });
 ```

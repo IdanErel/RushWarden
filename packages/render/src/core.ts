@@ -9,6 +9,7 @@ export * from './palette.js';
 export * from './shapes.js';
 export * from './effects.js';
 export * from './targets.js';
+export * from './jam.js';
 export {
   FakeTraffic,
   SCORE_VALUE,

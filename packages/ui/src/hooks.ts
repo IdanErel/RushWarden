@@ -23,6 +23,8 @@ export interface UiFlags {
   readonly reducedMotion?: boolean;
   /** The scene's last decoded controllers frame (empty before the first Go frame). */
   readonly live?: readonly LiveIntersection[];
+  /** Where the last round's gridlock started (the red ring), or null. */
+  readonly gridlockOrigin?: { readonly x: number; readonly y: number } | null;
 }
 
 const xy = (t: { x: number; y: number }): string => `${t.x},${t.y}`;
@@ -60,6 +62,7 @@ export function stateAttributes(s: RunState, ui: UiFlags): Record<string, string
     'data-audio': ui.audio ?? 'none',
     'data-muted': String(ui.muted ?? true),
     'data-reduced-motion': String(ui.reducedMotion ?? false),
+    'data-gridlock-origin': ui.gridlockOrigin ? xy(ui.gridlockOrigin) : '',
     // Live controllers as `x,y:kind:greenSides:box` per intersection, e.g. `3,4:signal:ns:2`.
     'data-live': (ui.live ?? [])
       .map((l) => `${l.x},${l.y}:${l.kind}:${l.green.join('')}:${l.box}`)
