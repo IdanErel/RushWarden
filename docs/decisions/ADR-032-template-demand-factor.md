@@ -81,7 +81,29 @@ round passed. Three findings shaped the decision:
   | Before   | 31%   | 2%    | 100%  | 81%   | 17%   | 97%   | 6%    | 89%   | 6%    | 4%    | 2%    | 99%   |
   | After    | 74%   | 63%   | 73%   | 67%   | 66%   | 67%   | 56%   | 79%   | 51%   | 66%   | 58%   | 64%   |
 
-TOY_AND_FULL_RESULTS
+- **Toy** (`docs/balance/toy-con-06.md`, 2,000 seeds per bot, toy quota lift 1060):
+
+  | Bot                       | Win        | Target      | Before (P1-CON-05, local wiring) |
+  | ------------------------- | ---------- | ----------- | -------------------------------- |
+  | `no-cards`                | 20.1%      | at most 20% | 28.0%                            |
+  | `random`                  | 10.5%      | 10–30%      | 21.8%                            |
+  | `greedy-throughput`       | 58.9%      | at most 75% | 56.6%                            |
+  | the five `archetype(tag)` | 45.4–56.5% | 35–65% each | 46.6–53.1%                       |
+
+  By archetype: FLOW 45.4%, MASS 56.5%, TOLL 54.2%, CHAOS 53.6%, TEMPO 48.5%.
+
+  **Residual, accepted by the Lead.** `no-cards` is 0.1 point over its target (402 of 2,000).
+  That is within sampling error at 2,000 seeds (standard error about 0.9 point).
+  - The `random` bot plays 6–10 points worse than playing no cards. So "no-cards at most 20%"
+    and "random at least 10%" overlap only in a band about a point wide.
+  - A lift of 1065 instead of 1060 gave `no-cards` 19.1% but dropped `random` to 9.9%, so 1060
+    stays.
+
+- **Full run** (`docs/balance/latest.md`, 10,000 seeds per bot). Unchanged from P1-CON-05, and the
+  §11 gates hold:
+  - `random` 5.1%
+  - `greedy-throughput` 56.8%
+  - archetypes: FLOW 43.4%, MASS 45.3%, TOLL 51.3%, CHAOS 50.8%, TEMPO 37.7%
 
 ## Consequences
 
