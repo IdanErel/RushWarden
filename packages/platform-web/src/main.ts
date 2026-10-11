@@ -3,7 +3,7 @@ import { cardText, getCard, loadCards, setupRound, startingDeck } from '@rushwar
 import { spawnSimWorker } from '@rushwarden/render';
 import { Sim, sampleInput } from '@rushwarden/sim';
 import { ControllerRun, mountGame, type CardCatalog } from '@rushwarden/ui';
-import { startAnalytics } from './analytics.js';
+import { privacyControlsFor, startAnalytics } from './analytics.js';
 import { uiConfigFor } from './game-config.js';
 import { DEFAULT_SHARE_URL, createPortalAdapter } from './portal/index.js';
 import { TEST_HOOKS_ENABLED, seedOverride, withPortalSpy } from './test-hooks.js';
@@ -70,11 +70,13 @@ async function boot(): Promise<void> {
     catalog,
     analytics,
   });
+  // ADR-025: the consent and Privacy panels get the client only when collection is on.
+  const privacy = privacyControlsFor(analytics);
   mountGame(el, {
     run,
     spawnWorker: spawnSimWorker,
     config: uiConfigFor(import.meta.env, portal),
-    installId: () => analytics.install,
+    ...(privacy ? { privacy } : {}),
     testHooks: TEST_HOOKS_ENABLED,
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     // GDD §9 portal call pattern. commercialBreak never shows an ad (ADR-013, ADR-024): the

@@ -7,6 +7,7 @@ import {
   type IngestClientOptions,
   type Platform,
 } from '@rushwarden/app';
+import type { PrivacyControls } from '@rushwarden/ui';
 import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
 
 /**
@@ -55,4 +56,13 @@ export function startAnalytics(
     deviceClass: deviceClassFromMs(benchmarkMs),
     ...deps,
   });
+}
+
+/**
+ * The consent and Privacy panel surface for the run screen (#71, ADR-025): the client itself when
+ * collection is on, nothing when it is off (no ingest URL, or a portal build), so the UI asks
+ * nothing and shows no install ID.
+ */
+export function privacyControlsFor(client: IngestClient): PrivacyControls | undefined {
+  return client === offIngestClient ? undefined : client;
 }
