@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 // GDD §8 "landscape rearranges HUD to the right" (P1-UI-03, E2E-18): on a landscape desktop the
@@ -209,3 +212,173 @@ test('tall landscape: no empty band above the controls, cards show their text (Q
   await expect(page.locator('.rw-game')).not.toHaveClass(/rw-roomy/);
   await expect(page.locator('.rw-hand .rw-text').first()).toBeHidden();
 });
+
+/**
+ * The UI ships no font, so text width depends on the device. Each 390-px check runs on the
+ * browser default and on DejaVu Sans, a wide fallback (CI's Ubuntu default): a fixed size that
+ * fits one can overflow the other.
+ */
+const FONTS = ['default', 'DejaVu Sans'] as const;
+async function useFont(page: Page, font: (typeof FONTS)[number]): Promise<void> {
+  if (font === 'default') return;
+  // Into the page's own <head>, so the font is in place before the screen mounts and measures.
+  await page.route(/\/(\?.*)?$/, async (route) => {
+    const res = await route.fetch();
+    const html = (await res.text()).replace(
+      '</head>',
+      `<style>* { font-family: "${font}" !important; }</style></head>`,
+    );
+    await route.fulfill({ response: res, body: html });
+  });
+}
+
+for (const font of FONTS)
+  test(`the HUD stays on one line on the 390×844 design phone, ${font} font (#86 review)`, async ({
+    page,
+  }, info) => {
+    test.skip(info.project.name !== 'phone', 'runs on the phone project');
+    await useFont(page, font);
+    // Seed 1's first round is a Rush round: the longest round label ("Round 1/5 · Rush").
+    await page.goto('/?seed=1');
+    await expect(state(page)).toHaveAttribute('data-phase', 'place');
+    await expect(page.locator('.rw-rush')).toBeVisible();
+    const hud = await page.evaluate(() => {
+      const el = document.querySelector('.rw-hud');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const kids = Array.from(el.children).map((c) => {
+        const k = c.getBoundingClientRect();
+        // A wrapped label has text on more than one line.
+        const range = document.createRange();
+        range.selectNodeContents(c);
+        const textLines = new Set(
+          Array.from(range.getClientRects())
+            .filter((x) => x.width > 0)
+            .map((x) => Math.round(x.top + x.height / 2)),
+        ).size;
+        return { top: k.top, bottom: k.bottom, textLines, right: k.right };
+      });
+      return {
+        height: r.height,
+        // `min-height` is the content box; the padding comes on top.
+        minHeight:
+          parseFloat(getComputedStyle(el).minHeight) +
+          parseFloat(getComputedStyle(el).paddingTop) +
+          parseFloat(getComputedStyle(el).paddingBottom),
+        right: r.right,
+        kids,
+      };
+    });
+    expect(hud).not.toBeNull();
+    if (!hud) return;
+    expect(hud.height).toBeLessThanOrEqual(hud.minHeight + 0.5);
+    for (const k of hud.kids) {
+      expect(k.textLines).toBeLessThanOrEqual(1);
+      expect(k.right).toBeLessThanOrEqual(hud.right + 0.5);
+    }
+    // Every item sits on the same row.
+    const mids = hud.kids.map((k) => (k.top + k.bottom) / 2);
+    expect(Math.max(...mids) - Math.min(...mids)).toBeLessThan(4);
+    await page.screenshot({ path: `${SHOTS}/hud-390-${font.replace(' ', '-')}.png` });
+  });
+
+/** Every card name in content (the dev stand-ins use the same names). */
+function cardNames(): string[] {
+  const dir = fileURLToPath(new URL('../../content/cards/', import.meta.url));
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => (JSON.parse(readFileSync(join(dir, f), 'utf8')) as { name: string }).name)
+    .sort();
+}
+
+interface NameCheck {
+  /** Lines as shown, e.g. ["Round-", "about"]. */
+  lines: string[];
+  /** A line break not at a space, a hyphen or a soft hyphen. */
+  bad: boolean;
+  /** The name pokes past its card's padding. */
+  outside: boolean;
+  fontPx: number;
+}
+
+/**
+ * Puts `names` into the hand's name slots as the UI shows them (`displayName`), fits them as the
+ * screen does (`fitNames`), and reports where each one breaks.
+ */
+async function checkNames(page: Page, names: string[]): Promise<NameCheck[]> {
+  return page.evaluate((names) => {
+    const w = window as unknown as {
+      fitNames(els: HTMLElement[]): number;
+      displayName(n: string): string;
+    };
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rw-hand .rw-name')).slice(
+      0,
+      names.length,
+    );
+    els.forEach((el, i) => (el.textContent = w.displayName(names[i] ?? '')));
+    w.fitNames(els);
+    return els.map((el) => {
+      const text = el.firstChild as Text;
+      const s = text.textContent ?? '';
+      // The line of each visible character, from its own rect.
+      const seen: { i: number; top: number }[] = [];
+      for (let i = 0; i < s.length; i++) {
+        if (/[\s­]/.test(s[i] ?? '')) continue;
+        const r = document.createRange();
+        r.setStart(text, i);
+        r.setEnd(text, i + 1);
+        // The last box: Chromium gives the first character after a soft-hyphen break a box on
+        // the line before as well.
+        const boxes = r.getClientRects();
+        const rect = boxes[boxes.length - 1] ?? r.getBoundingClientRect();
+        seen.push({ i, top: Math.round(rect.top + rect.height / 2) });
+      }
+      const lines: string[] = [];
+      let bad = false;
+      let start = 0;
+      for (let k = 1; k < seen.length; k++) {
+        const a = seen[k - 1];
+        const b = seen[k];
+        if (!a || !b || Math.abs(b.top - a.top) < 3) continue;
+        const between = s.slice(a.i + 1, b.i);
+        if (!/[\s­]/.test(between) && s[a.i] !== '-') bad = true;
+        lines.push(s.slice(start, b.i).replace(/­$/, '-').replaceAll('­', '').trim());
+        start = b.i;
+      }
+      lines.push(s.slice(start).replaceAll('­', '').trim());
+      const card = el.closest('.rw-card')?.getBoundingClientRect();
+      const n = el.getBoundingClientRect();
+      const outside =
+        !card ||
+        el.scrollWidth > el.clientWidth + 1 ||
+        n.left < card.left + 2 ||
+        n.right > card.right - 2;
+      return { lines, bad, outside, fontPx: parseFloat(getComputedStyle(el).fontSize) };
+    });
+  }, names);
+}
+
+for (const font of FONTS)
+  for (const width of [390, 360])
+    test(`every card name breaks only at a space or a hyphen, ${width} px, ${font} font (#89 review)`, async ({
+      page,
+    }, info) => {
+      test.skip(info.project.name !== 'phone', 'runs on the phone project');
+      await useFont(page, font);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/?seed=1');
+      await expect(state(page)).toHaveAttribute('data-phase', 'place');
+      await expect(page.locator('.rw-hand .rw-card')).toHaveCount(5);
+      const all = cardNames();
+      expect(all).toContain('Roundabout');
+      const problems: string[] = [];
+      for (let k = 0; k < all.length; k += 5) {
+        const batch = all.slice(k, k + 5);
+        const res = await checkNames(page, batch);
+        res.forEach((r, i) => {
+          if (r.bad || r.outside || r.fontPx < 12)
+            problems.push(`${batch[i]}: ${r.lines.join(' / ')} at ${r.fontPx}px`);
+        });
+      }
+      expect(problems).toEqual([]);
+    });

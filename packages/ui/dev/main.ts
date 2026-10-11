@@ -16,6 +16,8 @@ import {
   type SoundControl,
   type UiPortal,
 } from '../src/index.js';
+import { fitNames } from '../src/fit-text.js';
+import { displayName } from '../src/names.js';
 import { DEV_CARDS, devCatalog, devEnv } from './cards.js';
 
 const q = new URLSearchParams(location.search);
@@ -127,4 +129,14 @@ mountGame(document.getElementById('app') as HTMLElement, {
   testHooks: true,
   reducedMotion: q.get('reduced') === '1',
 });
-Object.assign(window, { soundCalls, playCalls, trackCalls, privacyCalls, unlockCalls, linkCalls });
+Object.assign(window, {
+  // e2e: sets any card names into the hand and fits them (layout.spec name checks).
+  fitNames,
+  displayName,
+  soundCalls,
+  playCalls,
+  trackCalls,
+  privacyCalls,
+  unlockCalls,
+  linkCalls,
+});

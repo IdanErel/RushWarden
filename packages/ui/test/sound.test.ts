@@ -6,6 +6,7 @@ import {
   createGameSound,
   loadSoundOn,
   saveSoundOn,
+  type ClosableContext,
   type SoundEngine,
 } from '../src/sound.js';
 
@@ -123,6 +124,116 @@ describe('createGameSound (P1-AUD-01 wiring)', () => {
     const { sound } = make(throwing);
     expect(() => sound.setSoundOnFromGesture(true)).not.toThrow();
     expect(sound.muted).toBe(false);
+  });
+});
+
+/** An event target that counts its listeners. */
+class Listeners implements EventTargetLike {
+  hidden = false;
+  readonly fns = new Map<string, Set<() => void>>();
+  addEventListener(type: string, fn: () => void): void {
+    const set = this.fns.get(type) ?? new Set();
+    set.add(fn);
+    this.fns.set(type, set);
+  }
+  removeEventListener(type: string, fn: () => void): void {
+    this.fns.get(type)?.delete(fn);
+  }
+  get count(): number {
+    let n = 0;
+    for (const s of this.fns.values()) n += s.size;
+    return n;
+  }
+  fire(type: string): void {
+    for (const fn of [...(this.fns.get(type) ?? [])]) fn();
+  }
+}
+
+/** Just enough of an AudioContext for the engine to start; records `close`. */
+function fakeContext(): ClosableContext & { closed: number } {
+  const node = { connect: () => undefined };
+  return {
+    closed: 0,
+    sampleRate: 8000,
+    currentTime: 0,
+    state: 'running',
+    destination: node,
+    createGain: () => ({ ...node, gain: { value: 1 } }),
+    createBuffer: () => ({ getChannelData: () => new Float32Array(1) }),
+    createBufferSource: () => ({
+      ...node,
+      buffer: null,
+      playbackRate: { value: 1 },
+      onended: null,
+      start: () => undefined,
+    }),
+    resume: () => Promise.resolve(),
+    suspend: () => Promise.resolve(),
+    close() {
+      this.closed++;
+      return Promise.resolve();
+    },
+  };
+}
+
+describe('dispose (#86 review: nothing was cleaned up on unmount)', () => {
+  it('removes the gesture and visibility listeners and closes the AudioContext it made', () => {
+    const win = new Listeners();
+    const doc = new Listeners();
+    const made: ReturnType<typeof fakeContext>[] = [];
+    const sound = createGameSound({
+      storage: new MemStorage(),
+      gestures: win,
+      visibility: doc,
+      createContext: () => {
+        const c = fakeContext();
+        made.push(c);
+        return c;
+      },
+    });
+    expect(win.count).toBeGreaterThan(0);
+    expect(doc.count).toBe(1);
+    expect(sound.setSoundOnFromGesture(true)).toBe(true);
+    expect(sound.started).toBe(true);
+    expect(made).toHaveLength(1);
+
+    sound.dispose?.();
+    expect(win.count).toBe(0);
+    expect(doc.count).toBe(0);
+    expect(made[0]?.closed).toBe(1);
+    expect(sound.play?.('go')).toBe(false);
+    // Twice is harmless.
+    sound.dispose?.();
+    expect(made[0]?.closed).toBe(1);
+  });
+
+  it('with sound never turned on, there is no context to close, and listeners still go', () => {
+    const win = new Listeners();
+    const doc = new Listeners();
+    let created = 0;
+    const sound = createGameSound({
+      storage: new MemStorage(),
+      gestures: win,
+      visibility: doc,
+      createContext: () => {
+        created++;
+        return fakeContext();
+      },
+    });
+    win.fire('pointerdown'); // muted: no context
+    sound.dispose?.();
+    expect(created).toBe(0);
+    expect(win.count + doc.count).toBe(0);
+  });
+
+  it('a passed engine is unbound but its context is left to its owner', () => {
+    const offs: string[] = [];
+    const engine = new FakeEngine();
+    engine.bindGestureUnlock = () => () => offs.push('gesture');
+    engine.bindVisibility = () => () => offs.push('visibility');
+    const sound = createGameSound({ engine, storage: null, gestures: target, visibility: target });
+    sound.dispose?.();
+    expect(offs).toEqual(['gesture', 'visibility']);
   });
 });
 

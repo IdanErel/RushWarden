@@ -9,7 +9,15 @@
  */
 import { TAG_PITCH, exitPitch } from '@rushwarden/audio';
 import { render } from 'preact';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'preact/hooks';
 import {
   SimClient,
   TrafficScene,
@@ -36,6 +44,8 @@ import { cardAtJunction, type JamPoint } from './jam.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
 import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
+import { fitNames } from './fit-text.js';
+import { displayName } from './names.js';
 import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
 import type { PlacedCard, RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
@@ -91,6 +101,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
     props.sound === null ? undefined : (props.sound ?? createGameSound()),
   );
   const exitSound = useRef(new Throttle(EXIT_SOUND_GAP_MS));
+  // The sound this screen made itself is disposed with it: listeners off, AudioContext closed.
+  useEffect(
+    () => () => {
+      if (props.sound === undefined) sound?.dispose?.();
+    },
+    [],
+  );
   const s = run.state();
 
   const mapEl = useRef<HTMLDivElement>(null);
@@ -182,6 +199,20 @@ export function Game(props: GameOptions): preact.JSX.Element {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Card names sized to their cards (fit-text.ts), before paint and before the map is fitted to
+  // what is left. Redone only when the cards shown or the layout change.
+  useLayoutEffect(() => {
+    const root = rootEl.current;
+    if (!root) return;
+    for (const group of Array.from(root.querySelectorAll<HTMLElement>('.rw-hand, .rw-offer'))) {
+      const names = Array.from(group.querySelectorAll<HTMLElement>('.rw-name'));
+      const key = `${window.innerWidth}x${window.innerHeight}:${names.map((n) => n.textContent).join('|')}`;
+      if (group.dataset['fitted'] === key) continue;
+      fitNames(names);
+      group.dataset['fitted'] = key;
+    }
+  });
 
   // --- Scene and worker -----------------------------------------------------------------------
   useEffect(() => {
@@ -792,7 +823,7 @@ function Card(p: {
       <span class="rw-key">{p.index + 1}</span>
       <span class="rw-cost">{c.cost}</span>
       <Glyph card={c} />
-      <span class="rw-name">{c.name}</span>
+      <span class="rw-name">{displayName(c.name)}</span>
       {/* Shown on the larger landscape cards only; the accessible name already has it. */}
       <span class="rw-text" aria-hidden="true">
         {c.text}
