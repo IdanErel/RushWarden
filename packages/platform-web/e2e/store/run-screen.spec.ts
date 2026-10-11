@@ -16,8 +16,16 @@ import { attr, openToy, pressGo, selectPlayable, skipOffer, state } from '../toy
 
 const OUT = fileURLToPath(new URL('../../../../docs/store/screenshots/', import.meta.url));
 
-/** The Market Day clip's seed (tools/clip MARKET_DAY_SEED): with Roundabout, round 1 still jams. */
-const JAM_SEED = 93;
+/**
+ * Seeds whose round 1 (Market Day) gridlocks with no cards, lowest first. The shot places one card,
+ * which can cure the jam, so the spec takes the first of these that still gridlocks with it.
+ */
+function jamSeeds(): number[] {
+  const out: number[] = [];
+  for (let seed = SEED_RANGE.from; seed <= SEED_RANGE.to && out.length < 8; seed++)
+    if (noCardRun(seed).rounds[0]?.gridlocked) out.push(seed);
+  return out;
+}
 
 async function shot(page: Page, name: string): Promise<void> {
   // Let the scene draw a few frames after the last state change.
@@ -47,20 +55,27 @@ test.beforeAll(() => {
 });
 
 test('Market Day: place a card, watch it jam, gridlock', async ({ page }) => {
-  await openToy(page, JAM_SEED);
-  await selectPlayable(page);
-  await page.keyboard.press('ArrowRight'); // ghost preview on a target
-  await expect(state(page)).not.toHaveAttribute('data-cursor', '');
-  await shot(page, '1-place');
+  for (const seed of jamSeeds()) {
+    await openToy(page, seed);
+    await selectPlayable(page);
+    await page.keyboard.press('ArrowRight'); // ghost preview on a target
+    await expect(state(page)).not.toHaveAttribute('data-cursor', '');
+    await shot(page, '1-place');
 
-  await page.keyboard.press('Enter');
-  await expect(state(page)).not.toHaveAttribute('data-placed', '');
-  await pressGo(page);
-  await page.waitForTimeout(6_000);
-  await shot(page, '2-rush');
+    await page.keyboard.press('Enter');
+    await expect(state(page)).not.toHaveAttribute('data-placed', '');
+    await pressGo(page);
+    await page.waitForTimeout(6_000);
+    await shot(page, '2-rush');
 
-  await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 120_000 });
-  await shot(page, '3-gridlock');
+    await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 120_000 });
+    // The scene rings the junction where the jam began (#90); H2 names it.
+    if ((await attr(page, 'gridlock-origin')) === '') continue;
+    await shot(page, '3-gridlock');
+    console.log(`[store] gridlock shots from seed ${seed}`);
+    return;
+  }
+  throw new Error('no seed gridlocks round 1 with the placed card');
 });
 
 test('a pass, the card offer, the Parade, and the run end', async ({ page }) => {

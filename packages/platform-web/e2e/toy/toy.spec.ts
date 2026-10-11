@@ -272,7 +272,24 @@ test.describe('toy flow', () => {
       test.setTimeout(120_000);
       const run = need('gridlock');
       await openToy(page, run.seed);
-      await playNoCards(page);
+      // Played round by round (playNoCards without the shortcut) to read H2
+      // `data-gridlock-origin` on each result: the junction the scene rings (#90), set only
+      // after a gridlock and cleared when the next place phase starts.
+      const origins: string[] = [];
+      while ((await attr(page, 'phase')) === 'place') {
+        await expect(state(page)).toHaveAttribute('data-gridlock-origin', '');
+        await pressGo(page);
+        await holdRound(page);
+        await expect(state(page)).toHaveAttribute('data-phase', /result|end/);
+        origins.push(await attr(page, 'gridlock-origin'));
+        await skipOffer(page);
+      }
+      await expect(state(page)).toHaveAttribute('data-phase', 'end');
+      run.rounds.forEach((r, i) => {
+        const at = `seed ${run.seed} round ${i + 1}`;
+        if (r.gridlocked) expect(origins[i], at).toMatch(/^\d+,\d+$/);
+        else expect(origins[i], at).toBe('');
+      });
       const marks = (await attr(page, 'history')).split(',');
       expect(marks, `seed ${run.seed}`).toEqual(run.rounds.map((r) => r.mark));
       const share = (await page.getByLabel('Share text').textContent()) ?? '';
