@@ -46,8 +46,8 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    near its jam point (ADR-032, task CON-06). The toy's acceptance is re-checked there.
 
    **Resolved by ADR-032** (CON-06): with the per-template factor and the amended mapping,
-   no-cards wins 20.1% of toys (2,000 seeds), within sampling error of the target (accepted by
-   the Lead). ADR-032 has the report.
+   no-cards wins 19.5% of toys (6,000 seeds pooled: 20.1% in the attached 2,000-seed report and
+   19.25% in the reviewer's 4,000-seed sample). ADR-032 has the report.
 
 6. **Full runs are unchanged.** `fullRunConfig` has no `curveRounds`, so the 12-round gate run
    (ADR-010) plays rounds 1–12 as before.

@@ -92,12 +92,17 @@ round passed. Three findings shaped the decision:
 
   By archetype: FLOW 45.4%, MASS 56.5%, TOLL 54.2%, CHAOS 53.6%, TEMPO 48.5%.
 
-  **Residual, accepted by the Lead.** `no-cards` is 0.1 point over its target (402 of 2,000).
-  That is within sampling error at 2,000 seeds (standard error about 0.9 point).
+  **no-cards meets its target when the samples are pooled.** This 2,000-seed sample gives 20.1%
+  (402 of 2,000). The reviewer's fresh 4,000-seed sample gave 19.25%. Pooled over 6,000 seeds,
+  `no-cards` wins 19.5%, which meets "at most 20%".
   - The `random` bot plays 6–10 points worse than playing no cards. So "no-cards at most 20%"
     and "random at least 10%" overlap only in a band about a point wide.
   - A lift of 1065 instead of 1060 gave `no-cards` 19.1% but dropped `random` to 9.9%, so 1060
     stays.
+
+  **Toy card deltas aren't gated.** In the toy a bot drafts only after passing a round, so high
+  toy deltas mostly measure who was already winning: bus-lane +13.7, detour +12.3 and
+  fare-holiday +12.3. §11 gates the full-run deltas, and those are all within limits.
 
 - **Full run** (`docs/balance/latest.md`, 10,000 seeds per bot). Unchanged from P1-CON-05, and the
   §11 gates hold:
