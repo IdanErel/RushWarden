@@ -71,11 +71,16 @@ const privacy: PrivacyControls = {
 const unlockCalls: number[] = [];
 /** `rounds=N`: a shorter run with no rush round, so e2e reaches the run end quickly. */
 const rounds = Number(q.get('rounds') ?? '0');
-const shortRun = rounds > 0 ? { rounds, rushRounds: [] } : {};
+const toy = toyRunConfig({ seed, cards: DEV_CARDS });
+// The toy's rounds sample District 1's curve (ADR-030): keep one curve round per round played.
+const shortRun =
+  rounds > 0
+    ? { rounds, rushRounds: [], curveRounds: (toy.curveRounds ?? []).slice(0, rounds) }
+    : {};
 
 mountGame(document.getElementById('app') as HTMLElement, {
   run: new ControllerRun({
-    config: { ...toyRunConfig({ seed, cards: DEV_CARDS }), ...shortRun },
+    config: { ...toy, ...shortRun },
     env: devEnv,
     catalog: devCatalog,
     analytics,
