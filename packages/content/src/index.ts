@@ -99,6 +99,8 @@ export {
   roundVehicles,
   RUSH_PERMILLE,
   RUSH_ROUNDS,
+  TEMPLATE_DEMAND_PERMILLE,
+  templateDemandPermille,
   TOY_ROUNDS,
   toyRushRounds,
   SECOND_WEIGHTS,

@@ -27,10 +27,11 @@ export const ROUND_SECONDS = idiv(ROUND_TICKS, TICKS_PER_SECOND);
 
 /**
  * Base quota per district. GDD §2 starts at `[26, 34, 42]` and leaves the values to the balance
- * sim. District 1 is tuned by P1-CON-05 to about 90% of round 1's demand score (ADR-021 item 3);
- * Districts 2 and 3 keep the GDD values until they have maps and a report.
+ * sim. District 1 is tuned by P1-CON-05 and CON-06 to about 95% of round 1's demand score
+ * (ADR-021 item 3, ADR-032); both scale with the map's demand factor. Districts 2 and 3 keep the
+ * GDD values until they have maps and a report.
  */
-export const BASE_QUOTA: { readonly [D in District]: number } = { 1: 83, 2: 34, 3: 42 };
+export const BASE_QUOTA: { readonly [D in District]: number } = { 1: 88, 2: 34, 3: 42 };
 /** GDD §2: quota grows 11% per round (`1 + 0.11*(r-1)`), in per-mille. */
 export const ROUND_GROWTH_PERMILLE = 110;
 /** GDD §2: rush rounds have 1.6× demand and quota, in per-mille. */
@@ -56,9 +57,10 @@ export interface DistrictDemand {
  *
  * Tuned by P1-CON-05 from the balance report (ADR-021 item 3). With D1's mix the mean score per
  * vehicle is 1.4 (bus 3, truck 2, car and bike 1), so round 1's 66 vehicles score about 92 when
- * nothing jams, against a quota of 83. A District 1 map carries nearly all of its demand until it
- * jams, so the quota sits just under a clean round: a round that jams or gridlocks fails. Demand
- * grows with the quota (11% a round) and the map does not, so jams get likelier each round.
+ * nothing jams, against a quota of 88, both times the map's demand factor (ADR-032). A District 1
+ * map carries nearly all of its demand until it jams, so the quota sits just under a clean round:
+ * a round that jams or gridlocks fails. Demand grows with the quota (11% a round) and the map does
+ * not, so jams get likelier each round.
  */
 export const DISTRICT_DEMAND: { readonly 1: DistrictDemand } = {
   1: {
@@ -96,31 +98,67 @@ export const SUPPORTED_BOSSES: readonly BossCondition[] = ['market-day', 'parade
 export const SEED_SALTS = { map: 0x6d617073, demand: 0x64656d64, parade: 0x70617264 } as const;
 
 /**
- * `quota = base[d] * (1 + 0.11*(r-1)) * rushMult` (GDD §2) in per-mille integers, rounded half
- * up (ADR-018 item 5), with the tuned `BASE_QUOTA`. The single quota source (ADR-021 item 2).
- * `quotaPermille` is a mayor modifier (1000 = none).
+ * ADR-032: each District 1 template's demand factor, in per-mille. It scales both the round's
+ * vehicles and its quota, so every template sits near its jam point: a map that carries more
+ * before it jams gets more traffic and a higher quota, a map that jams early gets less of both.
+ * Calibrated by CON-06 from each template's no-card 50% pass point at rounds 4, 7, 8 and 12
+ * (geometric mean, normalised over the bank), times 0.905 for the overall level.
+ */
+export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, number>> = {
+  'd1-01': 760,
+  'd1-02': 530,
+  'd1-03': 1640,
+  'd1-04': 1190,
+  'd1-05': 690,
+  'd1-06': 1710,
+  'd1-07': 580,
+  'd1-08': 1420,
+  'd1-09': 640,
+  'd1-10': 620,
+  'd1-11': 540,
+  'd1-12': 1810,
+};
+
+/**
+ * The demand factor of a map (ADR-032), by its template: a variant id (`d1-03-mx`) uses its
+ * template's (`d1-03`). 1000 for a map with no factor, and when no map is given.
+ */
+export function templateDemandPermille(mapId?: string): number {
+  if (mapId === undefined) return 1000;
+  const template = /^d\d+-\d+/.exec(mapId)?.[0] ?? mapId;
+  return TEMPLATE_DEMAND_PERMILLE[template] ?? 1000;
+}
+
+/**
+ * `quota = base[d] * (1 + 0.11*(r-1)) * rushMult * mapFactor` (GDD §2, ADR-032) in per-mille
+ * integers, rounded half up (ADR-018 item 5), with the tuned `BASE_QUOTA`. The single quota
+ * source (ADR-021 item 2). `quotaPermille` is a mayor modifier (1000 = none). `mapId` is the
+ * round's map: its template's demand factor scales the quota as it scales the demand.
  */
 export function roundQuota(
   district: District,
   round: number,
   rush: boolean,
   quotaPermille = 1000,
+  mapId?: string,
 ): number {
   const num =
     BASE_QUOTA[district] *
     (1000 + ROUND_GROWTH_PERMILLE * (round - 1)) *
     (rush ? RUSH_PERMILLE : 1000) *
-    quotaPermille;
-  const den = 1_000_000_000;
+    quotaPermille *
+    templateDemandPermille(mapId);
+  const den = 1_000_000_000_000;
   return idiv(num + idiv(den, 2), den);
 }
 
 /**
  * ADR-030: the itch toy's 5 rounds sample District 1's 12-round curve instead of replaying rounds
  * 1–5. Toy round `i` plays D1 round `TOY_ROUNDS[i - 1]`: that round's quota, demand, rush and
- * boss. Tuned by P1-CON-05 against the toy targets in ADR-030.
+ * boss. Tuned by P1-CON-05 against the toy targets in ADR-030, and by CON-06 (ADR-032) to play
+ * round 11 third instead of a second Festival.
  */
-export const TOY_ROUNDS: readonly number[] = [4, 8, 12, 8, 12];
+export const TOY_ROUNDS: readonly number[] = [4, 8, 11, 8, 12];
 
 /**
  * The toy's rush rounds as run-controller data (`RunConfig.rushRounds`): each toy round whose D1
@@ -140,21 +178,23 @@ export function toyRushRounds(
 
 /**
  * Vehicles in a round's demand before Market Day trucks (which come on top), rounded half up:
- * `base * (1 + 0.11*(r-1)) * rush * festival`.
+ * `base * (1 + 0.11*(r-1)) * rush * festival * mapFactor` (ADR-032 for the map factor).
  */
 export function roundVehicles(
   district: 1,
   round: number,
   rush: boolean,
   boss: BossCondition | null = null,
+  mapId?: string,
 ): number {
   const d = DISTRICT_DEMAND[district];
   const num =
     d.baseVehicles *
     (1000 + ROUND_GROWTH_PERMILLE * (round - 1)) *
     (rush ? RUSH_PERMILLE : 1000) *
-    (boss === 'festival' ? d.festival.demandPermille : 1000);
-  const den = 1_000_000_000;
+    (boss === 'festival' ? d.festival.demandPermille : 1000) *
+    templateDemandPermille(mapId);
+  const den = 1_000_000_000_000;
   return idiv(num + idiv(den, 2), den);
 }
 
@@ -218,22 +258,28 @@ class Spawner {
 
   add(second: number, vehicleType: VehicleType): void {
     const e = weightedIndex(this.prng, this.edgeWeights);
-    const edge = this.edges[e] ?? 0;
     // Destination: uniform over the other edges (every pair is routable, P1-CON-03).
     let d = nextInt(this.prng, this.edges.length - 1);
     if (d >= e) d += 1;
     const destinationEdge = this.edges[d] ?? 0;
     const start = second * TICKS_PER_SECOND + nextInt(this.prng, TICKS_PER_SECOND);
-    // Probe forward from the drawn tick, wrapping over the whole round, for a free (tick, edge).
-    for (let k = 0; k < ROUND_TICKS; k++) {
-      const tick = (start + k) % ROUND_TICKS;
-      const key = tick * 1024 + edge;
-      if (this.used.has(key)) continue;
-      this.used.add(key);
-      this.events.push({ tick, edge, vehicleType, destinationEdge });
-      return;
+    // An edge with a spawn on every tick passes the vehicle on to the next edge that is not its
+    // destination (ADR-032: a busy 4-edge map's Festival can fill an edge).
+    for (let j = 0; j < this.edges.length; j++) {
+      const i = (e + j) % this.edges.length;
+      if (i === d) continue;
+      const edge = this.edges[i] ?? 0;
+      // Probe forward from the drawn tick, wrapping over the whole round, for a free (tick, edge).
+      for (let k = 0; k < ROUND_TICKS; k++) {
+        const tick = (start + k) % ROUND_TICKS;
+        const key = tick * 1024 + edge;
+        if (this.used.has(key)) continue;
+        this.used.add(key);
+        this.events.push({ tick, edge, vehicleType, destinationEdge });
+        return;
+      }
     }
-    throw new RangeError(`edge ${edge} has no free spawn tick`);
+    throw new RangeError('no edge has a free spawn tick');
   }
 }
 
@@ -260,7 +306,7 @@ export function generateDemand(a: DemandArgs): DemandProfile {
   const d = DISTRICT_DEMAND[a.district];
   const types: VehicleType[] = [];
   for (const [type, count] of mixCounts(
-    roundVehicles(a.district, a.round, a.rush, a.boss),
+    roundVehicles(a.district, a.round, a.rush, a.boss, a.map.id),
     a.boss === 'festival' ? d.festival.mix : d.mix,
   )) {
     for (let i = 0; i < count; i++) types.push(type);
@@ -322,7 +368,7 @@ export interface RoundSetup {
   readonly map: GridMap;
   readonly demandProfile: DemandProfile;
   readonly heatStrip: HeatStrip;
-  /** GDD §2 quota with no mayor modifier. */
+  /** GDD §2 quota with no mayor modifier, times the map's demand factor (ADR-032). */
   readonly quota: number;
   readonly districtRules: DistrictRules;
   /**
@@ -368,7 +414,7 @@ export function setupRoundFrom(
   const pool = boss === 'parade' ? bank.filter((m) => paradeCandidates(m).length > 0) : bank;
   const map = pick(pool, (seed ^ SEED_SALTS.map) >>> 0);
   const demandProfile = generateDemand({ map, district, round, rush, boss, seed });
-  const quota = roundQuota(district, round, rush);
+  const quota = roundQuota(district, round, rush, 1000, map.id);
   return {
     map,
     demandProfile,

@@ -175,8 +175,8 @@ describe('quota (content roundQuota, ADR-018)', () => {
     expect(plain.quota).toBe(roundQuota(1, 1, false));
     const mayor = startRun({ ...toy(3), quotaPermille: 1150 }, fakeEnv()).state;
     expect(mayor.quota).toBe(roundQuota(1, 1, false, 1150));
-    // 83 * 1.15 = 95.45 (P1-CON-05's District 1 base).
-    expect(mayor.quota).toBe(95);
+    // 88 * 1.15 = 101.2 (District 1 base from CON-06, ADR-032).
+    expect(mayor.quota).toBe(101);
   });
 });
 
