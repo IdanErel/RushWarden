@@ -45,7 +45,7 @@ describe('itch artifact checks', () => {
     expect(checkItchFiles([JS])).toEqual(['index.html must be at the root of the zip']);
     const many = Array.from({ length: MAX_FILES }, (_, i) => file(`assets/f${i}.bin`, ''));
     expect(checkItchFiles([...clean(), ...many])).toEqual([
-      `${MAX_FILES + 2} files; itch allows ${MAX_FILES}`,
+      `${MAX_FILES + 2} files; the limit is ${MAX_FILES}`,
     ]);
     expect(checkZipSize(ZIP_LIMIT + 1)[0]).toMatch(/^zip is 7\.500 MB; budget 7\.5 MB$/);
   });

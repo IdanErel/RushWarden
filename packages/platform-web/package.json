@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Vite web entry with Poki, CrazyGames and itch adapters and the Stripe unlock.",
   "scripts": {
-    "lint": "eslint src e2e e2e-itch",
+    "lint": "eslint src e2e e2e-itch e2e-portals",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --coverage",
     "build": "vite build",
@@ -13,11 +13,14 @@
     "build:poki": "VITE_PORTAL=poki vite build",
     "build:crazygames": "VITE_PORTAL=crazygames vite build",
     "package:itch": "VITE_TEST_HOOKS= VITE_PORTAL=itch vite build --outDir node_modules/.itch-dist --emptyOutDir && node ../../tools/size-budget/check.mjs node_modules/.itch-dist && node scripts/package-itch.mjs",
+    "package:poki": "VITE_TEST_HOOKS= VITE_PORTAL=poki vite build --outDir node_modules/.poki-dist --emptyOutDir && node ../../tools/size-budget/check.mjs node_modules/.poki-dist && node scripts/package-portal.mjs poki",
+    "package:crazygames": "VITE_TEST_HOOKS= VITE_PORTAL=crazygames vite build --outDir node_modules/.crazygames-dist --emptyOutDir && node ../../tools/size-budget/check.mjs node_modules/.crazygames-dist && node scripts/package-portal.mjs crazygames",
     "build:e2e": "VITE_TEST_HOOKS=1 vite build --outDir node_modules/.e2e-dist --emptyOutDir",
     "dev": "vite",
     "preview": "vite preview --port 4173 --strictPort",
     "e2e": "playwright test",
     "e2e:itch": "playwright test -c playwright.itch.config.ts",
+    "e2e:portals": "playwright test -c playwright.portals.config.ts",
     "preview:e2e": "vite preview --outDir node_modules/.e2e-dist --port 4174 --strictPort"
   },
   "dependencies": {

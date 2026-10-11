@@ -1,5 +1,6 @@
 /**
- * Store assets (P1-QA-03): Steam capsules, Steam screenshots and the itch cover, composed from
+ * Store assets (P1-QA-03): Steam capsules, Steam screenshots, the itch cover and the Poki and
+ * CrazyGames thumbnail and cover (P1-PLT-02, GDD §12), composed from
  * frames of the game's own renderer (the clip page, ADR-028) plus vector shapes drawn here. No
  * image files, no system fonts, no stock or AI-generated images (GDD §1 constraint 3).
  *
@@ -65,7 +66,7 @@ export type StoreOp =
 export interface StoreAsset {
   /** File name without extension. */
   readonly id: string;
-  readonly store: 'steam' | 'itch' | 'promo';
+  readonly store: 'steam' | 'itch' | 'portal' | 'promo';
   /** What the store calls it (GDD §12 table). */
   readonly role: string;
   readonly width: number;
@@ -401,6 +402,33 @@ function screenshot(
   return ops;
 }
 
+/**
+ * The portals' 16:9 cover: the whole 9:16 game frame (map, cards and HUD) on the left, as in the
+ * promo images, and the wordmark large on the right. A 16:9 crop of the portrait map alone would
+ * show only a few blocks.
+ */
+function portalCover(frames: ReadonlyMap<string, ShotFrame>, shot: string): StoreOp[] {
+  const W = 1920;
+  const H = 1080;
+  const f = frameOf(frames, shot);
+  const fh = 1000;
+  const fw = Math.round((f.width / f.height) * fh);
+  const fx = 180;
+  const fy = (H - fh) / 2;
+  const tx = fx + fw + 120;
+  return [
+    { op: 'fill', color: P.ground },
+    { op: 'rect', x: fx - 8, y: fy - 8, w: fw + 16, h: fh + 16, color: P.outline, radius: 20 },
+    {
+      op: 'image',
+      shot,
+      src: { x: 0, y: 0, w: f.width, h: f.height },
+      dst: { x: fx, y: fy, w: fw, h: fh },
+    },
+    ...wordmarkOps({ x: tx, y: 300, w: W - tx - 120, h: 480 }, ['RUSH', 'WARDEN']),
+  ];
+}
+
 /** Captioned promo images: shot and caption (three words, GDD §12), plus a line under it. */
 export const SCREENSHOTS: readonly {
   readonly shot: string;
@@ -552,6 +580,24 @@ export function storeAssets(frames: ReadonlyMap<string, ShotFrame>): StoreAsset[
       630,
       500,
       capsule(frames, cap, 630, 500, { x: 65, y: 160, w: 500, h: 180 }, two),
+    ),
+    // Poki and CrazyGames submission package (P1-PLT-02, GDD §12 "Thumbnail 512×512 and 16:9
+    // cover"). Both portals get the same two images.
+    a(
+      'portal-thumbnail-512x512',
+      'portal',
+      'Poki and CrazyGames thumbnail',
+      512,
+      512,
+      capsule(frames, cap, 512, 512, { x: 40, y: 166, w: 432, h: 180 }, two),
+    ),
+    a(
+      'portal-cover-1920x1080',
+      'portal',
+      'Poki and CrazyGames 16:9 cover',
+      1920,
+      1080,
+      portalCover(frames, 'flow'),
     ),
   ];
 }
