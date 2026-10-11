@@ -48,6 +48,10 @@
 .rw-hud > span:first-child {
   font-weight: 650;
 }
+/* HUD labels never wrap: "Quota / 177" on two lines broke the one-line HUD (#86 review). */
+.rw-hud > span {
+  white-space: nowrap;
+}
 .rw-rush {
   color: var(--fail);
 }
@@ -455,4 +459,28 @@
   font-size: 14px;
   line-height: 1.3;
   color: var(--muted);
+}
+
+/*
+ * The 390-px design phone (GDD §1 point 5) and anything as narrow. The HUD holds round, quota,
+ * approval, sound and menu on one line with tighter spacing (the 44-px touch targets stay), and
+ * the five-across hand gives names a little more room and a smaller size, so no name word of up
+ * to 8 letters ("Recount", "Overtime") breaks mid-word. Longer ones ("Roundabout") still wrap
+ * inside the card.
+ */
+@media (max-width: 430px) {
+  .rw-hud {
+    gap: 6px;
+    padding: 4px 2px 4px 12px;
+  }
+  .rw-hand {
+    gap: 4px;
+  }
+  .rw-hand .rw-card {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .rw-hand .rw-name {
+    font-size: 12px;
+  }
 }

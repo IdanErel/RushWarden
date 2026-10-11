@@ -209,3 +209,88 @@ test('tall landscape: no empty band above the controls, cards show their text (Q
   await expect(page.locator('.rw-game')).not.toHaveClass(/rw-roomy/);
   await expect(page.locator('.rw-hand .rw-text').first()).toBeHidden();
 });
+
+test('the HUD stays on one line on the 390×844 design phone (#86 review)', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'phone', 'runs on the phone project');
+  // Seed 1's first round is a Rush round: the longest round label ("Round 1/5 · Rush").
+  await page.goto('/?seed=1');
+  await expect(state(page)).toHaveAttribute('data-phase', 'place');
+  await expect(page.locator('.rw-rush')).toBeVisible();
+  const hud = await page.evaluate(() => {
+    const el = document.querySelector('.rw-hud');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const kids = Array.from(el.children).map((c) => {
+      const k = c.getBoundingClientRect();
+      // A wrapped label has text on more than one line.
+      const range = document.createRange();
+      range.selectNodeContents(c);
+      const textLines = new Set(
+        Array.from(range.getClientRects())
+          .filter((x) => x.width > 0)
+          .map((x) => Math.round(x.top + x.height / 2)),
+      ).size;
+      return { top: k.top, bottom: k.bottom, textLines, right: k.right };
+    });
+    return {
+      height: r.height,
+      // `min-height` is the content box; the padding comes on top.
+      minHeight:
+        parseFloat(getComputedStyle(el).minHeight) +
+        parseFloat(getComputedStyle(el).paddingTop) +
+        parseFloat(getComputedStyle(el).paddingBottom),
+      right: r.right,
+      kids,
+    };
+  });
+  expect(hud).not.toBeNull();
+  if (!hud) return;
+  expect(hud.height).toBeLessThanOrEqual(hud.minHeight + 0.5);
+  for (const k of hud.kids) {
+    expect(k.textLines).toBeLessThanOrEqual(1);
+    expect(k.right).toBeLessThanOrEqual(hud.right + 0.5);
+  }
+  // Every item sits on the same row.
+  const mids = hud.kids.map((k) => (k.top + k.bottom) / 2);
+  expect(Math.max(...mids) - Math.min(...mids)).toBeLessThan(4);
+  await page.screenshot({ path: `${SHOTS}/hud-390.png` });
+});
+
+/** Card-name words of up to 8 letters that break across lines ("Recou / nt"). */
+async function brokenWords(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('.rw-hand .rw-name')).flatMap((name) => {
+      const text = name.firstChild;
+      if (!text || text.nodeType !== Node.TEXT_NODE) return [];
+      const s = text.textContent ?? '';
+      const out: string[] = [];
+      // Words split on spaces and hyphens: "One-" / "Way" is a fine break.
+      for (const m of s.matchAll(/[^\s-]+/g)) {
+        if (m[0].length > 8) continue;
+        const r = document.createRange();
+        r.setStart(text, m.index);
+        r.setEnd(text, m.index + m[0].length);
+        const tops = new Set(Array.from(r.getClientRects()).map((x) => Math.round(x.top)));
+        if (tops.size > 1) out.push(m[0]);
+      }
+      return out;
+    }),
+  );
+}
+
+test('short card names never break mid-word at 390 px (#86 review: "Recou / nt")', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'phone', 'runs on the phone project');
+  const names = new Set<string>();
+  for (let seed = 1; seed <= 12; seed++) {
+    await page.goto(`/?seed=${seed}`);
+    await expect(state(page)).toHaveAttribute('data-phase', 'place');
+    await expect(page.locator('.rw-hand .rw-card')).toHaveCount(5);
+    for (const n of await page.locator('.rw-hand .rw-name').allTextContents()) names.add(n);
+    expect(await brokenWords(page), `seed ${seed}`).toEqual([]);
+  }
+  expect([...names]).toContain('Recount');
+});

@@ -90,6 +90,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
     props.sound === null ? undefined : (props.sound ?? createGameSound()),
   );
   const exitSound = useRef(new Throttle(EXIT_SOUND_GAP_MS));
+  // The sound this screen made itself is disposed with it: listeners off, AudioContext closed.
+  useEffect(
+    () => () => {
+      if (props.sound === undefined) sound?.dispose?.();
+    },
+    [],
+  );
   const s = run.state();
 
   const mapEl = useRef<HTMLDivElement>(null);
