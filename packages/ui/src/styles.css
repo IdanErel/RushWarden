@@ -186,11 +186,15 @@
   font-size: 14px;
   font-weight: 650;
   line-height: 1.2;
-  /* Long names ("Roundabout") break inside the card instead of touching its border. */
+  /*
+   * A name too wide for its card breaks only at a space, a hyphen or one of the soft hyphens
+   * `displayName` puts in ("Round-about"), never at a dictionary guess. `overflow-wrap` is the
+   * last resort for a future name with no entry, so it never pokes past the card border.
+   */
   max-width: 100%;
   min-width: 0;
   overflow-wrap: anywhere;
-  hyphens: auto;
+  hyphens: manual;
 }
 .rw-card {
   min-width: 0;

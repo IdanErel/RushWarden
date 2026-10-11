@@ -44,6 +44,7 @@ import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
 import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
 import { fitNames } from './fit-text.js';
+import { displayName } from './names.js';
 import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
 import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
@@ -806,7 +807,7 @@ function Card(p: {
       <span class="rw-key">{p.index + 1}</span>
       <span class="rw-cost">{c.cost}</span>
       <Glyph card={c} />
-      <span class="rw-name">{c.name}</span>
+      <span class="rw-name">{displayName(c.name)}</span>
       {/* Shown on the larger landscape cards only; the accessible name already has it. */}
       <span class="rw-text" aria-hidden="true">
         {c.text}

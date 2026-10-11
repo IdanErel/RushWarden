@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
 // GDD §8 "landscape rearranges HUD to the right" (P1-UI-03, E2E-18): on a landscape desktop the
@@ -279,41 +282,114 @@ for (const font of FONTS)
     await page.screenshot({ path: `${SHOTS}/hud-390-${font.replace(' ', '-')}.png` });
   });
 
-/** Card-name words of up to 8 letters that break across lines ("Recou / nt"). */
-async function brokenWords(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    Array.from(document.querySelectorAll('.rw-hand .rw-name')).flatMap((name) => {
-      const text = name.firstChild;
-      if (!text || text.nodeType !== Node.TEXT_NODE) return [];
+/** Every card name in content (the dev stand-ins use the same names). */
+function cardNames(): string[] {
+  const dir = fileURLToPath(new URL('../../content/cards/', import.meta.url));
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => (JSON.parse(readFileSync(join(dir, f), 'utf8')) as { name: string }).name)
+    .sort();
+}
+
+interface NameCheck {
+  /** Lines as shown, e.g. ["Round-", "about"]. */
+  lines: string[];
+  /** A line break not at a space, a hyphen or a soft hyphen. */
+  bad: boolean;
+  /** The name pokes past its card's padding. */
+  outside: boolean;
+  fontPx: number;
+}
+
+/**
+ * Puts `names` into the hand's name slots as the UI shows them (`displayName`), fits them as the
+ * screen does (`fitNames`), and reports where each one breaks.
+ */
+async function checkNames(page: Page, names: string[]): Promise<NameCheck[]> {
+  return page.evaluate((names) => {
+    const w = window as unknown as {
+      fitNames(els: HTMLElement[]): number;
+      displayName(n: string): string;
+    };
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.rw-hand .rw-name')).slice(
+      0,
+      names.length,
+    );
+    els.forEach((el, i) => (el.textContent = w.displayName(names[i] ?? '')));
+    w.fitNames(els);
+    return els.map((el) => {
+      const text = el.firstChild as Text;
       const s = text.textContent ?? '';
-      const out: string[] = [];
-      // Words split on spaces and hyphens: "One-" / "Way" is a fine break.
-      for (const m of s.matchAll(/[^\s-]+/g)) {
-        if (m[0].length > 8) continue;
+      // The line of each visible character, from its own rect.
+      const seen: { i: number; top: number }[] = [];
+      for (let i = 0; i < s.length; i++) {
+        if (/[\s­]/.test(s[i] ?? '')) continue;
         const r = document.createRange();
-        r.setStart(text, m.index);
-        r.setEnd(text, m.index + m[0].length);
-        const tops = new Set(Array.from(r.getClientRects()).map((x) => Math.round(x.top)));
-        if (tops.size > 1) out.push(m[0]);
+        r.setStart(text, i);
+        r.setEnd(text, i + 1);
+        // The last box: Chromium gives the first character after a soft-hyphen break a box on
+        // the line before as well.
+        const boxes = r.getClientRects();
+        const rect = boxes[boxes.length - 1] ?? r.getBoundingClientRect();
+        seen.push({ i, top: Math.round(rect.top + rect.height / 2) });
       }
-      return out;
-    }),
-  );
+      const lines: string[] = [];
+      let bad = false;
+      let start = 0;
+      for (let k = 1; k < seen.length; k++) {
+        const a = seen[k - 1];
+        const b = seen[k];
+        if (!a || !b || Math.abs(b.top - a.top) < 3) continue;
+        const between = s.slice(a.i + 1, b.i);
+        if (!/[\s­]/.test(between) && s[a.i] !== '-') bad = true;
+        lines.push(s.slice(start, b.i).replace(/­$/, '-').replaceAll('­', '').trim());
+        start = b.i;
+      }
+      lines.push(s.slice(start).replaceAll('­', '').trim());
+      const card = el.closest('.rw-card')?.getBoundingClientRect();
+      const n = el.getBoundingClientRect();
+      const outside =
+        !card ||
+        el.scrollWidth > el.clientWidth + 1 ||
+        n.left < card.left + 2 ||
+        n.right > card.right - 2;
+      return { lines, bad, outside, fontPx: parseFloat(getComputedStyle(el).fontSize) };
+    });
+  }, names);
 }
 
 for (const font of FONTS)
-  test(`short card names never break mid-word at 390 px, ${font} font (#86 review)`, async ({
-    page,
-  }, info) => {
-    test.skip(info.project.name !== 'phone', 'runs on the phone project');
-    await useFont(page, font);
-    const names = new Set<string>();
-    for (let seed = 1; seed <= 12; seed++) {
-      await page.goto(`/?seed=${seed}`);
+  for (const width of [390, 360])
+    test(`every card name breaks only at a space or a hyphen, ${width} px, ${font} font (#89 review)`, async ({
+      page,
+    }, info) => {
+      test.skip(info.project.name !== 'phone', 'runs on the phone project');
+      await useFont(page, font);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/?seed=1');
       await expect(state(page)).toHaveAttribute('data-phase', 'place');
       await expect(page.locator('.rw-hand .rw-card')).toHaveCount(5);
-      for (const n of await page.locator('.rw-hand .rw-name').allTextContents()) names.add(n);
-      expect(await brokenWords(page), `seed ${seed}`).toEqual([]);
-    }
-    expect([...names]).toContain('Recount');
-  });
+      const all = cardNames();
+      expect(all).toContain('Roundabout');
+      const problems: string[] = [];
+      for (let k = 0; k < all.length; k += 5) {
+        const batch = all.slice(k, k + 5);
+        const res = await checkNames(page, batch);
+        res.forEach((r, i) => {
+          if (r.bad || r.outside || r.fontPx < 12)
+            problems.push(`${batch[i]}: ${r.lines.join(' / ')} at ${r.fontPx}px`);
+          // At 390 px on the default font, words of up to 8 letters stay whole ("Overtime",
+          // "Recount"). On DejaVu Sans, much wider, "Overtime" is wider than its card even at the
+          // 12 px floor and breaks at its soft hyphen, as ruled (12 px on two lines over 10 px).
+          if (width === 390 && font === 'default')
+            for (const word of (batch[i] ?? '').split(/[\s-]+/))
+              if (
+                word.length <= 8 &&
+                r.lines.length > 1 &&
+                !r.lines.some((l) => l.split(/[\s-]+/).includes(word))
+              )
+                problems.push(`${batch[i]}: "${word}" split (${r.lines.join(' / ')})`);
+        });
+      }
+      expect(problems).toEqual([]);
+    });
