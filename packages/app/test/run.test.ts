@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
-import { TOY_ROUNDS, roundQuota, toyRushRounds } from '@rushwarden/content';
+import { RUSH_ROUNDS, TOY_ROUNDS, roundQuota, toyRushRounds } from '@rushwarden/content';
 import {
   PHASE1_STARTING_DECK,
   RunController,
@@ -582,7 +582,7 @@ describe('round end, offers and run end', () => {
   });
 
   it('the itch toy preset samples D1 rounds TOY_ROUNDS (ADR-030): quota, demand, rush and boss', () => {
-    expect(TOY_ROUNDS).toEqual([4, 8, 12, 8, 12]);
+    expect(TOY_ROUNDS).toEqual([4, 8, 11, 8, 12]);
     const config = toyRunConfig({ seed: 9, cards: CARDS });
     expect(config.rounds).toBe(5);
     expect(config.curveRounds).toEqual(TOY_ROUNDS);
@@ -596,13 +596,13 @@ describe('round end, offers and run end', () => {
     expect(env.setups.map((x) => [x.round, x.rush, x.boss])).toEqual([
       [4, true, 'market-day'],
       [8, true, 'parade'],
-      [12, true, 'festival'],
+      [11, false, null],
       [8, true, 'parade'],
       [12, true, 'festival'],
     ]);
     expect(r.state.history.map((h) => h.round)).toEqual([1, 2, 3, 4, 5]);
     expect(r.state.history.map((h) => h.quota)).toEqual(
-      TOY_ROUNDS.map((d1) => roundQuota(1, d1, true)),
+      TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1))),
     );
   });
 
@@ -619,7 +619,7 @@ describe('round end, offers and run end', () => {
     expect(seen.map(([run]) => run)).toEqual([1, 2, 3, 4, 5]);
     expect(seen.map(([, curve]) => curve)).toEqual([...TOY_ROUNDS]);
     expect(seen.map(([, , quota]) => quota)).toEqual(
-      TOY_ROUNDS.map((d1) => roundQuota(1, d1, true)),
+      TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1))),
     );
     // Without curveRounds (full runs, the mechanics fixture) the two are the same.
     expect(roundInput(startRun(toy(9), env).state).districtRules.round).toBe(1);
