@@ -63,6 +63,7 @@ export function toyRunConfig(a: PresetArgs): RunConfig {
     rounds: TOY_ROUNDS.length,
     rushRounds: toyRushRounds(),
     curveRounds: TOY_ROUNDS,
+    templateDemand: true,
     startingDeck: a.startingDeck ?? PHASE1_STARTING_DECK,
     cards: a.cards,
   };
