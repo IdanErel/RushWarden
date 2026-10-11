@@ -31,6 +31,7 @@ import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
+import { TURN_ALLOWANCE_PX, fitMap } from './fit.js';
 import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
@@ -63,8 +64,6 @@ export interface GameOptions {
   readonly events?: GameEvents;
 }
 
-const MAP_MAX_W = 430;
-
 export function Game(props: GameOptions): preact.JSX.Element {
   const { run, events } = props;
   const config = props.config ?? DEFAULT_CONFIG;
@@ -84,14 +83,64 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const [menu, setMenu] = useState<'none' | 'pause' | 'about'>('none');
   const [toast, setToast] = useState('');
 
+  // --- Map size: fit the column to the viewport (no page scroll on desktop landscape) --------
+  const rootEl = useRef<HTMLDivElement>(null);
+  const mapSize = useRef({ width: 0, height: 0 });
+  /** Height of the controls under the map at the start of a turn (nothing selected or placed). */
+  const baseline = useRef(0);
+  const measureMap = (): { width: number; height: number } => {
+    const root = rootEl.current;
+    const el = mapEl.current;
+    let above = 0;
+    let below = 0;
+    let after = false;
+    for (const child of Array.from(root?.children ?? [])) {
+      if (child === el) {
+        after = true;
+        continue;
+      }
+      const pos = getComputedStyle(child).position;
+      if (pos === 'absolute' || pos === 'fixed') continue;
+      const h = (child as HTMLElement).offsetHeight;
+      if (after) below += h;
+      else above += h;
+    }
+    const st = run.state();
+    if (st.phase === 'place' && st.placed.length === 0) baseline.current = below;
+    // Room for what a turn adds under the map (a row of placed-card chips, a longer card text),
+    // so the map keeps one size through the turn and taps land where they were aimed.
+    const reserve = Math.max(baseline.current, below) + TURN_ALLOWANCE_PX;
+    return fitMap(el?.clientWidth ?? 0, window.innerHeight - above - reserve);
+  };
+  const fit = (): void => {
+    if (!scene) return;
+    const next = measureMap();
+    const cur = mapSize.current;
+    if (next.width === cur.width && next.height === cur.height) return;
+    mapSize.current = next;
+    scene.resize(next.width, next.height);
+    bump(0); // H5 target rects come from the scene's new fit
+  };
+  // Once the scene exists, at the start of every round, and when the window changes size; never
+  // in the middle of a turn.
+  useEffect(fit, [scene, s.round, s.phase === 'place']);
+  // One listener for the screen's life; it calls the latest `fit` (which closes over `scene`).
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  useEffect(() => {
+    const onResize = (): void => fitRef.current();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   // --- Scene and worker -----------------------------------------------------------------------
   useEffect(() => {
     const el = mapEl.current;
     if (!el) return;
     let disposed = false;
     let made: TrafficScene | null = null;
-    const width = Math.min(el.clientWidth || MAP_MAX_W, MAP_MAX_W);
-    const height = Math.round(((width - 12) / 7) * 9 + 12);
+    const { width, height } = measureMap();
+    mapSize.current = { width, height };
     const map = run.roundInput().map;
     void TrafficScene.create(el, {
       map,
@@ -256,7 +305,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
     setSpeed(1);
     scene?.setSpeed(1);
     client.current.setSpeed(1);
-    client.current.start(input);
+    // The round's 15 s count from the Go press, however late the next display frame is.
+    client.current.start(input, performance.now());
     events?.roundStart?.(s.round);
     bump(0);
   }, [s, run, scene, events]);
@@ -317,7 +367,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const onMapDown = (e: PointerEvent): void => {
     if (s.phase === 'go') return setFast(true);
     if (s.phase !== 'place' || !scene) return;
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // The canvas, not the map strip: a fitted map is narrower than the column and centred in it.
+    const r = scene.canvas.getBoundingClientRect();
     const tile = scene.tileAtPoint(e.clientX - r.left, e.clientY - r.top);
     if (targets.length > 0) {
       const idx = hitTarget(targets, tile, scene.currentMap);
@@ -413,7 +464,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
   );
 
   return (
-    <div class="rw-game">
+    <div class="rw-game" ref={rootEl}>
       {hookAttrs && <div id="game-state" hidden {...hookAttrs} />}
       <header class="rw-hud">
         <span class="rw-round">
