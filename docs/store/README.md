@@ -1,7 +1,7 @@
 # Store and community copy (Phase 1)
 
 > **DRAFT.** None of this is final. `[GIF]` means the Market Day clip,
-> `tools/clip/out/rushwarden-s11-r5.gif` (`pnpm clip --spec tools/clip/clips/market-day.json`, or
+> `tools/clip/out/rushwarden-s93-r1.gif` (`pnpm clip --spec tools/clip/clips/market-day.json`, or
 > the `rushwarden-clips-<sha>` artifact of the Clip workflow). The store images are in
 > [assets.md](assets.md). Idan edits the voice (GDD §12) and
 > posts everything himself; the team never posts (§13).
@@ -41,14 +41,15 @@ Rushwarden · Old Town · 🟩🟩🟨🟩🟥 · 190 through
 
 🟩 passed · 🟨 passed under 110% of quota · 🟥 failed · ⬛ gridlock. There is one glyph per round,
 so the toy's 5-round run has 5 glyphs (§5 shows 12 for the full game). The numbers are worked out
-from the §2 quota formula: rounds 1–4 pass and the Market Day rush round fails. Before posting,
+for illustration only: four rounds pass and one fails. Before posting,
 QA replaces this example with a real share line from the build. The exact format is
 P1-UI-01's, and the daily number (`#212` in §5) is not in the toy.
 
 ### What the copy can say (in the toy)
 
-- One run is 5 rounds in District 1, Old Town, and takes about 3 minutes. Round 5 is a rush
-  round, "Market Day", with extra trucks.
+- One run is 5 rounds in District 1, Old Town, and takes about 3 minutes. Every round is a rush
+  hour with an event (ADR-030): Market Day (extra trucks), the Parade (a street closed), the
+  Festival (more traffic), then the Parade and the Festival again.
 - Each round: draw 5 cards, 3 energy, play up to 2 cards onto intersections, road segments, an
   edge of the map, or the whole district, then press Go.
 - The Go phase is 15 seconds of simulated traffic. You can hold for 2× speed or pause, but you
@@ -82,18 +83,18 @@ languages other than English. Sound stays out of the copy until the audio task s
   tool supports it.
 - Length 6–15 s, looping cleanly. The seed is recorded next to the file so it can be reproduced.
 
-**Status (P1-QA-02):** `pnpm clip` renders it (`tools/clip`, ADR-028). The current pick is seed 11
-(`MARKET_DAY_SEED` in `tools/clip/src/director.ts`, re-picked after the CON-05 tuning and ADR-031).
-`clips/market-day.json` gives a 17 s clip on map d1-05 (mirrored) in which One-Way carries Market
-Day to 237 through, against a quota of 191. `clips/market-day-none.json` is the same round with no
-cards, which gridlocks at 0:08 with 44 through. The clip tests pin both outcomes, so a content change
+**Status (P1-QA-02):** `pnpm clip` renders it (`tools/clip`, ADR-028). The current pick is seed 93
+(`MARKET_DAY_SEED` in `tools/clip/src/director.ts`, re-picked after CON-05, ADR-031 and ADR-030,
+which made Market Day the toy's round 1). `clips/market-day.json` gives a 17 s clip on map d1-05
+(rotated) in which Roundabout and Bus Priority carry Market Day to 246 through, against a quota of 177. `clips/market-day-none.json` is the same round with no cards, which gridlocks at 0:09 with 24
+through. The clip tests pin both outcomes, so a content change
 that breaks them fails CI; the fix is a new seed there and here. CI uploads both as MP4 and GIF on every push to
 `main`. Only 9:16 exists so far; a square or 16:9 crop comes with the Steam and itch assets
 (rest of P1-QA-03).
 
 ## Before Idan posts: checklist
 
-- [ ] The GIF (`rushwarden-s11-r5.gif`) is placed in every `[GIF]` slot, from the same commit as the build.
+- [ ] The GIF (`rushwarden-s93-r1.gif`) is placed in every `[GIF]` slot, from the same commit as the build.
 - [ ] The share strip is replaced with a real one from the build. The example's glyphs are
       hand-computed; only a real strip guarantees each glyph means what §5 says (🟨 = passed
       under 110%).

@@ -53,8 +53,8 @@ Length: 213 characters, counted on the plain text.
 > - **CHAOS:** roundabouts, and pulling signals out
 > - **TEMPO:** extra energy, extra cards
 >
-> **In development.** The current build is a short run through Old Town, ending in a Market Day
-> rush. This page will grow as the game does.
+> **In development.** The current build is a short run through Old Town's rush hours: Market Day,
+> the Parade and the Festival. This page will grow as the game does.
 >
 > No ads. No account. Single-player.
 

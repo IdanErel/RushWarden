@@ -59,6 +59,11 @@ export interface RunConfig {
   readonly rounds: number;
   /** Rush rounds (1.6× demand, boss condition). */
   readonly rushRounds: readonly RushRound[];
+  /**
+   * ADR-030: for each round of this run, the district-curve round it plays (its quota and demand
+   * via `roundQuota` and `setupRound`). Absent: round `r` plays curve round `r` (full runs).
+   */
+  readonly curveRounds?: readonly number[];
   /** Starting deck, by card id, tier 1. */
   readonly startingDeck: readonly string[];
   /** Every card that can be drawn or offered. */

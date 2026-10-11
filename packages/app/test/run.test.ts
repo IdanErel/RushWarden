@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
-import { roundQuota } from '@rushwarden/content';
+import { TOY_ROUNDS, roundQuota, toyRushRounds } from '@rushwarden/content';
 import {
   PHASE1_STARTING_DECK,
   RunController,
@@ -23,10 +23,16 @@ import {
 } from '../src/index.js';
 import { CARDS, CENTER, DISTRICT, EDGE, SEGMENT, fakeEnv } from './run-fixtures.js';
 
-const toy = (seed = 1, over: Partial<RunConfig> = {}): RunConfig => ({
-  ...toyRunConfig({ seed, cards: CARDS }),
-  ...over,
-});
+/**
+ * The mechanics fixture: a 5-round District 1 run on the plain curve (round r plays curve round
+ * r; Market Day on round 5), so these tests do not move when content retunes the toy's curve.
+ * The toy preset itself (ADR-030: content's TOY_ROUNDS) is tested in "the itch toy preset".
+ */
+const toy = (seed = 1, over: Partial<RunConfig> = {}): RunConfig => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { curveRounds, ...preset } = toyRunConfig({ seed, cards: CARDS });
+  return { ...preset, rushRounds: [{ round: 5, boss: 'market-day' }], ...over };
+};
 
 function must(state: RunState, action: RunAction, env: RunEnv = fakeEnv()): RunState {
   const r = step(state, action, env);
@@ -550,7 +556,7 @@ describe('round end, offers and run end', () => {
     expect(step(r.state, { type: 'go' }, env).ok).toBe(false);
   });
 
-  it('the toy is 5 rounds with Market Day on round 5, ending in a win', () => {
+  it('a plain 5-round run has Market Day on round 5 and ends in a win', () => {
     const env = fakeEnv();
     const actions: RunAction[] = [];
     for (let i = 0; i < 4; i++) actions.push({ type: 'go' }, { type: 'choose', pick: 'skip' });
@@ -573,6 +579,41 @@ describe('round end, offers and run end', () => {
       'run_end',
     ]);
     expect(r.events.at(-1)).toMatchObject({ props: { rounds: 5, result: 'win' } });
+  });
+
+  it('the itch toy preset samples D1 rounds TOY_ROUNDS (ADR-030): quota, demand, rush and boss', () => {
+    expect(TOY_ROUNDS).toEqual([4, 8, 12, 8, 12]);
+    const config = toyRunConfig({ seed: 9, cards: CARDS });
+    expect(config.rounds).toBe(5);
+    expect(config.curveRounds).toEqual(TOY_ROUNDS);
+    expect(config.rushRounds).toEqual(toyRushRounds());
+    const env = fakeEnv();
+    const actions: RunAction[] = [];
+    for (let i = 0; i < 4; i++) actions.push({ type: 'go' }, { type: 'choose', pick: 'skip' });
+    actions.push({ type: 'go' });
+    const r = replay(config, actions, env);
+    // setupRound gets the sampled D1 round; the run still counts rounds 1–5.
+    expect(env.setups.map((x) => [x.round, x.rush, x.boss])).toEqual([
+      [4, true, 'market-day'],
+      [8, true, 'parade'],
+      [12, true, 'festival'],
+      [8, true, 'parade'],
+      [12, true, 'festival'],
+    ]);
+    expect(r.state.history.map((h) => h.round)).toEqual([1, 2, 3, 4, 5]);
+    expect(r.state.history.map((h) => h.quota)).toEqual(
+      TOY_ROUNDS.map((d1) => roundQuota(1, d1, true)),
+    );
+  });
+
+  it('rejects curveRounds that do not cover every round', () => {
+    const env = fakeEnv();
+    expect(() => startRun(toy(1, { curveRounds: [4, 8] }), env)).toThrow(RangeError);
+    expect(() => startRun(toy(1, { curveRounds: [4, 8, 12, 0, 12] }), env)).toThrow(RangeError);
+  });
+
+  it('a full run has no curveRounds and plays curve rounds 1–12', () => {
+    expect(fullRunConfig({ seed: 1, cards: CARDS }).curveRounds).toBeUndefined();
   });
 
   it('a full run is 12 rounds with rush rounds 4, 8 and 12', () => {

@@ -33,7 +33,7 @@ describe('clip model', () => {
     const clip = buildClip({ seed: MARKET_DAY_SEED });
     expect(outcomeOf(clip)).toBe('pass');
     expect(clip.cards.map((c) => c.tag).every((t) => t.length > 0)).toBe(true);
-    expect(hudAt(clip, 0)).toMatchObject({ district: 'Old Town', round: 5, throughput: 0 });
+    expect(hudAt(clip, 0)).toMatchObject({ district: 'Old Town', round: 1, throughput: 0 });
   });
 
   it('honours timeline options and keeps frames out of the metadata', () => {
@@ -45,7 +45,7 @@ describe('clip model', () => {
     expect(frameTime(clip, 0).tick).toBe(100);
     const meta = clipMeta(clip);
     expect(meta.result).not.toHaveProperty('frames');
-    expect(meta).toMatchObject({ tool: 'rushwarden-clip', round: 5, frames: 20 });
+    expect(meta).toMatchObject({ tool: 'rushwarden-clip', round: 1, frames: 20 });
     expect(meta.actions).toEqual(clip.plan.actions);
   });
 

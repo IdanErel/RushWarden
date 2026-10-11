@@ -1,7 +1,7 @@
 /**
- * The clip's replay: a toy run (ADR-007: 5 rounds on District 1, round 5 is the Market Day rush
- * round) built from its seed and an action list, exactly as a save stores it (GDD §6: "nothing
- * is recorded but inputs"). The clip shows one round of that run; by default the rush round.
+ * The clip's replay: a toy run (ADR-007: 5 rounds on District 1; since ADR-030 every one is a rush
+ * round, from Market Day in round 1 to the Festival) built from its seed and an action list, exactly as a save stores it (GDD §6: "nothing
+ * is recorded but inputs"). The clip shows one round of that run; by default the first rush round.
  *
  * When a spec carries no actions, `planRun` plays the run with a fixed one-round-lookahead
  * policy so a seed alone gives a clip: each round it plays the card and target that most raise
@@ -30,7 +30,7 @@ import { Sim, roundWorld, type BossCondition, type RoundInput, type Target } fro
  * that (ADR-028), so the tests pin both outcomes: when they fail after a content change, scan for
  * a new seed, change it here and in `clips/*.json`, and update docs/store.
  */
-export const MARKET_DAY_SEED = 11;
+export const MARKET_DAY_SEED = 93;
 
 /** How the target round is played when the spec has no actions for it. */
 export type PlayPolicy = 'greedy' | 'none';
@@ -68,7 +68,7 @@ export function toyConfig(seed: number): RunConfig {
   return toyRunConfig({ seed, cards: loadCards(), startingDeck: startingDeck() });
 }
 
-/** The first rush round of a config (round 5 in the toy). */
+/** The first rush round of a config (round 1, Market Day, in the toy since ADR-030). */
 export function rushRound(config: RunConfig): number {
   const first = [...config.rushRounds].sort((a, b) => a.round - b.round)[0];
   if (!first) throw new Error('the run has no rush round');
