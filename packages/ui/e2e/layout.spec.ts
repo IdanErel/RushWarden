@@ -382,3 +382,36 @@ for (const font of FONTS)
       }
       expect(problems).toEqual([]);
     });
+
+for (const font of FONTS)
+  for (const width of [390, 360])
+    test(`every tag label stays inside its card, ${width} px, ${font} font`, async ({
+      page,
+    }, info) => {
+      test.skip(info.project.name !== 'phone', 'runs on the phone project');
+      await useFont(page, font);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/?seed=1');
+      await expect(page.locator('.rw-hand .rw-card')).toHaveCount(5);
+      const outside = await page.evaluate(() => {
+        const bad: string[] = [];
+        for (const tag of ['FLOW', 'MASS', 'TOLL', 'CHAOS', 'TEMPO']) {
+          for (const el of Array.from(document.querySelectorAll<HTMLElement>('.rw-hand .rw-tag'))) {
+            el.textContent = tag;
+            const card = el.closest('.rw-card')?.getBoundingClientRect();
+            const r = el.getBoundingClientRect();
+            // Inside the 2-px border with a little air, on one line.
+            if (
+              !card ||
+              r.right > card.right - 4 ||
+              r.height > parseFloat(getComputedStyle(el).lineHeight) * 1.5
+            )
+              bad.push(
+                `${tag}: right ${Math.round(r.right)} vs card ${Math.round(card?.right ?? 0)}`,
+              );
+          }
+        }
+        return [...new Set(bad)];
+      });
+      expect(outside).toEqual([]);
+    });

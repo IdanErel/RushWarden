@@ -488,4 +488,8 @@
   .rw-hand .rw-name {
     font-size: 13px;
   }
+  /* "CHAOS" and "TEMPO" at 14 px reach the card border on wide fonts (DejaVu Sans) at 360 px. */
+  .rw-hand .rw-tag {
+    font-size: 12px;
+  }
 }
