@@ -44,6 +44,7 @@ import {
   demandBins,
   heatLevel,
   maxBin,
+  jamRipple,
   pulseAlpha,
   shakeOffset,
   stripRect,
@@ -147,6 +148,8 @@ export class TrafficScene {
   private readonly markLayer = new Graphics();
   /** The ring on the junction where a gridlock started: topmost. */
   private readonly jamLayer = new Graphics();
+  /** The ripple spreading off the ring (redrawn by transform each frame, not re-tessellated). */
+  private readonly jamRippleLayer = new Graphics();
   private readonly jam: JamTracer;
   private jamOrigin: JamOrigin | null = null;
   private targets: readonly TargetMark[] = [];
@@ -200,6 +203,7 @@ export class TrafficScene {
       this.trailLayer,
       this.vehicleLayer,
       this.markLayer,
+      this.jamRippleLayer,
       this.jamLayer,
     );
     this.ixWorld = intersectionWorld(opts.map);
@@ -644,16 +648,30 @@ export class TrafficScene {
   }
 
   /** A red ring round the junction where the gridlock started, over everything else. */
+  /**
+   * The gridlock-origin ring, built to never read as a card mark (reviewer-2, steam-run-3: a red
+   * CHAOS outline sat beside it). Card marks are rounded squares in one tag colour; this is a
+   * circle in a "target" stack (dark, light, red, light, dark) a third larger than a tile, with
+   * a ripple spreading off it (none under reduced motion).
+   */
   private drawJam(): void {
     const g = this.jamLayer.clear();
+    const r = this.jamRippleLayer.clear();
     const o = this.jamOrigin;
     if (!o) return;
     const T = this.fit.tilePx;
+    const p = this.palette;
     const [cx, cy] = [(o.x + 0.5) * T, (o.y + 0.5) * T];
-    const rad = T * 0.62;
-    const width = Math.max(4, T * 0.1);
-    g.circle(cx, cy, rad).stroke({ color: this.palette.outline, width: width + 4 });
-    g.circle(cx, cy, rad).stroke({ color: this.palette.signalRed, width });
+    const rad = T * 0.68;
+    const red = Math.max(5, T * 0.12);
+    const light = Math.max(3, T * 0.06);
+    g.circle(cx, cy, rad).stroke({ color: p.outline, width: red + 2 * light + 4 });
+    g.circle(cx, cy, rad).stroke({ color: p.glyph, width: red + 2 * light });
+    g.circle(cx, cy, rad).stroke({ color: p.signalRed, width: red });
+    // The ripple: drawn once round (0, 0), then moved, scaled and faded in `frame`.
+    r.circle(0, 0, rad).stroke({ color: p.signalRed, width: Math.max(3, T * 0.06) });
+    r.position.set(cx, cy);
+    r.alpha = 0;
   }
 
   /** A travel arrow from tile `a`'s centre to tile `b`'s, with a head at `b`. */
@@ -779,6 +797,12 @@ export class TrafficScene {
     }
     if (tick !== this.lastTick) this.drawHeatProgress(tick);
     this.lastTick = tick;
+
+    if (this.jamOrigin) {
+      const { scale, alpha } = jamRipple(now, this.motion);
+      this.jamRippleLayer.scale.set(scale);
+      this.jamRippleLayer.alpha = alpha;
+    }
 
     const gridlock = this.gridlockAt !== null;
     const [sx, sy] = gridlock ? shakeOffset(now - (this.gridlockAt ?? now), this.motion) : [0, 0];

@@ -128,3 +128,50 @@ test('a placed card’s badge stays on top of the traffic during Go', async ({ p
   }
   await page.screenshot({ path: `${SHOTS}/readability-marks-go-${info.project.name}.png` });
 });
+
+test('the gridlock ring stays distinct from a red CHAOS card mark on the same junction', async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  // Seed 8 on the jam demo: the hand holds Roundabout (CHAOS, red) and round 1 gridlocks. The
+  // fake traffic is deterministic per seed (seeds 5 and 6 run out the clock instead).
+  await page.goto('/?seed=8&jam=1');
+  await expect(state(page)).toHaveAttribute('data-phase', 'place');
+  const i = (await attr(page, 'hand')).split(',').indexOf('roundabout');
+  expect(i).toBeGreaterThanOrEqual(0);
+  await expect(page.locator('.rw-map canvas')).toBeVisible();
+  await page.keyboard.press(String(i + 1));
+  await expect(state(page)).toHaveAttribute('data-selected', String(i));
+  const rects = JSON.parse(await attr(page, 'target-rects')) as Rect[];
+  const r = rects.find((t) => t.key === 'intersection:3,4');
+  if (!r) throw new Error('no junction target');
+  await page.locator('.rw-map canvas').click({ position: { x: r.x + r.w / 2, y: r.y + r.h / 2 } });
+  await expect(state(page)).toHaveAttribute('data-placed', 'roundabout');
+  await playRound(page);
+  await expect(state(page)).toHaveAttribute('data-gridlock-origin', '3,4');
+  await expect(page.getByRole('dialog')).toContainText(
+    'It started at the junction ringed in red, next to your Roundabout.',
+  );
+
+  // The ring's light band (between its dark rim and red core) shows on all four sides, so the
+  // ring reads as its own white-edged target, not as one more red outline.
+  const canvas = await page.locator('.rw-map canvas').boundingBox();
+  if (!canvas) throw new Error('no canvas');
+  const T = r.w;
+  const red = Math.max(5, T * 0.12);
+  const light = Math.max(3, T * 0.06);
+  const at = T * 0.68 + red / 2 + light / 2;
+  const [cx, cy] = [canvas.x + r.x + T / 2, canvas.y + r.y + T / 2];
+  await page.waitForTimeout(400); // after the gridlock shake
+  for (const [dx, dy] of [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const) {
+    const [rr, gg, bb] = await pixelAt(page, cx + dx * at, cy + dy * at);
+    // Light (#f7f1e8-ish), not red and not road.
+    expect(Math.min(rr, gg, bb), `side ${dx},${dy}: ${rr},${gg},${bb}`).toBeGreaterThan(200);
+  }
+  await page.screenshot({ path: `${SHOTS}/readability-ring-vs-chaos-${info.project.name}.png` });
+});
