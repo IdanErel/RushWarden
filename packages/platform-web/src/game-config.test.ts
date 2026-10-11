@@ -8,7 +8,8 @@ import {
   startingDeck,
   toyRushRounds,
 } from '@rushwarden/content';
-import { isPortalBuild, uiConfigFor } from './game-config.js';
+import { portalRules } from '@rushwarden/ui';
+import { isPortalBuild, uiConfigFor, uiPortalFor } from './game-config.js';
 import { PokiAdapter } from './portal/poki.js';
 
 const POLICY = 'https://rushwarden.com/privacy';
@@ -19,6 +20,19 @@ const portal = (id: 'none' | 'itch' | 'poki' | 'crazygames', opened: string[] = 
 });
 
 describe('uiConfigFor', () => {
+  it("tells the run screen the build's portal, so its portal rules apply (#71, ADR-024)", () => {
+    for (const id of ['none', 'itch', 'poki', 'crazygames'] as const)
+      expect(uiConfigFor({}, portal(id)).portal).toBe(id);
+    const rules = portalRules(uiConfigFor({}, portal('poki')).portal);
+    expect(rules).toEqual({ unlock: false, outboundLinks: false, analytics: false });
+    expect(portalRules(uiConfigFor({}, portal('itch')).portal).analytics).toBe(true);
+  });
+
+  it('maps any non-web adapter id to none', () => {
+    for (const id of ['web', 'ios', 'android', 'steam', 'none'] as const)
+      expect(uiPortalFor(id)).toBe('none');
+  });
+
   it('links the privacy policy on every build, portals included (ADR-024 point 5)', () => {
     for (const id of ['none', 'itch', 'poki', 'crazygames'] as const)
       expect(uiConfigFor({ VITE_PRIVACY_URL: POLICY }, portal(id)).privacyUrl).toBe(POLICY);

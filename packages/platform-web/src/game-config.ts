@@ -1,4 +1,4 @@
-import type { UiConfig } from '@rushwarden/ui';
+import type { UiConfig, UiPortal } from '@rushwarden/ui';
 import type { WebPortalAdapter } from './portal/types.js';
 import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
 
@@ -24,12 +24,22 @@ export function isPortalBuild(portalId: WebPortalAdapter['id']): boolean {
  */
 export function uiConfigFor(
   env: GameBuildEnv,
-  portal: Pick<WebPortalAdapter, 'shareUrl' | 'openExternalLink'>,
+  portal: Pick<WebPortalAdapter, 'id' | 'shareUrl' | 'openExternalLink'>,
 ): UiConfig {
   const privacy = env.VITE_PRIVACY_URL ?? '';
   return {
     privacyUrl: privacy.startsWith('https://') ? privacy : '',
     shareUrl: portal.shareUrl(),
     openExternalLink: (url) => portal.openExternalLink(url),
+    portal: uiPortalFor(portal.id),
   };
+}
+
+/**
+ * The run screen's portal rules (#71, ADR-024): the web build's portal id as the UI's
+ * `UiPortal`. Web builds only ever run the none, itch, Poki and CrazyGames adapters; any other
+ * id (store shells) maps to `none`.
+ */
+export function uiPortalFor(id: WebPortalAdapter['id']): UiPortal {
+  return id === 'itch' || id === 'poki' || id === 'crazygames' ? id : 'none';
 }

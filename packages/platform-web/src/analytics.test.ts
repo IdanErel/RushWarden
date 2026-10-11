@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { deviceClassFromMs, platformFromPortalId, startAnalytics } from './analytics.js';
+import { portalRules } from '@rushwarden/ui';
+import {
+  deviceClassFromMs,
+  platformFromPortalId,
+  privacyControlsFor,
+  startAnalytics,
+} from './analytics.js';
+import { uiPortalFor } from './game-config.js';
 
 const UUID = '3b241101-e2bb-4255-8caf-4136c566a962';
 
@@ -91,5 +98,38 @@ describe('startAnalytics', () => {
     expect(platformFromPortalId('crazygames')).toBe('crazygames');
     expect(platformFromPortalId('itch')).toBe('itch');
     expect([1, 20, 100].map(deviceClassFromMs)).toEqual(['high', 'mid', 'low']);
+  });
+});
+
+describe('privacyControlsFor (ADR-025 consent and Privacy panels, #71)', () => {
+  const ON = 'https://api.rushwarden.com/ingest';
+  const deps = { fetch: async () => undefined, storage: null, randomUUID: () => UUID };
+
+  it('gives the run screen nothing when collection is off: no ingest URL, or a portal build', () => {
+    expect(privacyControlsFor(startAnalytics({}, 'itch', 10, deps))).toBeUndefined();
+    for (const id of ['poki', 'crazygames'] as const)
+      expect(
+        privacyControlsFor(startAnalytics({ VITE_INGEST_URL: ON }, id, 10, deps)),
+      ).toBeUndefined();
+  });
+
+  it('gives the live client when collection is on, so the panel drives consent and delete', () => {
+    const client = startAnalytics({ VITE_INGEST_URL: ON }, 'itch', 10, deps);
+    const privacy = privacyControlsFor(client);
+    expect(privacy).toBe(client);
+    expect(privacy?.consent).toBeNull();
+    expect(privacy?.install).toBeNull();
+    privacy?.setConsent(true);
+    expect(client.consent).toBe('yes');
+    expect(privacy?.install).toBe(UUID);
+  });
+
+  it("matches the UI's portal rules: the panels show exactly where the build collects", () => {
+    for (const id of ['none', 'itch', 'poki', 'crazygames'] as const) {
+      const client = startAnalytics({ VITE_INGEST_URL: ON }, id, 10, deps);
+      expect(privacyControlsFor(client) !== undefined, id).toBe(
+        portalRules(uiPortalFor(id)).analytics,
+      );
+    }
   });
 });
