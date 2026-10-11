@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SNAPSHOT_HEADER } from '@rushwarden/sim';
 import { stateAttributes } from '../src/hooks.js';
 import { format, setLanguage, t } from '../src/i18n.js';
+import { cardAtJunction, gridRef } from '../src/jam.js';
 import { keyAction } from '../src/keys.js';
 import { ExitCounter } from '../src/live.js';
 import { devRun } from './helpers.js';
@@ -141,6 +142,7 @@ describe('test hooks H2/H5', () => {
       'data-audio': 'none',
       'data-muted': 'true',
       'data-reduced-motion': 'false',
+      'data-gridlock-origin': '',
     });
     expect(a['data-hand']!.split(',')).toHaveLength(5);
     expect(a['data-placed-segments']).toBe('');
@@ -161,6 +163,16 @@ describe('test hooks H2/H5', () => {
       ],
     });
     expect(live['data-live']).toBe('3,4:signal:ns:2 5,4:roundabout::0');
+    const jam = stateAttributes(run.state(), {
+      speed: 1,
+      paused: false,
+      throughput: 0,
+      targetRects: [],
+      selected: null,
+      cursor: null,
+      gridlockOrigin: { x: 3, y: 4 },
+    });
+    expect(jam['data-gridlock-origin']).toBe('3,4');
   });
 });
 
@@ -190,5 +202,44 @@ describe('tags', () => {
   it('formats tag colours as CSS', () => {
     expect(css(TAG_COLOR.FLOW)).toBe('#1f7f75');
     expect(css(0xff)).toBe('#0000ff');
+  });
+});
+
+describe('gridlock origin on the result card', () => {
+  it('names a tile A–G by 1–9 from the top left', () => {
+    expect(gridRef({ x: 0, y: 0 })).toBe('A1');
+    expect(gridRef({ x: 3, y: 4 })).toBe('D5');
+    expect(gridRef({ x: 6, y: 8 })).toBe('G9');
+  });
+
+  it('finds the card on the junction, or on a run ending next to it', () => {
+    const card = devRun(1).state().hand[0]!;
+    const at = { x: 3, y: 4 };
+    const junction = { card, target: { kind: 'intersection', x: 3, y: 4 } } as const;
+    const elsewhere = { card, target: { kind: 'intersection', x: 1, y: 2 } } as const;
+    const road = {
+      card,
+      target: { kind: 'segment', x: 3, y: 1 },
+      segment: { from: { x: 3, y: 0 }, to: { x: 3, y: 3 } },
+    } as const;
+    const farRoad = {
+      card,
+      target: { kind: 'segment', x: 0, y: 4 },
+      segment: { from: { x: 0, y: 4 }, to: { x: 1, y: 4 } },
+    } as const;
+    const district = { card, target: { kind: 'district' } } as const;
+    expect(cardAtJunction([], at)).toBeNull();
+    expect(cardAtJunction([elsewhere, district, farRoad], at)).toBeNull();
+    expect(cardAtJunction([elsewhere, junction], at)).toBe(junction);
+    expect(cardAtJunction([road, junction], at)).toBe(road);
+    // A segment without its run falls back to its own tile.
+    expect(cardAtJunction([{ card, target: { kind: 'segment', x: 4, y: 4 } }], at)).not.toBeNull();
+  });
+
+  it('has the result lines in English', () => {
+    expect(t('result.jam', { ref: 'D5' })).toBe('It started at the junction ringed in red (D5).');
+    expect(t('result.jamCard', { ref: 'D5', name: 'Smart Signal' })).toBe(
+      'It started at the junction ringed in red (D5), by your Smart Signal.',
+    );
   });
 });
