@@ -49,8 +49,9 @@ async function boot(): Promise<void> {
   const t0 = performance.now();
   Sim.simulate(sampleInput(1));
   const benchmarkMs = performance.now() - t0;
-  // Off unless the build sets VITE_INGEST_URL (ADR-007) and never on portals (ADR-024/025); even
-  // then nothing is sent until the player says yes (ADR-025: consent is off by default).
+  // Off unless the build sets VITE_INGEST_URL and an https VITE_PRIVACY_URL (ADR-007, ADR-025
+  // point 5), and never on portals (ADR-024/025). Even then nothing is sent until the player says
+  // yes (ADR-025: consent is off by default).
   const analytics = startAnalytics(import.meta.env, portal.id, benchmarkMs, {
     storage: localStore(),
     language: navigator.language,
