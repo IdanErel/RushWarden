@@ -45,7 +45,7 @@ replay to a 9:16 MP4 (1080x1920) and GIF, plus a .json sidecar that reproduces i
   --spec <file>        clip spec JSON: { "seed": 93, "round"?: 1, "plays"?: "greedy"|"none",
                        "actions"?: [...] } (e.g. tools/clip/clips/market-day.json)
   --seed <u32>         run seed, instead of --spec
-  --round <n>          round to show (default: the run's rush round, 5)
+  --round <n>          round to show (default: the run's first rush round, 1)
   --plays greedy|none  how the shown round is played when there are no actions (default greedy)
   --fps <n>            video frames per second (default 30)
   --speed <x>          sim speed, 1 = the game's 1x, 2 = hold-for-2x (default 1)

@@ -606,6 +606,25 @@ describe('round end, offers and run end', () => {
     );
   });
 
+  it("the sim's district rules carry the sampled curve round; the run keeps its own count", () => {
+    const env = fakeEnv();
+    let s = startRun(toyRunConfig({ seed: 9, cards: CARDS }), env).state;
+    const seen: [number, number, number][] = [];
+    for (let i = 0; i < 5; i++) {
+      const rules = roundInput(s).districtRules;
+      seen.push([s.round, rules.round, rules.quota]);
+      s = must(s, { type: 'go' }, env);
+      if (s.phase === 'result') s = must(s, { type: 'choose', pick: 'skip' }, env);
+    }
+    expect(seen.map(([run]) => run)).toEqual([1, 2, 3, 4, 5]);
+    expect(seen.map(([, curve]) => curve)).toEqual([...TOY_ROUNDS]);
+    expect(seen.map(([, , quota]) => quota)).toEqual(
+      TOY_ROUNDS.map((d1) => roundQuota(1, d1, true)),
+    );
+    // Without curveRounds (full runs, the mechanics fixture) the two are the same.
+    expect(roundInput(startRun(toy(9), env).state).districtRules.round).toBe(1);
+  });
+
   it('rejects curveRounds that do not cover every round', () => {
     const env = fakeEnv();
     expect(() => startRun(toy(1, { curveRounds: [4, 8] }), env)).toThrow(RangeError);

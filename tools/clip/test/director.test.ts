@@ -18,7 +18,8 @@ describe('clip director', () => {
     expect(rushRound(toyConfig(1))).toBe(1);
     const p = planRun({ seed: MARKET_DAY_SEED });
     expect(p).toMatchObject({ round: 1, rush: true, boss: 'market-day' });
-    expect(p.input.districtRules).toMatchObject({ round: 1, rush: true, boss: 'market-day' });
+    // The sim's district rules carry the sampled D1 round (ADR-030: toy round 1 plays D1 round 4).
+    expect(p.input.districtRules).toMatchObject({ round: 4, rush: true, boss: 'market-day' });
   });
 
   it('is deterministic: the same seed gives the same actions and round', () => {
