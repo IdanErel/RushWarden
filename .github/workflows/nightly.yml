@@ -83,6 +83,9 @@ jobs:
     runs-on: ubuntu-latest
     # 2,000 seeds per bot on the runner's cores; the hard ceiling is GitHub's 6 h job limit.
     timeout-minutes: 300
+    # Write access only for this job, and only to push the report branch below (ADR-027 point 5).
+    permissions:
+      contents: write
     env:
       SEEDS: ${{ inputs.seeds || '2000' }}
     steps:
@@ -122,3 +125,19 @@ jobs:
           path: ${{ runner.temp }}/balance/latest.md
           if-no-files-found: error
           retention-days: 30
+      - name: Publish the report to the reports/balance-nightly branch
+        # Runs on main only. The branch holds one orphan commit with latest.md, replaced (force-
+        # pushed) on every run; nothing else is ever pushed, and main is never written (ADR-027
+        # point 5). It lets agents without artifact access fetch the report with git.
+        if: steps.runner.outputs.present == 'true' && github.ref == 'refs/heads/main'
+        env:
+          REPORT: ${{ runner.temp }}/balance/latest.md
+        run: |
+          blob=$(git hash-object -w "$REPORT")
+          tree=$(printf '100644 blob %s\tlatest.md\n' "$blob" | git mktree)
+          commit=$(git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit-tree "$tree" \
+            -m "docs(balance): nightly report for ${GITHUB_SHA::7} (run ${GITHUB_RUN_NUMBER}, ${SEEDS} seeds per bot)")
+          git push --force origin "$commit:refs/heads/reports/balance-nightly"
+          echo "Report pushed to \`reports/balance-nightly\` (${commit::7})." >> "$GITHUB_STEP_SUMMARY"

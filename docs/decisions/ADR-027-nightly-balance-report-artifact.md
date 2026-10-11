@@ -18,3 +18,10 @@ The Phase 1 task table (P1-LEAD-02) says the nightly balance report is "committe
    produces that report as the `latest.md` file in its artifact, and the committed copy is updated
    on every tuning PR, so this is not a deviation from the brief, only from the task table's
    delivery mechanism.
+5. **Amendment (2026-10-11, Lead): the report is also pushed to a branch.** Some agents cannot
+   download workflow artifacts (their network blocks the artifact storage host). After the upload,
+   the nightly's balance job force-pushes a single orphan commit holding `latest.md` to the
+   dedicated branch `reports/balance-nightly`, using only `GITHUB_TOKEN` with `contents: write` on
+   that job. It runs only for runs on `main`, never writes `main` or any other branch, and the
+   artifact upload stays. Committing `docs/balance/latest.md` is still a reviewed PR by the balance
+   owner (point 2), copied from that branch.
