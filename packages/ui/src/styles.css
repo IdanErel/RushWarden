@@ -188,6 +188,7 @@
   line-height: 1.2;
   /* Long names ("Roundabout") break inside the card instead of touching its border. */
   max-width: 100%;
+  min-width: 0;
   overflow-wrap: anywhere;
   hyphens: auto;
 }
@@ -463,15 +464,15 @@
 
 /*
  * The 390-px design phone (GDD §1 point 5) and anything as narrow. The HUD holds round, quota,
- * approval, sound and menu on one line with tighter spacing (the 44-px touch targets stay), and
- * the five-across hand gives names a little more room and a smaller size, so no name word of up
- * to 8 letters ("Recount", "Overtime") breaks mid-word. Longer ones ("Roundabout") still wrap
- * inside the card.
+ * approval, sound and menu on one line: 14-px text (the GDD §8 phone minimum) and tighter
+ * spacing; the 44-px touch targets stay. The five-across hand gives names more room; `fitNames`
+ * (fit-text.ts) then sizes them so no word breaks mid-word on whatever font the device has.
  */
 @media (max-width: 430px) {
   .rw-hud {
-    gap: 6px;
-    padding: 4px 2px 4px 12px;
+    gap: 4px;
+    padding: 4px 2px 4px 10px;
+    font-size: 14px;
   }
   .rw-hand {
     gap: 4px;
@@ -481,6 +482,6 @@
     padding-right: 4px;
   }
   .rw-hand .rw-name {
-    font-size: 12px;
+    font-size: 13px;
   }
 }
