@@ -32,3 +32,11 @@ south. GDD §4 says One-Way makes the segment "one-way in the chosen direction".
   `docs/balance/latest.md` from #29 is stale until the nightly regenerates it (ADR-027).
 - Until the run screen offers the reverse direction, players can place only the west-to-east or
   north-to-south half of what the bots try.
+
+## Amendment
+
+2026-10-10, Render/UI (#65): the run screen places One-Way in its segment's default direction
+and shows it as an arrow. A ⇄ button next to its undo chip turns it round, and so does **R**,
+which flips the last One-Way placed. R joins the GDD §8 keyboard map (1–5, arrows, Enter, Space,
+Esc). A second tap on a placed One-Way still undoes it, as §8 says. The run screen offers One-Way
+only on runs with `from != to`, the same rule as the bots' `directedRuns`.

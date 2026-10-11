@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { emptyMap } from '@rushwarden/sim';
+import { GRID_HEIGHT, GRID_WIDTH, emptyMap, type GridMap, type RoundInput } from '@rushwarden/sim';
+import type { RunEnv } from '@rushwarden/app';
+import { fakeDemand } from '@rushwarden/render/core';
 import { targetKey } from '@rushwarden/render/core';
-import { candidateTargets, markOf, segmentAt, toSimTarget } from '../src/run/controller-run.js';
+import {
+  candidateTargets,
+  hasDirection,
+  markOf,
+  segmentAt,
+  toSimTarget,
+} from '../src/run/controller-run.js';
 import { devRun, result } from './helpers.js';
 
 const kinds = (run: ReturnType<typeof devRun>, i: number): string =>
@@ -152,6 +160,48 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
       expect(s.placed.map((p) => p.card.id)).toEqual(['one-way', second]);
       expect(targetKey(s.placed[1]!.target)).toBe(targetKey(t2));
       expect(run.roundInput().placements.map((p) => p.cardId)).toEqual(['one-way', second]);
+    });
+
+    it('offers no one-tile runs: the sim needs from != to for a direction (ADR-031)', () => {
+      // The plus map with a second north-south road at x = 5: (4, 4) is a one-tile run between
+      // the junctions at (3, 4) and (5, 4).
+      const base = emptyMap('two-junctions');
+      const map: GridMap = {
+        ...base,
+        tiles: base.tiles.map((t, k) =>
+          k % GRID_WIDTH === 5 ? { kind: 'road' as const, lanes: 1 } : t,
+        ),
+        edges: [
+          ...base.edges,
+          { id: 4, tile: { x: 5, y: 0 }, side: 'n' },
+          { id: 5, tile: { x: 5, y: GRID_HEIGHT - 1 }, side: 's' },
+        ],
+      };
+      expect(segmentAt(map, 4, 4)).toEqual({
+        kind: 'segment',
+        from: { x: 4, y: 4 },
+        to: { x: 4, y: 4 },
+      });
+      const env: RunEnv = {
+        setupRound: ({ seed }): Pick<RoundInput, 'map' | 'demandProfile'> => ({
+          map,
+          demandProfile: fakeDemand(map, seed),
+        }),
+      };
+      let checked = false;
+      for (let seed = 1; seed < 200 && !checked; seed++) {
+        const run = devRun(seed, undefined, env);
+        const i = run.state().hand.findIndex((c) => c.id === 'one-way');
+        if (i < 0) continue;
+        const offered = run.targets(i);
+        expect(offered.length).toBeGreaterThan(0);
+        for (const t of offered) expect(hasDirection(toSimTarget(t, map))).toBe(true);
+        expect(offered.some((t) => t.kind === 'segment' && t.x === 4 && t.y === 4)).toBe(false);
+        // A card with no direction may still go there.
+        expect(candidateTargets('segment', map)).toContainEqual({ kind: 'segment', x: 4, y: 4 });
+        checked = true;
+      }
+      expect(checked).toBe(true);
     });
 
     it('cannot flip a card without a direction, or outside the place phase', () => {
