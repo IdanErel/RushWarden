@@ -101,6 +101,20 @@ jobs:
           path: packages/platform-web/itch/rushwarden-itch.zip
           if-no-files-found: error
           retention-days: 14
+      # P1-PLT-02: Poki and CrazyGames zips (also checked for unapproved URLs and ad API calls).
+      - name: Package Poki and CrazyGames zips
+        run: |
+          pnpm --filter @rushwarden/platform-web run package:poki
+          pnpm --filter @rushwarden/platform-web run package:crazygames
+      # P1-PLT-02: each zip plays a run against a stub SDK that records every call (GDD §9).
+      - name: Portal zip SDK test
+        run: pnpm --filter @rushwarden/platform-web run e2e:portals
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rushwarden-portals-${{ github.sha }}
+          path: packages/platform-web/portals/*.zip
+          if-no-files-found: error
+          retention-days: 14
 
   toy-e2e:
     # ADR-029: the toy specs that play whole rounds or runs (tagged @full), on the 390x844

@@ -10,9 +10,11 @@
     "src",
     "e2e",
     "e2e-itch",
+    "e2e-portals",
     "vite.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",
-    "playwright.itch.config.ts"
+    "playwright.itch.config.ts",
+    "playwright.portals.config.ts"
   ]
 }

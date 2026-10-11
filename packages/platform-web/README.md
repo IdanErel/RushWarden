@@ -71,6 +71,32 @@ cross-origin iframe), and plays one round. It fails on any page error, any missi
 request outside the game's own folder. No upload: publishing to itch waits for Idan's playtest
 sign-off.
 
+## Poki and CrazyGames packages (P1-PLT-02)
+
+`pnpm package:poki` and `pnpm package:crazygames` build each portal's flavour into
+`node_modules/.<portal>-dist` with test hooks pinned off, run the size budget, and write
+`portals/rushwarden-<portal>.zip` (git-ignored). `scripts/portal-checks.mjs` runs the itch checks
+above and also fails the package, writing no zip, when:
+
+- the bundle has any URL other than its own portal's SDK, the privacy policy (`VITE_PRIVACY_URL`,
+  when set) and a short list of inert identifiers (JSON Schema ids, XML namespaces, Pixi's console
+  banner). Our website, itch, the stores, the ingest endpoint and the other portal's SDK all fail it
+  (ADR-024 points 4 and 5);
+- its own SDK URL is missing (the wrong flavour was built);
+- any ad API name is present: `rewardedBreak`, `requestAd(`, `requestBanner`,
+  `requestResponsiveBanner` (ADR-013, ADR-024 decision 1).
+
+Portal builds start with no share URL: the adapter takes the portal's own (`PokiSDK.shareableURL`,
+CrazyGames `inviteLink`), and if the SDK is blocked the result line is shared with no link. The
+build fails if a portal build sets `VITE_SHARE_URL`.
+
+`pnpm e2e:portals` (after both package scripts) serves each zip from a subfolder in a 390×844
+iframe, answers its SDK URL with a stub that records every call, and plays a whole run with no
+cards. It fails unless every round is wrapped in exactly one `gameplayStart`/`gameplayStop` pair
+after the loading event, no ad call is made, no `AudioContext` is created before a user gesture,
+and nothing is requested beyond the zip's files and the SDK. CI uploads both zips as an artifact.
+Uploading them to the portals is Idan's (`docs/store/portals.md`).
+
 ## Test hooks (H1, H4)
 
 From `docs/release/phase-1-test-plan.md` §2.1. They exist only in builds made with
