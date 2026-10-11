@@ -9,8 +9,16 @@ import type { ViewFit } from './geometry.js';
 /** A place a card can go, as the renderer draws it. */
 export type TargetMark =
   | { readonly kind: 'intersection'; readonly x: number; readonly y: number }
-  /** A road segment, identified by one of its road tiles. */
-  | { readonly kind: 'segment'; readonly x: number; readonly y: number }
+  /**
+   * A road segment, identified by one of its road tiles. `reverse` runs a directional card (One-Way)
+   * against the segment's default `from` → `to` (west to east, or north to south).
+   */
+  | {
+      readonly kind: 'segment';
+      readonly x: number;
+      readonly y: number;
+      readonly reverse?: boolean;
+    }
   | { readonly kind: 'edge'; readonly edge: number }
   | { readonly kind: 'district' };
 

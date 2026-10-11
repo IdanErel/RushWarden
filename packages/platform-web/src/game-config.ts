@@ -19,15 +19,17 @@ export function isPortalBuild(portalId: WebPortalAdapter['id']): boolean {
 
 /**
  * The run screen's config for this build: the privacy policy link (https only; every build,
- * portals included, per ADR-024 point 5 and ADR-025) and the portal's own share link.
+ * portals included, per ADR-024 point 5 and ADR-025), the portal's own share link, and outbound
+ * links through the portal adapter (Poki: `PokiSDK.openExternalLink`; #59, #63).
  */
 export function uiConfigFor(
   env: GameBuildEnv,
-  portal: Pick<WebPortalAdapter, 'shareUrl'>,
+  portal: Pick<WebPortalAdapter, 'shareUrl' | 'openExternalLink'>,
 ): UiConfig {
   const privacy = env.VITE_PRIVACY_URL ?? '';
   return {
     privacyUrl: privacy.startsWith('https://') ? privacy : '',
     shareUrl: portal.shareUrl(),
+    openExternalLink: (url) => portal.openExternalLink(url),
   };
 }

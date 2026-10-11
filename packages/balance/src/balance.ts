@@ -7,7 +7,6 @@ import { CARDS } from './data.js';
 
 /** Known caveats about the data the report is built on; each line becomes a warning in its header. */
 export const TUNING_WARNINGS: readonly string[] = [
-  'The current toy is known to be too easy. Quotas, demand and score values are the first-pass numbers from #28 and are being tuned in CON-05; win rates near 100% mean the quotas are too low for the delivered throughput (see the throughput vs quota table), not that the archetypes are balanced. Do not judge gate criterion 2 from this report.',
   "Parade closures and p_slow reach the sim since #45 (3e2e67d), so the Parade round (round 8) plays with its closure here. Reports from before #45 had Parade and p_slow doing nothing; compare round 8 only with reports at or after 3e2e67d. District 1's base p_slow is 0 in content today.",
 ];
 

@@ -22,7 +22,7 @@ Portal rules that shape this copy (§9):
 > one-way streets, bus lanes, detours, roundabouts. Then press Go and watch the traffic flow, or
 > jam. Beat the quota to win a new card. Miss it 3 times and you're out.
 >
-> Can you get Old Town through Market Day? Finish a run and share your result:
+> Can you get Old Town through Market Day, the Parade and the Festival? Finish a run and share your result:
 >
 > ```
 > Rushwarden · Old Town · 🟩🟩🟨🟩🟥 · 190 through
@@ -59,7 +59,7 @@ simulation, cars.
 > - 20 rule cards in 5 play styles: smooth flow, buses and bikes, rerouting, roundabout chaos, and
 >   extra energy and cards
 > - See where traffic will come from before you place your cards
-> - A run takes about 3 minutes, ending in a Market Day rush
+> - A run takes about 3 minutes: five rush hours, from Market Day to the Festival
 > - Share your result as a line of coloured squares
 > - Works on phone and desktop
 

@@ -126,7 +126,7 @@ describe('report', () => {
     const md = buildReport(zero, { preset: 'toy', seeds: 1, commit: 'x' });
     expect(md).toContain('> [!WARNING]');
     expect(md).toContain('Every round scored 0 throughput');
-    expect(md).toContain('known to be too easy');
+    expect(md).not.toContain('known to be too easy');
     expect(md).toContain('#45 (3e2e67d)');
     expect(md).toContain('5-round runs');
     expect(roundsOf('full')).toBe(12);

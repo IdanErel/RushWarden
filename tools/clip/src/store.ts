@@ -80,7 +80,7 @@ const P = OLD_TOWN;
 /**
  * Frames used. All from the Market Day clips the clip tool already renders (`MARKET_DAY_SEED`): with the
  * greedy plays (`clips/market-day.json`) and with no cards (`clips/market-day-none.json`), plus
- * round 2 of the same run for a calmer map.
+ * round 2 of the same run (the Parade, ADR-030) for a second map.
  */
 export const SHOTS: readonly Shot[] = [
   { id: 'go', spec: { seed: MARKET_DAY_SEED }, at: 0.08, scale: 2.5 },
@@ -88,7 +88,7 @@ export const SHOTS: readonly Shot[] = [
   { id: 'met', spec: { seed: MARKET_DAY_SEED }, at: 1, scale: 2.5 },
   { id: 'jam', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 0.55, scale: 2.5 },
   { id: 'gridlock', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 1, scale: 2.5 },
-  { id: 'calm', spec: { seed: MARKET_DAY_SEED, round: 2 }, at: 0.5, scale: 2.5 },
+  { id: 'parade', spec: { seed: MARKET_DAY_SEED, round: 2 }, at: 0.5, scale: 2.5 },
   // Capsules up to 1438 px wide (page background, main capsule) are cut from the map alone.
   { id: 'jam-hi', spec: { seed: MARKET_DAY_SEED, plays: 'none' }, at: 0.55, scale: 5 },
   // The library hero is 3840 px wide and cut from the map alone, so it needs a bigger render.
@@ -429,7 +429,7 @@ export const SCREENSHOTS: readonly {
     sub: 'Nothing moves for 3 seconds: the round is over.',
   },
   {
-    shot: 'calm',
+    shot: 'parade',
     caption: ['Read the', 'demand'],
     sub: 'Each edge shows where traffic comes from before you play.',
   },

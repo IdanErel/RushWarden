@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { startRun, toyRunConfig } from '@rushwarden/app';
-import { loadCards, roundQuota, setupRound, startingDeck } from '@rushwarden/content';
+import {
+  TOY_ROUNDS,
+  loadCards,
+  roundQuota,
+  setupRound,
+  startingDeck,
+  toyRushRounds,
+} from '@rushwarden/content';
 import { isPortalBuild, uiConfigFor } from './game-config.js';
+import { PokiAdapter } from './portal/poki.js';
 
 const POLICY = 'https://rushwarden.com/privacy';
-const portal = (id: 'none' | 'itch' | 'poki' | 'crazygames') => ({
+const portal = (id: 'none' | 'itch' | 'poki' | 'crazygames', opened: string[] = []) => ({
   id,
   shareUrl: () => `https://share.example/${id}`,
+  openExternalLink: (url: string) => void opened.push(url),
 });
 
 describe('uiConfigFor', () => {
@@ -26,6 +35,39 @@ describe('uiConfigFor', () => {
     expect(uiConfigFor({ VITE_PRIVACY_URL: 'http://x' }, portal('none')).privacyUrl).toBe('');
   });
 
+  it("sends outbound links through the portal adapter's openExternalLink, on every build", () => {
+    for (const id of ['none', 'itch', 'poki', 'crazygames'] as const) {
+      const opened: string[] = [];
+      const config = uiConfigFor({ VITE_PRIVACY_URL: POLICY }, portal(id, opened));
+      config.openExternalLink?.(config.privacyUrl);
+      expect(opened, id).toEqual([POLICY]);
+    }
+  });
+
+  it("the Poki build's privacy link reaches PokiSDK.openExternalLink", async () => {
+    const calls: string[] = [];
+    const env = {
+      global: {
+        PokiSDK: {
+          init: async () => undefined,
+          gameLoadingFinished: () => undefined,
+          gameplayStart: () => undefined,
+          gameplayStop: () => undefined,
+          shareableURL: async () => 'https://poki.com/en/g/rushwarden',
+          openExternalLink: (u: string) => void calls.push(u),
+        },
+      },
+      loadScript: async () => undefined,
+      timeoutMs: 50,
+      openWindow: (u: string) => void calls.push(`tab:${u}`),
+    };
+    const poki = new PokiAdapter({ shareUrl: 'https://rushwarden.com/', env });
+    await poki.init();
+    const config = uiConfigFor({ VITE_PRIVACY_URL: POLICY }, poki);
+    config.openExternalLink?.(config.privacyUrl);
+    expect(calls).toEqual([POLICY]);
+  });
+
   it("uses the portal adapter's share link", () => {
     expect(uiConfigFor({}, portal('poki')).shareUrl).toBe('https://share.example/poki');
   });
@@ -39,10 +81,15 @@ describe('toy run wiring', () => {
     for (const id of config.startingDeck) expect(ids.has(id)).toBe(true);
   });
 
-  // The run controller takes its quota from content's roundQuota (#29); the toy's run uses it.
-  it("the toy run's round 1 quota is content's roundQuota", () => {
+  // The run controller takes its quota from content's roundQuota (#29). The toy's round 1 plays
+  // D1 round TOY_ROUNDS[0] (ADR-030), a rush round with its boss.
+  it("the toy run's round 1 is content's sampled D1 round, with its roundQuota and boss", () => {
     const config = toyRunConfig({ seed: 1, cards: loadCards(), startingDeck: startingDeck() });
     const s = startRun(config, { setupRound }).state;
-    expect(s.quota).toBe(roundQuota(1, 1, false));
+    const d1 = TOY_ROUNDS[0] ?? 0;
+    expect(s.round).toBe(1);
+    expect(s.quota).toBe(roundQuota(1, d1, true));
+    expect(s.rush).toBe(true);
+    expect(s.boss).toBe(toyRushRounds()[0]?.boss);
   });
 });

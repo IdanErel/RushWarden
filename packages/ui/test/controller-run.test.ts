@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { emptyMap } from '@rushwarden/sim';
+import { GRID_HEIGHT, GRID_WIDTH, emptyMap, type GridMap, type RoundInput } from '@rushwarden/sim';
+import type { RunEnv } from '@rushwarden/app';
+import { fakeDemand } from '@rushwarden/render/core';
 import { targetKey } from '@rushwarden/render/core';
-import { candidateTargets, markOf, segmentAt, toSimTarget } from '../src/run/controller-run.js';
+import {
+  candidateTargets,
+  hasDirection,
+  markOf,
+  segmentAt,
+  toSimTarget,
+} from '../src/run/controller-run.js';
 import { devRun, result } from './helpers.js';
 
 const kinds = (run: ReturnType<typeof devRun>, i: number): string =>
@@ -86,6 +94,130 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const s = run.state();
     expect(s.placed.map((p) => p.card.id)).toEqual([second]);
     expect(targetKey(s.placed[0]!.target)).toBe(targetKey(t2));
+  });
+
+  describe('One-Way direction (GDD §4 "one-way in the chosen direction")', () => {
+    /** A run whose round-1 hand holds a playable One-Way, and that card's hand index. */
+    function withOneWay(): [ReturnType<typeof devRun>, number] {
+      for (let seed = 1; seed < 200; seed++) {
+        const run = devRun(seed);
+        const i = run.state().hand.findIndex((c) => c.id === 'one-way');
+        if (i >= 0 && run.targets(i).length > 0) return [run, i];
+      }
+      throw new Error('no seed deals One-Way');
+    }
+    const placement = (run: ReturnType<typeof devRun>, id: string) =>
+      run.roundInput().placements.find((p) => p.cardId === id)?.target;
+
+    it('marks One-Way directional and no other card', () => {
+      const [run, i] = withOneWay();
+      const s = run.state();
+      expect(s.hand[i]!.directional).toBe(true);
+      for (const c of s.hand) if (c.id !== 'one-way') expect(c.directional).toBeUndefined();
+    });
+
+    it("places on the segment's default direction, and flips it to run the other way", () => {
+      const [run, i] = withOneWay();
+      const mark = run.targets(i)[0]!;
+      const seg = segmentAt(
+        run.roundInput().map,
+        (mark as { x: number }).x,
+        (mark as { y: number }).y,
+      );
+      if (seg.kind !== 'segment') throw new Error('not a segment');
+      run.place(i, mark);
+      expect(placement(run, 'one-way')).toEqual(seg);
+      expect(run.state().placed[0]!.segment).toEqual({ from: seg.from, to: seg.to });
+      const energy = run.state().energy;
+
+      expect(run.canFlip(0)).toBe(true);
+      run.flip(0);
+      expect(placement(run, 'one-way')).toEqual({ kind: 'segment', from: seg.to, to: seg.from });
+      expect(run.state().placed[0]!.segment).toEqual({ from: seg.to, to: seg.from });
+      expect(run.state().placed[0]!.target).toMatchObject({ kind: 'segment', reverse: true });
+      expect(run.state().energy).toBe(energy);
+
+      run.flip(0);
+      expect(placement(run, 'one-way')).toEqual(seg);
+      run.flip(0);
+      run.undo(0);
+      expect(run.state().placed).toEqual([]);
+      expect(run.state().energy).toBe(3);
+    });
+
+    it('flipping keeps play order and the later plays on their targets', () => {
+      const [run, i] = withOneWay();
+      run.place(i, run.targets(i)[0]!);
+      const b = run
+        .state()
+        .hand.findIndex((c, k) => c.id !== 'recount' && run.targets(k).length > 0);
+      expect(b).toBeGreaterThanOrEqual(0); // 3 energy, 2 plays: One-Way costs 1
+      const second = run.state().hand[b]!.id;
+      const t2 = run.targets(b)[0]!;
+      run.place(b, t2);
+      run.flip(0);
+      const s = run.state();
+      expect(s.placed.map((p) => p.card.id)).toEqual(['one-way', second]);
+      expect(targetKey(s.placed[1]!.target)).toBe(targetKey(t2));
+      expect(run.roundInput().placements.map((p) => p.cardId)).toEqual(['one-way', second]);
+    });
+
+    it('offers no one-tile runs: the sim needs from != to for a direction (ADR-031)', () => {
+      // The plus map with a second north-south road at x = 5: (4, 4) is a one-tile run between
+      // the junctions at (3, 4) and (5, 4).
+      const base = emptyMap('two-junctions');
+      const map: GridMap = {
+        ...base,
+        tiles: base.tiles.map((t, k) =>
+          k % GRID_WIDTH === 5 ? { kind: 'road' as const, lanes: 1 } : t,
+        ),
+        edges: [
+          ...base.edges,
+          { id: 4, tile: { x: 5, y: 0 }, side: 'n' },
+          { id: 5, tile: { x: 5, y: GRID_HEIGHT - 1 }, side: 's' },
+        ],
+      };
+      expect(segmentAt(map, 4, 4)).toEqual({
+        kind: 'segment',
+        from: { x: 4, y: 4 },
+        to: { x: 4, y: 4 },
+      });
+      const env: RunEnv = {
+        setupRound: ({ seed }): Pick<RoundInput, 'map' | 'demandProfile'> => ({
+          map,
+          demandProfile: fakeDemand(map, seed),
+        }),
+      };
+      let checked = false;
+      for (let seed = 1; seed < 200 && !checked; seed++) {
+        const run = devRun(seed, undefined, env);
+        const i = run.state().hand.findIndex((c) => c.id === 'one-way');
+        if (i < 0) continue;
+        const offered = run.targets(i);
+        expect(offered.length).toBeGreaterThan(0);
+        for (const t of offered) expect(hasDirection(toSimTarget(t, map))).toBe(true);
+        expect(offered.some((t) => t.kind === 'segment' && t.x === 4 && t.y === 4)).toBe(false);
+        // A card with no direction may still go there.
+        expect(candidateTargets('segment', map)).toContainEqual({ kind: 'segment', x: 4, y: 4 });
+        checked = true;
+      }
+      expect(checked).toBe(true);
+    });
+
+    it('cannot flip a card without a direction, or outside the place phase', () => {
+      const run = devRun(2);
+      const i = run.state().hand.findIndex((c, k) => !c.directional && run.targets(k).length > 0);
+      run.place(i, run.targets(i)[0]!);
+      expect(run.canFlip(0)).toBe(false);
+      const before = run.roundInput().placements;
+      run.flip(0);
+      expect(run.roundInput().placements).toEqual(before);
+
+      const [r2, j] = withOneWay();
+      r2.place(j, r2.targets(j)[0]!);
+      r2.go();
+      expect(r2.canFlip(0)).toBe(false);
+    });
   });
 
   it('cannot undo past a Recount (ADR-018 point 8), and says so before the UI tries', () => {
@@ -209,6 +341,11 @@ describe('targets and marks', () => {
       kind: 'segment',
       from: { x: 4, y: 4 },
       to: { x: 6, y: 4 },
+    });
+    expect(toSimTarget({ kind: 'segment', x: 5, y: 4, reverse: true }, map)).toEqual({
+      kind: 'segment',
+      from: { x: 6, y: 4 },
+      to: { x: 4, y: 4 },
     });
     expect(toSimTarget({ kind: 'edge', edge: 2 }, map)).toEqual({ kind: 'edge', edge: 2 });
     expect(toSimTarget({ kind: 'district' }, map)).toEqual({ kind: 'district' });
