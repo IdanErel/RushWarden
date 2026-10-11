@@ -1,6 +1,7 @@
 # ADR-030: Toy difficulty curve
 
-Status: Accepted · 2026-10-10 · Lead (proposed by Content Designer, P1-CON-05)
+Status: Accepted · 2026-10-10 · Lead (proposed by Content Designer, P1-CON-05) · items 2 and 5
+amended by ADR-032 (CON-06), 2026-10-11
 
 ADR-007 item 1 makes the itch toy a 5-round District 1 run whose round 5 is Market Day. With the
 tuned District 1 values (ADR-021), rounds 1–4 are the full run's on-ramp: every bot, including one
@@ -18,6 +19,11 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    The toy is District 1's rush hour: every round is a rush round with its boss, and it can be
    lost in 3 rounds. Gentler mappings left the toy almost unlosable. With `[1, 3, 4, 8, 12]`,
    no-cards won 75% and greedy 95%. With `[3, 4, 8, 11, 12]`, the figures were 51% and 83%.
+
+   **Amended by ADR-032:** `TOY_ROUNDS = [4, 8, 11, 8, 12]`. Round 11 replaces the first
+   Festival. Once the per-template factor evens out the maps, Parade and Festival are the hardest
+   rounds for every bot, and two Festivals made the toy almost unwinnable.
+
 3. **Targets on the toy itself** (Lead): `no-cards` wins at most 20%, `random` 10–30%, each of the
    five `archetype(tag)` bots 35–65%, `greedy-throughput` at most 75%. The P1-CON-05 PR (#55)
    attaches the report that checks them.
@@ -38,6 +44,9 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    about half are near-certain gridlocks, whatever is played, so no-cards keeps a floor of about
    25% in any 5-round toy. The fix is a per-template demand factor so that every template sits
    near its jam point (ADR-032, task CON-06). The toy's acceptance is re-checked there.
+
+   **Resolved by ADR-032** (CON-06): with the per-template factor and the amended mapping,
+   no-cards wins 19.9% of toys (2,000 seeds). ADR-032 has the report.
 
 6. **Full runs are unchanged.** `fullRunConfig` has no `curveRounds`, so the 12-round gate run
    (ADR-010) plays rounds 1–12 as before.
