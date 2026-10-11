@@ -39,6 +39,13 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    25% in any 5-round toy. The fix is a per-template demand factor so that every template sits
    near its jam point (ADR-032, task CON-06). The toy's acceptance is re-checked there.
 
+   **Still open after CON-06 (2026-10-11).** CON-06's PR (#75) was closed unmerged when its
+   timebox ran out, so on `main` no-cards still wins about 28% of toys. That PR made a toy-only
+   per-template demand and quota factor, with the toy mapping `[4, 8, 11, 8, 12]`. Its branch
+   (`content/p1-con-06-template-demand`) brought no-cards to 20.1% at 2,000 seeds. random,
+   greedy and the archetypes were in range there, and full runs were unchanged. Its ADR-032
+   draft and reports are on that branch, and ADR-032 is not in force.
+
 6. **Full runs are unchanged.** `fullRunConfig` has no `curveRounds`, so the 12-round gate run
    (ADR-010) plays rounds 1–12 as before.
 
