@@ -390,11 +390,19 @@ test.describe('toy flow', () => {
     // Fullscreen enter/exit is checked on real devices (§3.3 item 7): headless has no fullscreen.
   });
 
-  test('E2E-17 reduced motion', async () => {
-    test.fixme(
-      true,
-      'needs an H2 attribute for the motion mode (e.g. data-reduced-motion) so a spec can check it without a pixel diff; requested from UI',
-    );
+  test('E2E-17 reduced motion', async ({ page }) => {
+    // The game reads prefers-reduced-motion once at boot (GDD §8) and reports the mode on H2
+    // (`data-reduced-motion`). No shake and no trails in that mode is render's unit test
+    // (packages/render effects); this checks the build turns the mode on from the OS setting.
+    await openToy(page, passSeed());
+    await expect(state(page)).toHaveAttribute('data-reduced-motion', 'false');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openToy(page, passSeed());
+    await expect(state(page)).toHaveAttribute('data-reduced-motion', 'true');
+    await pressGo(page);
+    await expect(state(page)).toHaveAttribute('data-phase', 'go');
+    await expect(state(page)).toHaveAttribute('data-reduced-motion', 'true');
   });
 
   test('E2E-18 landscape desktop fits without clipping', async ({ page }, info) => {
