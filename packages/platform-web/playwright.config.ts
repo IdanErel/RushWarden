@@ -21,6 +21,9 @@ if (!withWebkit) console.warn('[e2e] WebKit is not installed: the phone-webkit p
 // 17 fps and 16.8 s at 1 (desktop: 18 fps, 16.5 s). Layout depends on CSS pixels, not on the
 // ratio; sharpness on real screens is checked on Idan's devices (test plan §3.2).
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 };
+// Steam screenshots (e2e/store, P1-QA-03): only with STORE_SHOTS=1, never in CI or a plain run.
+const storeShots = process.env['STORE_SHOTS'] === '1';
+const notStore = { testIgnore: 'store/**' };
 export default defineConfig({
   testDir: 'e2e',
   reporter: process.env['CI'] ? 'github' : 'list',
@@ -42,15 +45,30 @@ export default defineConfig({
   projects: [
     {
       name: 'phone',
+      ...notStore,
       use: { ...devices['Pixel 5'], ...phone, ...launch },
     },
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], ...launch } },
+    { name: 'desktop', ...notStore, use: { ...devices['Desktop Chrome'], ...launch } },
     ...(withWebkit
       ? [
           {
             name: 'phone-webkit',
             testMatch: 'toy/**/*.spec.ts',
             use: { ...devices['iPhone 12'], ...phone },
+          },
+        ]
+      : []),
+    ...(storeShots
+      ? [
+          {
+            name: 'store',
+            testMatch: 'store/**/*.spec.ts',
+            use: {
+              ...devices['Desktop Chrome'],
+              viewport: { width: 1920, height: 1080 },
+              deviceScaleFactor: 1,
+              ...launch,
+            },
           },
         ]
       : []),
