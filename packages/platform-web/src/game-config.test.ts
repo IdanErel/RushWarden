@@ -102,7 +102,8 @@ describe('toy run wiring', () => {
     const s = startRun(config, { setupRound }).state;
     const d1 = TOY_ROUNDS[0] ?? 0;
     expect(s.round).toBe(1);
-    expect(s.quota).toBe(roundQuota(1, d1, true));
+    // The toy scales the quota by the round's map (ADR-032).
+    expect(s.quota).toBe(roundQuota(1, d1, true, 1000, s.map.id));
     expect(s.rush).toBe(true);
     expect(s.boss).toBe(toyRushRounds()[0]?.boss);
   });

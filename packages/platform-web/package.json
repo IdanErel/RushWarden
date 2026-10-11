@@ -15,6 +15,7 @@
     "package:itch": "VITE_TEST_HOOKS= VITE_PORTAL=itch vite build --outDir node_modules/.itch-dist --emptyOutDir && node ../../tools/size-budget/check.mjs node_modules/.itch-dist && node scripts/package-itch.mjs",
     "package:poki": "VITE_TEST_HOOKS= VITE_PORTAL=poki vite build --outDir node_modules/.poki-dist --emptyOutDir && node ../../tools/size-budget/check.mjs node_modules/.poki-dist && node scripts/package-portal.mjs poki",
     "package:crazygames": "VITE_TEST_HOOKS= VITE_PORTAL=crazygames vite build --outDir node_modules/.crazygames-dist --emptyOutDir && node ../../tools/size-budget/check.mjs node_modules/.crazygames-dist && node scripts/package-portal.mjs crazygames",
+    "store-shots": "STORE_SHOTS=1 playwright test --project store",
     "build:e2e": "VITE_TEST_HOOKS=1 vite build --outDir node_modules/.e2e-dist --emptyOutDir",
     "dev": "vite",
     "preview": "vite preview --port 4173 --strictPort",

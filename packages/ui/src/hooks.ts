@@ -15,6 +15,10 @@ export interface UiFlags {
   readonly targetRects: readonly (Rect & { readonly key: string })[];
   readonly selected: number | null;
   readonly cursor: number | null;
+  /** Audio state: `none` (no sound surface), `idle` (no AudioContext yet) or `started`. */
+  readonly audio?: 'none' | 'idle' | 'started';
+  /** Sound muted (true with no sound surface). */
+  readonly muted?: boolean;
   /** GDD §8 reduced-motion mode is on (E2E-17 checks it without a pixel diff). */
   readonly reducedMotion?: boolean;
   /** The scene's last decoded controllers frame (empty before the first Go frame). */
@@ -53,6 +57,8 @@ export function stateAttributes(s: RunState, ui: UiFlags): Record<string, string
     ),
     'data-history': s.history.join(','),
     'data-won': s.won === null ? '' : String(s.won),
+    'data-audio': ui.audio ?? 'none',
+    'data-muted': String(ui.muted ?? true),
     'data-reduced-motion': String(ui.reducedMotion ?? false),
     // Live controllers as `x,y:kind:greenSides:box` per intersection, e.g. `3,4:signal:ns:2`.
     'data-live': (ui.live ?? [])

@@ -1,0 +1,24 @@
+{
+  "name": "@rushwarden/soak",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Release soak: 500 full toy runs headless, no exception, memory flat (GDD section 11).",
+  "scripts": {
+    "lint": "eslint src test scripts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --coverage",
+    "soak": "node scripts/bundle.mjs && node --expose-gc dist/cli.mjs"
+  },
+  "dependencies": {
+    "@rushwarden/app": "workspace:*",
+    "@rushwarden/balance": "workspace:*",
+    "@rushwarden/sim": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "~4.1.11",
+    "esbuild": "^0.28.2",
+    "vitest": "~4.1.11"
+  }
+}

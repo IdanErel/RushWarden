@@ -48,6 +48,7 @@
   "privacy.close": "Close",
   "sound.on": "Sound: on",
   "sound.off": "Sound: off",
+  "sound.toggle": "Sound",
   "result.pass": "Quota met",
   "result.fail": "Quota missed",
   "result.gridlock": "Gridlock",

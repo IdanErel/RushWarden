@@ -49,8 +49,8 @@ layouts:
 
 ## What it makes
 
-All frames come from seed 93 (`MARKET_DAY_SEED`). "With cards" is the Market Day round (round 1)
-with the clip director's plays (Roundabout and Bus Priority, 246 through against a quota of 177).
+All frames come from seed 4 (`MARKET_DAY_SEED`). "With cards" is the Market Day round (round 1)
+with the clip director's plays (One-Way, 300 through against a quota of 266).
 "Read the demand" is round 2 of the same run, the Parade. "No cards" is the same
 round with nothing played, which gridlocks. The capsules crop the "no cards" map mid-round,
 when the queues are building.
@@ -80,8 +80,31 @@ No frame is enlarged (the manifest's `maxUpscale` is at most 0.914), so nothing 
 ## Steam screenshots
 
 Steam screenshots must show real gameplay (ADR-029 point 6). They are captured from the run
-screen (hand, map and HUD) once P1-WEB-01 (#50) puts it in the web build. That capture is a
-follow-up to this file.
+screen of the web build in its landscape layout (P1-UI-03, #72), at 1920×1080 and device pixel
+ratio 1, with no captions, and committed in [`screenshots/`](screenshots/):
+
+```sh
+pnpm --filter @rushwarden/platform-web run build        # the public build the preview serves
+WEB_E2E_PORT=4831 CI=1 pnpm --filter @rushwarden/platform-web run store-shots
+```
+
+`store-shots` is a Playwright spec (`packages/platform-web/e2e/store/`) that plays the toy
+through the test hooks, as the e2e does. It exists only with `STORE_SHOTS=1`, so CI never runs
+it. The sim is seeded, but each moment is taken by wall-clock time, so a re-run gives the same
+scenes, not byte-identical files. Re-capture after any visible UI or render change.
+
+| File                                 | Scene                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `steam-run-1-place-1920x1080.png`    | Market Day, round 1 (seed 93): Roundabout selected, its targets highlighted, the hand and Go button |
+| `steam-run-2-rush-1920x1080.png`     | The same round 6 s into Go, with the roundabout placed and the queues building                      |
+| `steam-run-3-gridlock-1920x1080.png` | The same round's gridlock and its result: −1 approval                                               |
+| `steam-run-4-offer-1920x1080.png`    | Another seed's round 1: quota met and the 3-card offer                                              |
+| `steam-run-5-parade-1920x1080.png`   | Its round 2, the Parade, with a street closed                                                       |
+| `steam-run-6-run-end-1920x1080.png`  | Its run end, "District held", with the share line                                                   |
+
+The second seed is the lowest whose no-card run passes round 1 and gets furthest (the spec finds
+it headlessly), so the run end shows a full row of squares. The cards in those shots are not
+played; the first three show cards in use.
 
 ## Checks before upload (Idan)
 
