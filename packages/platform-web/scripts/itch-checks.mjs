@@ -22,7 +22,7 @@ export function checkItchFiles(files) {
   const errors = [];
   const names = files.map(([n]) => n);
   if (!names.includes('index.html')) errors.push('index.html must be at the root of the zip');
-  if (files.length > MAX_FILES) errors.push(`${files.length} files; itch allows ${MAX_FILES}`);
+  if (files.length > MAX_FILES) errors.push(`${files.length} files; the limit is ${MAX_FILES}`);
   for (const [name, data] of files) {
     if (name.endsWith('.map')) errors.push(`source map in the artifact: ${name}`);
     if (!TEXT.test(name)) continue;

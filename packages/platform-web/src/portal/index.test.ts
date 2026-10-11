@@ -64,6 +64,17 @@ describe('checkBuildEnv (ADR-025 point 5)', () => {
   });
 });
 
+describe('share URL on portals (ADR-024 point 5)', () => {
+  it('fails a portal build that sets VITE_SHARE_URL', () => {
+    for (const portal of ['poki', 'crazygames'])
+      expect(() =>
+        checkBuildEnv({ VITE_PORTAL: portal, VITE_SHARE_URL: 'https://rushwarden.com/' }),
+      ).toThrow(/VITE_SHARE_URL must not be set in a .* build/);
+    expect(checkBuildEnv({ VITE_PORTAL: 'poki', VITE_SHARE_URL: '' })).toBe('poki');
+    expect(checkBuildEnv({ VITE_PORTAL: 'itch', VITE_SHARE_URL: 'https://x.com/' })).toBe('itch');
+  });
+});
+
 describe('privacyUrlFrom', () => {
   it('returns the URL only when it is an absolute https URL', () => {
     expect(privacyUrlFrom({ VITE_PRIVACY_URL: 'https://rushwarden.com/privacy' })).toBe(
