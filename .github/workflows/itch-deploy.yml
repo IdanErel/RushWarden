@@ -24,7 +24,7 @@ jobs:
   deploy:
     name: Build and push to itch (draft)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     # BUTLER_API_KEY is not in the job env: only the gate and push steps see it, so pnpm install
     # and the build never have the secret in their environment.
     env:
@@ -40,6 +40,16 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # GDD §11 / test plan §5 item 3: 500 full toy runs headless, no exception, memory flat,
+      # before every itch upload (about 2 minutes).
+      - name: Soak (500 toy runs)
+        run: >-
+          pnpm --filter @rushwarden/soak run soak
+          --commit "${GITHUB_SHA::7}"
+          --out "$RUNNER_TEMP/soak.md"
+      - name: Soak to the job summary
+        if: always()
+        run: cat "$RUNNER_TEMP/soak.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
       - name: Build the itch zip (size-, map- and hook-checked)
         run: pnpm --filter @rushwarden/platform-web run package:itch
       # P1-PLT-01: a zip that does not boot from an itch-like subfolder in a 390×844 iframe and play
