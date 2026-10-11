@@ -2,7 +2,7 @@
  * The run screen and its overlays (GDD §8 screens 3, 4, 5, 7; minimal for the Phase 1 toy):
  * place phase with ghost preview and tap-to-undo, Go phase with throughput bar, hold for 2× and
  * pause, round result with the 3-card offer, run end with the text share line, plus the pause
- * menu (sound toggle) and the About and privacy screen.
+ * menu (sound toggle), the analytics consent panel and the Privacy panel (ADR-025).
  *
  * Input: touch, mouse and keyboard (§8: 1–5, arrows, Enter, Space, Esc). Targets ≥ 44 px, text
  * ≥ 14 px. The map is the renderer's Pixi scene; the sim runs in a worker via `SimClient`.
@@ -20,13 +20,15 @@ import {
   type TargetMark,
   type WorkerLike,
 } from '@rushwarden/render';
-import type { GridMap, RoundResult } from '@rushwarden/sim';
+import type { GridMap, RoundInput, RoundResult } from '@rushwarden/sim';
 import {
   DEFAULT_CONFIG,
-  type InstallIdProvider,
+  portalRules,
+  type PrivacyControls,
   type SoundControl,
   type UiConfig,
 } from './config.js';
+import { GLYPH_SIZE, cardGlyph } from './glyph.js';
 import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
 import { keyAction } from './keys.js';
@@ -56,7 +58,22 @@ export interface GameOptions {
    */
   readonly layout?: (map: GridMap) => LaneLayout;
   readonly config?: UiConfig;
-  readonly installId?: InstallIdProvider;
+  /**
+   * The analytics client's consent surface (ADR-025). Pass it only when collection is on (an
+   * itch or own-site build with `VITE_INGEST_URL`); omitted, the UI asks nothing.
+   */
+  readonly privacy?: PrivacyControls;
+  /**
+   * @deprecated Ignored: the Privacy panel reads the install ID from `privacy`. Kept so the web
+   * build compiles until it passes `privacy` (the ID is null until the player says yes, and only
+   * `privacy` can ask, so nothing shown changes).
+   */
+  readonly installId?: () => string | null;
+  /**
+   * Opens the unlock screen (GDD §8 screen 11). Offered on the run end after a win. Never shown
+   * on Poki or CrazyGames builds (ADR-024), whatever is passed.
+   */
+  readonly unlock?: () => void;
   readonly sound?: SoundControl;
   /** Render the H2/H5 test-hook node (dev and e2e builds). */
   readonly testHooks?: boolean;
@@ -80,8 +97,18 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const [offerCursor, setOfferCursor] = useState(0);
   const [speed, setSpeed] = useState<1 | 2>(1);
   const [paused, setPaused] = useState(false);
-  const [menu, setMenu] = useState<'none' | 'pause' | 'about'>('none');
+  const [menu, setMenu] = useState<'none' | 'pause' | 'privacy'>('none');
+  // Where Privacy's Close goes: back to the pause menu, or to the run screen (consent panel link).
+  const privacyBack = useRef<'none' | 'pause'>('none');
+  const openPrivacy = (from: 'none' | 'pause'): void => {
+    privacyBack.current = from;
+    setMenu('privacy');
+  };
   const [toast, setToast] = useState('');
+  // ADR-025: asked once, before the first Go; no answer means no (nothing stored, asked next time).
+  const rules = portalRules(config.portal);
+  const privacy = rules.analytics ? props.privacy : undefined;
+  const [askConsent, setAskConsent] = useState(privacy?.consent === null);
 
   // --- Map size: fit the column to the viewport (no page scroll on desktop landscape) --------
   const rootEl = useRef<HTMLDivElement>(null);
@@ -153,8 +180,10 @@ export function Game(props: GameOptions): preact.JSX.Element {
       made = sc;
       sc.canvas.setAttribute('aria-hidden', 'true');
       const c = new SimClient(props.spawnWorker(), {
-        onFrame: (f, now) => {
+        onFrame: (f, now, controllers) => {
           sc.pushSnapshot(f, now);
+          // Live signal phases, box occupancy and controller glyphs (ADR-020 point 10).
+          if (controllers) sc.pushControllers(controllers);
           const n = counter.current.push(f);
           setLive((prev) => (prev === n ? prev : n));
         },
@@ -194,19 +223,17 @@ export function Game(props: GameOptions): preact.JSX.Element {
 
   const roundInput = useMemo(() => run.roundInput(), [run, s.round, s.phase === 'place']);
 
-  // Demand preview before Go; gridlock clears on a new round.
+  // Each round: its map (content's templates), closures (Parade), demand heat-strips, and a lane
+  // layout from `roundWorld` (ADR-023). Go sets it again with the placements (`go` below).
+  const prepare = useCallback(
+    (sc: TrafficScene, input: RoundInput) =>
+      props.layout ? sc.setRound(input, props.layout(input.map)) : sc.setRound(input),
+    [props.layout],
+  );
   useEffect(() => {
-    if (!scene) return;
-    if (s.phase === 'place') {
-      // Each round's map comes from the run (content's templates); redraw it when it changes.
-      const map = roundInput.map;
-      if (scene.currentMap.id !== map.id) {
-        if (props.layout) scene.setMap(map, props.layout(map));
-        else scene.setMap(map);
-      }
-      scene.setGridlock(false);
-      scene.setDemand(roundInput.demandProfile);
-    }
+    if (!scene || s.phase !== 'place') return;
+    prepare(scene, roundInput);
+    scene.setGridlock(false);
   }, [scene, s.phase, s.round, roundInput]);
 
   // Targets, ghost, placed marks and controller glyphs.
@@ -298,6 +325,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
     goPending.current = false;
     const input = run.roundInput();
     run.go();
+    if (scene) prepare(scene, input);
+    setAskConsent(false);
     setSelected(null);
     setCursor(null);
     counter.current.reset();
@@ -309,7 +338,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
     client.current.start(input, performance.now());
     events?.roundStart?.(s.round);
     bump(0);
-  }, [s, run, scene, events]);
+  }, [s, run, scene, events, prepare]);
   useEffect(() => {
     if (scene && goPending.current) go();
   }, [scene, go]);
@@ -455,6 +484,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
           : [],
         selected,
         cursor,
+        live: scene?.liveControllers ?? [],
+        reducedMotion: props.reducedMotion ?? false,
       })
     : null;
 
@@ -589,24 +620,44 @@ export function Game(props: GameOptions): preact.JSX.Element {
           onNext={next}
         />
       )}
+      {askConsent && privacy && s.phase === 'place' && (
+        <Consent
+          onAnswer={(yes) => {
+            privacy.setConsent(yes);
+            setAskConsent(false);
+          }}
+          onPrivacy={() => openPrivacy('none')}
+        />
+      )}
       {s.phase === 'end' && (
-        <End state={s} shareUrl={config.shareUrl} onRetry={retry} onToast={setToast} />
+        <End
+          state={s}
+          shareUrl={config.shareUrl}
+          unlock={rules.unlock ? props.unlock : undefined}
+          onRetry={retry}
+          onToast={setToast}
+        />
       )}
       {menu === 'pause' && (
         <PauseMenu
           inGo={s.phase === 'go'}
           sound={props.sound}
           onResume={resume}
-          onAbout={() => setMenu('about')}
+          onPrivacy={() => openPrivacy('pause')}
           onChange={() => bump(0)}
         />
       )}
-      {menu === 'about' && (
-        <About
+      {menu === 'privacy' && (
+        <Privacy
           privacyUrl={config.privacyUrl}
           openExternalLink={config.openExternalLink}
-          installId={props.installId?.() ?? null}
-          onClose={() => setMenu('pause')}
+          privacy={privacy}
+          onChange={() => {
+            setAskConsent(false);
+            bump(0);
+          }}
+          onToast={setToast}
+          onClose={() => setMenu(privacyBack.current)}
         />
       )}
       {toast && (
@@ -656,11 +707,31 @@ function Card(p: {
     >
       <span class="rw-key">{p.index + 1}</span>
       <span class="rw-cost">{c.cost}</span>
+      <Glyph card={c} />
       <span class="rw-name">{c.name}</span>
       <span class="rw-tag" style={{ color }}>
         {c.tags.join(' ')}
       </span>
     </button>
+  );
+}
+
+/** The card's 48×48 glyph (GDD §7), generated from its primitives by `cardGlyph`. */
+function Glyph(p: { card: UiCard }): preact.JSX.Element {
+  return (
+    <svg
+      class="rw-glyph"
+      width={GLYPH_SIZE}
+      height={GLYPH_SIZE}
+      viewBox={`0 0 ${GLYPH_SIZE} ${GLYPH_SIZE}`}
+      aria-hidden="true"
+      data-glyph={p.card.id}
+    >
+      {cardGlyph(p.card).map((el, i) => {
+        const Tag = el.tag;
+        return <Tag key={i} {...el.attrs} />;
+      })}
+    </svg>
   );
 }
 
@@ -717,6 +788,7 @@ function Result(p: {
 function End(p: {
   state: RunState;
   shareUrl: string;
+  unlock: (() => void) | undefined;
   onRetry: () => void;
   onToast: (m: string) => void;
 }): preact.JSX.Element {
@@ -745,6 +817,11 @@ function End(p: {
           {t('end.retry')}
         </button>
       </div>
+      {s.won && p.unlock && (
+        <button class="rw-btn" onClick={p.unlock}>
+          {t('end.unlock')}
+        </button>
+      )}
     </section>
   );
 }
@@ -753,7 +830,7 @@ function PauseMenu(p: {
   inGo: boolean;
   sound: SoundControl | undefined;
   onResume: () => void;
-  onAbout: () => void;
+  onPrivacy: () => void;
   onChange: () => void;
 }): preact.JSX.Element {
   return (
@@ -775,48 +852,119 @@ function PauseMenu(p: {
           {p.sound.muted ? t('sound.off') : t('sound.on')}
         </button>
       )}
-      <button class="rw-btn" onClick={p.onAbout}>
-        {t('about.open')}
+      <button class="rw-btn" onClick={p.onPrivacy}>
+        {t('privacy.open')}
       </button>
     </section>
   );
 }
 
-function About(p: {
+/**
+ * ADR-025 point 1: the opt-in question, non-blocking (the run screen stays usable), with two
+ * buttons of equal size and style and a Privacy link.
+ */
+function Consent(p: {
+  onAnswer: (yes: boolean) => void;
+  onPrivacy: () => void;
+}): preact.JSX.Element {
+  return (
+    <section class="rw-consent" role="region" aria-labelledby="rw-consent-title">
+      <p>
+        <b id="rw-consent-title">{t('consent.title')}</b> {t('consent.body')}
+      </p>
+      <div class="rw-row">
+        <button class="rw-btn rw-answer" onClick={() => p.onAnswer(true)}>
+          {t('consent.yes')}
+        </button>
+        <button class="rw-btn rw-answer" onClick={() => p.onAnswer(false)}>
+          {t('consent.no')}
+        </button>
+        <button class="rw-link" onClick={p.onPrivacy}>
+          {t('consent.privacy')}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * ADR-025 points 2 and 6: the policy link, the on/off switch, the install ID and "Delete my
+ * data". Without `privacy` (collection off) it says the build collects nothing.
+ */
+function Privacy(p: {
   privacyUrl: string;
   openExternalLink: ((url: string) => void) | undefined;
-  installId: string | null;
+  privacy: PrivacyControls | undefined;
+  onChange: () => void;
+  onToast: (m: string) => void;
   onClose: () => void;
 }): preact.JSX.Element {
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const idRef = useRef<HTMLInputElement>(null);
+  const pc = p.privacy;
+  const install = pc?.install ?? null;
+  const on = pc?.consent === 'yes';
   const copy = (): void => {
-    if (!p.installId) return;
+    if (!install) return;
     idRef.current?.select();
-    void copyText(p.installId).then(setCopied);
+    void copyText(install).then(setCopied);
+  };
+  const remove = (): void => {
+    if (!pc || deleting) return;
+    setDeleting(true);
+    void pc.deleteData().then((ok) => {
+      setDeleting(false);
+      p.onToast(ok ? t('privacy.deleted') : t('privacy.deleteFailed'));
+      p.onChange();
+    });
   };
   return (
-    <section class="rw-sheet rw-menu" role="dialog" aria-labelledby="rw-about-title">
-      <h2 id="rw-about-title">{t('about.title')}</h2>
-      <p>{t('about.body')}</p>
-      {p.installId ? (
+    <section class="rw-sheet rw-menu" role="dialog" aria-labelledby="rw-privacy-title">
+      <h2 id="rw-privacy-title">{t('privacy.title')}</h2>
+      {pc ? (
         <>
-          <label class="rw-field">
-            {t('about.installId')}
-            <input
-              ref={idRef}
-              id="install-id"
-              readOnly
-              value={p.installId}
-              onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
-            />
-          </label>
-          <button class="rw-btn" onClick={copy}>
-            {copied ? t('about.copied') : t('about.copy')}
+          <p>{t('privacy.body')}</p>
+          <button
+            class="rw-btn rw-switch"
+            role="switch"
+            aria-checked={on}
+            onClick={() => {
+              pc.setConsent(!on);
+              p.onChange();
+            }}
+          >
+            {t('privacy.switch')}: {on ? t('privacy.on') : t('privacy.off')}
           </button>
+          {install ? (
+            <>
+              <label class="rw-field">
+                {t('privacy.installId')}
+                <input
+                  ref={idRef}
+                  id="install-id"
+                  readOnly
+                  value={install}
+                  onFocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+                />
+              </label>
+              <p class="rw-muted">{t('privacy.email')}</p>
+              {pc.deletePending && <p class="rw-muted">{t('privacy.deletePending')}</p>}
+              <div class="rw-row">
+                <button class="rw-btn" onClick={copy}>
+                  {copied ? t('privacy.copied') : t('privacy.copy')}
+                </button>
+                <button class="rw-btn" onClick={remove} disabled={deleting}>
+                  {t('privacy.delete')}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p class="rw-muted">{t('privacy.noInstall')}</p>
+          )}
         </>
       ) : (
-        <p class="rw-muted">{t('about.installIdOff')}</p>
+        <p>{t('privacy.collectsNothing')}</p>
       )}
       {p.privacyUrl ? (
         <a
@@ -831,13 +979,13 @@ function About(p: {
             p.openExternalLink(p.privacyUrl);
           }}
         >
-          {t('about.privacy')}
+          {t('privacy.policy')}
         </a>
       ) : (
-        <p class="rw-muted">{t('about.privacyPending')}</p>
+        <p class="rw-muted">{t('privacy.policyPending')}</p>
       )}
       <button class="rw-go" onClick={p.onClose}>
-        {t('about.close')}
+        {t('privacy.close')}
       </button>
     </section>
   );
