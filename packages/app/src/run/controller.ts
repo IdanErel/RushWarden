@@ -183,6 +183,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     rush: rush !== null,
     boss: rush?.boss ?? null,
     seed: roundSeed,
+    ...(state.config.templateDemand === true ? { templateDemand: true } : {}),
   });
   const handCount = Math.max(0, state.config.handSize + state.nextDrawBonus);
   const dealt = draw(state.drawPile, state.spent, handCount, prng);
@@ -198,7 +199,14 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     pSlowPermille: setup.districtRules?.pSlowPermille ?? 0,
     rush: rush !== null,
     boss: rush?.boss ?? null,
-    quota: roundQuota(state.config.district, curveRound, rush !== null, state.config.quotaPermille),
+    // With templateDemand (ADR-032) the quota takes the round's map, as content's setupRound does.
+    quota: roundQuota(
+      state.config.district,
+      curveRound,
+      rush !== null,
+      state.config.quotaPermille,
+      state.config.templateDemand === true ? setup.map.id : undefined,
+    ),
     hand: dealt.drawn,
     drawPile: dealt.drawPile,
     spent: dealt.spent,

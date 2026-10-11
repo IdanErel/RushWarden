@@ -100,6 +100,7 @@ export {
   RUSH_PERMILLE,
   RUSH_ROUNDS,
   TEMPLATE_DEMAND_PERMILLE,
+  TEMPLATE_QUOTA_LEVEL_PERMILLE,
   templateDemandPermille,
   TOY_ROUNDS,
   toyRushRounds,

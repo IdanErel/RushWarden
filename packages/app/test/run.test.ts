@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
-import { RUSH_ROUNDS, TOY_ROUNDS, roundQuota, toyRushRounds } from '@rushwarden/content';
+import {
+  RUSH_ROUNDS,
+  TOY_ROUNDS,
+  roundQuota,
+  setupRound,
+  toyRushRounds,
+} from '@rushwarden/content';
 import {
   PHASE1_STARTING_DECK,
   RunController,
@@ -25,12 +31,12 @@ import { CARDS, CENTER, DISTRICT, EDGE, SEGMENT, fakeEnv } from './run-fixtures.
 
 /**
  * The mechanics fixture: a 5-round District 1 run on the plain curve (round r plays curve round
- * r; Market Day on round 5), so these tests do not move when content retunes the toy's curve.
+ * r; Market Day on round 5; no template factor), so these tests do not move when content retunes the toy's curve.
  * The toy preset itself (ADR-030: content's TOY_ROUNDS) is tested in "the itch toy preset".
  */
 const toy = (seed = 1, over: Partial<RunConfig> = {}): RunConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { curveRounds, ...preset } = toyRunConfig({ seed, cards: CARDS });
+  const { curveRounds, templateDemand, ...preset } = toyRunConfig({ seed, cards: CARDS });
   return { ...preset, rushRounds: [{ round: 5, boss: 'market-day' }], ...over };
 };
 
@@ -181,8 +187,8 @@ describe('quota (content roundQuota, ADR-018)', () => {
     expect(plain.quota).toBe(roundQuota(1, 1, false));
     const mayor = startRun({ ...toy(3), quotaPermille: 1150 }, fakeEnv()).state;
     expect(mayor.quota).toBe(roundQuota(1, 1, false, 1150));
-    // 88 * 1.15 = 101.2 (District 1 base from CON-06, ADR-032).
-    expect(mayor.quota).toBe(101);
+    // 83 * 1.15 = 95.45 (P1-CON-05's District 1 base).
+    expect(mayor.quota).toBe(95);
   });
 });
 
@@ -602,7 +608,7 @@ describe('round end, offers and run end', () => {
     ]);
     expect(r.state.history.map((h) => h.round)).toEqual([1, 2, 3, 4, 5]);
     expect(r.state.history.map((h) => h.quota)).toEqual(
-      TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1))),
+      TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1), 1000, emptyMap().id)),
     );
   });
 
@@ -619,10 +625,50 @@ describe('round end, offers and run end', () => {
     expect(seen.map(([run]) => run)).toEqual([1, 2, 3, 4, 5]);
     expect(seen.map(([, curve]) => curve)).toEqual([...TOY_ROUNDS]);
     expect(seen.map(([, , quota]) => quota)).toEqual(
-      TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1))),
+      TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1), 1000, emptyMap().id)),
     );
     // Without curveRounds (full runs, the mechanics fixture) the two are the same.
     expect(roundInput(startRun(toy(9), env).state).districtRules.round).toBe(1);
+  });
+
+  it("the controller's quota is content's round-setup quota, toy and full (ADR-032)", () => {
+    // Content's real setupRound: the toy scales demand and quota by the map's template factor,
+    // a full run does not. Either way the quota the player must beat is the one setupRound gives.
+    for (const config of [
+      toyRunConfig({ seed: 9, cards: CARDS }),
+      fullRunConfig({ seed: 9, cards: CARDS }),
+    ]) {
+      const quotas: number[] = [];
+      const env: RunEnv = {
+        setupRound: (args) => {
+          const s = setupRound(args);
+          quotas.push(s.quota);
+          return s;
+        },
+        simulate: (input) => ({
+          throughput: input.districtRules.quota,
+          spawned: 0,
+          exited: 0,
+          ticks: 300,
+          gridlocked: false,
+          fundsDelta: 0,
+          finalHash: '0000000000000000',
+        }),
+      };
+      let s = startRun(config, env).state;
+      const seen: number[] = [];
+      for (let i = 0; i < config.rounds; i++) {
+        seen.push(s.quota);
+        s = must(s, { type: 'go' }, env);
+        if (s.phase === 'result') s = must(s, { type: 'choose', pick: 'skip' }, env);
+      }
+      expect(seen).toEqual(quotas);
+      expect(new Set(seen).size).toBeGreaterThan(1);
+    }
+    // The toy's quota differs from the unscaled one on a scaled map.
+    const toy = startRun(toyRunConfig({ seed: 9, cards: CARDS }), { setupRound }).state;
+    expect(toy.quota).toBe(roundQuota(1, TOY_ROUNDS[0]!, true, 1000, toy.map.id));
+    expect(toy.quota).not.toBe(roundQuota(1, TOY_ROUNDS[0]!, true));
   });
 
   it('rejects curveRounds that do not cover every round', () => {

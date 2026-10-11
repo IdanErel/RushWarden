@@ -54,9 +54,9 @@ function inputFor(s: ReturnType<typeof setupRound>, seed: number): RoundInput {
 
 describe('quota (GDD §2)', () => {
   it('matches base[d] * (1 + 0.11*(r-1)) * rushMult, rounded, for every round and district', () => {
-    // D1's base is tuned by P1-CON-05 and CON-06 (ADR-021 item 3, ADR-032); D2 and D3 keep GDD
-    // §2's starting values. With no map there is no map factor.
-    const base = { 1: 88, 2: 34, 3: 42 } as const;
+    // D1's base is tuned by P1-CON-05 (ADR-021 item 3); D2 and D3 keep GDD §2's starting values.
+    // With no map there is no template factor (ADR-032).
+    const base = { 1: 83, 2: 34, 3: 42 } as const;
     for (const d of [1, 2, 3] as const) {
       for (let r = 1; r <= 12; r++) {
         for (const rush of [false, true]) {
@@ -67,20 +67,22 @@ describe('quota (GDD §2)', () => {
     }
   });
 
-  it('starts District 1 at 88 and applies a mayor modifier', () => {
-    expect(roundQuota(1, 1, false)).toBe(88);
-    // 88 * 1.33 * 1.6 = 187.3; round 5 under rush is 88 * 1.44 * 1.6 = 202.8.
-    expect(roundQuota(1, 4, true)).toBe(187);
-    expect(roundQuota(1, 5, true)).toBe(203);
-    expect(roundQuota(1, 1, false, 1100)).toBe(97);
+  it('starts District 1 at 83 and applies a mayor modifier', () => {
+    expect(roundQuota(1, 1, false)).toBe(83);
+    // 83 * 1.33 * 1.6 = 176.6; round 5 under rush is 83 * 1.44 * 1.6 = 191.2.
+    expect(roundQuota(1, 4, true)).toBe(177);
+    expect(roundQuota(1, 5, true)).toBe(191);
+    expect(roundQuota(1, 1, false, 1100)).toBe(91);
   });
 
-  it("scales with the map's demand factor (ADR-032), after the mayor modifier", () => {
-    // d1-12 is 1.81: 88 * 1.81 = 159.3; d1-02 is 0.53: 88 * 1.33 * 1.6 * 0.53 = 99.2.
+  it("with a map, scales by its template factor and the toy's quota level (ADR-032)", () => {
+    // d1-12: 1.81 * 1.06 = 1.919, 83 * 1.919 = 159.3; d1-02: 0.53 * 1.06 = 0.562,
+    // 83 * 1.33 * 1.6 * 0.562 = 99.3.
     expect(roundQuota(1, 1, false, 1000, 'd1-12')).toBe(159);
     expect(roundQuota(1, 4, true, 1000, 'd1-02-mx')).toBe(99);
-    // 88 * 1.1 * 0.76 = 73.6.
+    // d1-01: 0.76 * 1.06 = 0.806, 83 * 1.1 * 0.806 = 73.6.
     expect(roundQuota(1, 1, false, 1100, 'd1-01')).toBe(74);
+    // An unknown map has a factor of 1 but the toy's level: 83 * 1.06 = 88.0.
     expect(roundQuota(1, 1, false, 1000, 'not-a-template')).toBe(88);
   });
 });
@@ -125,9 +127,20 @@ describe('demand volume and mix (GDD §5)', () => {
 
   it('the mix of a generated round is exact and only uses D1 types', () => {
     const p = generateDemand({ map, district: 1, round: 1, rush: false, boss: null, seed: 7 });
-    // The first map is d1-01, with a demand factor of 0.76: 66 * 0.76 = 50.2.
-    expect(p).toHaveLength(50);
-    expect(typeCounts(p)).toEqual(Object.fromEntries(mixCounts(50, DISTRICT_DEMAND[1].mix)));
+    expect(p).toHaveLength(66);
+    expect(typeCounts(p)).toEqual(Object.fromEntries(mixCounts(66, DISTRICT_DEMAND[1].mix)));
+    // With the toy's template factor (ADR-032), d1-01 is 0.76: 66 * 0.76 = 50.2.
+    const toy = generateDemand({
+      map,
+      district: 1,
+      round: 1,
+      rush: false,
+      boss: null,
+      seed: 7,
+      templateDemand: true,
+    });
+    expect(toy).toHaveLength(50);
+    expect(typeCounts(toy)).toEqual(Object.fromEntries(mixCounts(50, DISTRICT_DEMAND[1].mix)));
   });
 
   it('the spawn-time curve covers all 15 seconds', () => {
@@ -240,10 +253,13 @@ describe('setupRound', () => {
     for (const m of maps) {
       for (const seed of [1, 2, 3]) {
         const base = { map: m, district: 1 as const, rush: true, seed };
-        expect(generateDemand({ ...base, round: 12, boss: 'festival' })).toHaveLength(
+        expect(generateDemand({ ...base, round: 12, boss: 'festival' })).toHaveLength(373);
+        expect(generateDemand({ ...base, round: 5, boss: 'market-day' })).toHaveLength(152 + 30);
+        const toy = { ...base, templateDemand: true };
+        expect(generateDemand({ ...toy, round: 12, boss: 'festival' })).toHaveLength(
           roundVehicles(1, 12, true, 'festival', m.id),
         );
-        expect(generateDemand({ ...base, round: 5, boss: 'market-day' })).toHaveLength(
+        expect(generateDemand({ ...toy, round: 5, boss: 'market-day' })).toHaveLength(
           roundVehicles(1, 5, true, 'market-day', m.id) + 30,
         );
       }
@@ -256,7 +272,14 @@ describe('setupRound', () => {
     expect(m.edges).toHaveLength(4);
     let full = 0;
     for (let seed = 1; seed <= 20; seed++) {
-      const args = { map: m, district: 1 as const, round: 12, rush: true, seed };
+      const args = {
+        map: m,
+        district: 1 as const,
+        round: 12,
+        rush: true,
+        seed,
+        templateDemand: true,
+      };
       const p = generateDemand({ ...args, boss: 'festival' });
       expect(p).toHaveLength(676);
       expect(new Set(p.map((e) => e.tick * 1024 + e.edge)).size).toBe(p.length);
@@ -277,7 +300,17 @@ describe('setupRound', () => {
 
   it('returns the quota, heat-strip and district rules for the round', () => {
     const s = setupRound({ round: 5, rush: true, boss: 'market-day', seed: 3 });
-    expect(s.quota).toBe(roundQuota(1, 5, true, 1000, s.map.id));
+    expect(s.quota).toBe(roundQuota(1, 5, true));
+    const toy = setupRound({
+      round: 5,
+      rush: true,
+      boss: 'market-day',
+      seed: 3,
+      templateDemand: true,
+    });
+    expect(toy.map).toEqual(s.map);
+    expect(toy.quota).toBe(roundQuota(1, 5, true, 1000, s.map.id));
+    expect(toy.districtRules.quota).toBe(toy.quota);
     expect(s.districtRules).toEqual({
       district: 1,
       round: 5,
@@ -329,13 +362,12 @@ describe('Festival (GDD §5: all demand +60%, emergency vehicles appear)', () =>
     const args = { map, district: 1 as const, round: 12, rush: true, seed: 77 };
     const plain = generateDemand({ ...args, boss: null });
     const fest = generateDemand({ ...args, boss: 'festival' });
-    // d1-01's demand factor is 0.76: 233.3 * 0.76 = 177.3 and 373.4 * 0.76 = 283.8.
-    expect(plain).toHaveLength(177);
-    expect(fest).toHaveLength(284);
+    expect(plain).toHaveLength(233);
+    expect(fest).toHaveLength(373);
     expect(typeCounts(fest)).toEqual(
-      Object.fromEntries(mixCounts(284, DISTRICT_DEMAND[1].festival.mix)),
+      Object.fromEntries(mixCounts(373, DISTRICT_DEMAND[1].festival.mix)),
     );
-    expect(typeCounts(fest)[VehicleType.Emergency]).toBe(14);
+    expect(typeCounts(fest)[VehicleType.Emergency]).toBe(19);
     expect(typeCounts(plain)[VehicleType.Emergency]).toBeUndefined();
   });
 
@@ -424,7 +456,7 @@ describe('Parade (GDD §5: one segment closed)', () => {
     expect(s.closedSegments).toHaveLength(1);
     expect(paradeCandidates(s.map)).toContainEqual(s.closedSegments[0]);
     expect(s.closedSegments[0]).toEqual(pickParadeSegment(s.map, (21 ^ SEED_SALTS.parade) >>> 0));
-    expect(s.demandProfile).toHaveLength(roundVehicles(1, 8, true, null, s.map.id));
+    expect(s.demandProfile).toHaveLength(roundVehicles(1, 8, true));
     expect(setupRound({ round: 8, seed: 21 })).toEqual(s);
     expect(() => Sim.init(inputFor(s, 21))).not.toThrow();
   });
@@ -460,7 +492,7 @@ describe('toy rounds (ADR-030)', () => {
     expect(TOY_ROUNDS).toHaveLength(5);
     for (const r of TOY_ROUNDS) {
       expect(Number.isInteger(r) && r >= 1 && r <= 12).toBe(true);
-      const s = setupRound({ round: r, seed: 9 });
+      const s = setupRound({ round: r, seed: 9, templateDemand: true });
       expect(s.quota).toBe(roundQuota(1, r, RUSH_ROUNDS.includes(r), 1000, s.map.id));
     }
   });
