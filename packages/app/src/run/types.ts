@@ -64,6 +64,12 @@ export interface RunConfig {
    * via `roundQuota` and `setupRound`). Absent: round `r` plays curve round `r` (full runs).
    */
   readonly curveRounds?: readonly number[];
+  /**
+   * ADR-032: each round's demand and quota scale with its map's template factor (content's
+   * `setupRound({ templateDemand })` and `roundQuota(..., mapId)`). The toy sets it; full runs
+   * don't, so the §11 gates read the unscaled curve.
+   */
+  readonly templateDemand?: boolean;
   /** Starting deck, by card id, tier 1. */
   readonly startingDeck: readonly string[];
   /** Every card that can be drawn or offered. */
@@ -175,6 +181,8 @@ export interface RunEnv {
     readonly rush: boolean;
     readonly boss: BossCondition | null;
     readonly seed: number;
+    /** ADR-032: passed (as true) only when the run config sets `templateDemand`. */
+    readonly templateDemand?: boolean;
   }): {
     readonly map: GridMap;
     readonly demandProfile: DemandProfile;
