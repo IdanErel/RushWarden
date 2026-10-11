@@ -130,12 +130,27 @@ describe('test hooks H2/H5', () => {
       'data-selected': '1',
       'data-cursor': '',
       'data-won': '',
+      'data-reduced-motion': 'false',
     });
     expect(a['data-hand']!.split(',')).toHaveLength(5);
     expect(a['data-placed-segments']).toBe('');
     expect(JSON.parse(a['data-target-rects']!)).toEqual([
       { key: 'district', x: 1, y: 3, w: 10, h: 10 },
     ]);
+    expect(a['data-live']).toBe('');
+    const live = stateAttributes(run.state(), {
+      speed: 1,
+      paused: false,
+      throughput: 0,
+      targetRects: [],
+      selected: null,
+      cursor: null,
+      live: [
+        { x: 3, y: 4, kind: 'signal', green: ['n', 's'], box: 2 },
+        { x: 5, y: 4, kind: 'roundabout', green: [], box: 0 },
+      ],
+    });
+    expect(live['data-live']).toBe('3,4:signal:ns:2 5,4:roundabout::0');
   });
 });
 

@@ -3,7 +3,7 @@ import { cardText, getCard, loadCards, setupRound, startingDeck } from '@rushwar
 import { spawnSimWorker } from '@rushwarden/render';
 import { Sim, sampleInput } from '@rushwarden/sim';
 import { ControllerRun, mountGame, type CardCatalog } from '@rushwarden/ui';
-import { startAnalytics } from './analytics.js';
+import { privacyControlsFor, startAnalytics } from './analytics.js';
 import { uiConfigFor } from './game-config.js';
 import { DEFAULT_SHARE_URL, createPortalAdapter } from './portal/index.js';
 import { TEST_HOOKS_ENABLED, seedOverride, withPortalSpy } from './test-hooks.js';
@@ -49,8 +49,9 @@ async function boot(): Promise<void> {
   const t0 = performance.now();
   Sim.simulate(sampleInput(1));
   const benchmarkMs = performance.now() - t0;
-  // Off unless the build sets VITE_INGEST_URL (ADR-007) and never on portals (ADR-024/025); even
-  // then nothing is sent until the player says yes (ADR-025: consent is off by default).
+  // Off unless the build sets VITE_INGEST_URL and an https VITE_PRIVACY_URL (ADR-007, ADR-025
+  // point 5), and never on portals (ADR-024/025). Even then nothing is sent until the player says
+  // yes (ADR-025: consent is off by default).
   const analytics = startAnalytics(import.meta.env, portal.id, benchmarkMs, {
     storage: localStore(),
     language: navigator.language,
@@ -70,11 +71,13 @@ async function boot(): Promise<void> {
     catalog,
     analytics,
   });
+  // ADR-025: the consent and Privacy panels get the client only when collection is on.
+  const privacy = privacyControlsFor(analytics);
   mountGame(el, {
     run,
     spawnWorker: spawnSimWorker,
     config: uiConfigFor(import.meta.env, portal),
-    installId: () => analytics.install,
+    ...(privacy ? { privacy } : {}),
     testHooks: TEST_HOOKS_ENABLED,
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     // GDD §9 portal call pattern. commercialBreak never shows an ad (ADR-013, ADR-024): the

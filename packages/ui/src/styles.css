@@ -129,6 +129,8 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
+  /* Room for a selected card's 8 px raise and 3 px ring, so it never meets the hint above. */
+  padding-top: 6px;
 }
 .rw-card {
   position: relative;
@@ -136,8 +138,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 104px !important;
-  padding: 22px 6px 6px;
+  min-height: 150px !important;
+  padding: 24px 6px 6px;
   background: var(--card);
   border: 2px solid;
   text-align: left;
@@ -162,6 +164,11 @@
   left: 6px;
   font-size: 14px;
   color: var(--muted);
+}
+.rw-glyph {
+  align-self: center;
+  flex: none;
+  margin-bottom: 2px;
 }
 .rw-name {
   font-size: 14px;
@@ -291,6 +298,37 @@
   background: var(--ground);
   user-select: all;
 }
+/* ADR-025 consent: non-blocking, over the top of the map; Yes and No identical in size and style. */
+.rw-consent {
+  position: absolute;
+  top: 56px;
+  left: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 2px solid var(--road);
+  border-radius: 12px;
+}
+.rw-consent p {
+  margin: 0;
+}
+.rw-answer {
+  flex: 1;
+}
+.rw-link {
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  padding: 0 8px;
+}
+.rw-switch[aria-checked='true'] {
+  background: var(--road);
+  color: #fff !important;
+}
 .rw-toast {
   position: absolute;
   left: 50%;
@@ -316,4 +354,56 @@
   .rw-fill {
     transition: none;
   }
+}
+
+/*
+ * Landscape (GDD §8 "landscape rearranges HUD to the right"): the board on the left at full
+ * height, the HUD, controls and hand in a right column `--side` wide (set by the screen from
+ * `wideLayout`, which also sizes the board). Sheets and menus open over the right column.
+ */
+.rw-game.rw-wide {
+  box-sizing: border-box;
+  max-width: none;
+  width: fit-content;
+  height: 100dvh;
+  min-height: 0;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: auto var(--side);
+  grid-template-rows: auto 1fr;
+  column-gap: 24px;
+}
+.rw-wide .rw-map {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.rw-wide .rw-hud {
+  grid-column: 2;
+  grid-row: 1;
+  padding-left: 16px;
+}
+.rw-wide .rw-place,
+.rw-wide .rw-goph {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
+}
+.rw-wide .rw-sheet {
+  left: auto;
+  right: 16px;
+  width: var(--side);
+  box-sizing: border-box;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+}
+.rw-wide .rw-menu {
+  top: 72px;
+}
+.rw-wide .rw-consent {
+  left: auto;
+  right: 16px;
+  top: 72px;
+  width: var(--side);
+  box-sizing: border-box;
 }

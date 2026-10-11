@@ -7,7 +7,8 @@ import {
   type IngestClientOptions,
   type Platform,
 } from '@rushwarden/app';
-import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
+import type { PrivacyControls } from '@rushwarden/ui';
+import { NO_ANALYTICS_PORTALS, privacyUrlFrom } from './portal/flag.js';
 
 /**
  * Analytics wiring for the web build (P1-BE-01). Collection is OFF unless the build sets
@@ -16,6 +17,8 @@ import { NO_ANALYTICS_PORTALS } from './portal/flag.js';
  */
 export interface AnalyticsBuildEnv {
   VITE_INGEST_URL?: string | undefined;
+  /** Collection also needs the published policy (ADR-025 point 5); see `privacyUrlFrom`. */
+  VITE_PRIVACY_URL?: string | undefined;
   VITE_APP_VERSION?: string | undefined;
 }
 
@@ -45,6 +48,9 @@ export function startAnalytics(
 ): IngestClient {
   const endpoint = env.VITE_INGEST_URL ?? '';
   if (!endpoint.startsWith('https://')) return offIngestClient;
+  // ADR-025 point 5: no collection before the privacy policy is published and linked. The build
+  // check fails such a build; this is the runtime backstop.
+  if (privacyUrlFrom(env) === '') return offIngestClient;
   // Portal builds collect nothing (ADR-024 point 4, ADR-025 point 3), whatever the build sets.
   if ((NO_ANALYTICS_PORTALS as readonly string[]).includes(portalId)) return offIngestClient;
   return createIngestClient({
@@ -55,4 +61,13 @@ export function startAnalytics(
     deviceClass: deviceClassFromMs(benchmarkMs),
     ...deps,
   });
+}
+
+/**
+ * The consent and Privacy panel surface for the run screen (#71, ADR-025): the client itself when
+ * collection is on, nothing when it is off (no ingest URL, or a portal build), so the UI asks
+ * nothing and shows no install ID.
+ */
+export function privacyControlsFor(client: IngestClient): PrivacyControls | undefined {
+  return client === offIngestClient ? undefined : client;
 }

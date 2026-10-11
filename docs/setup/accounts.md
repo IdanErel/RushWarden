@@ -132,8 +132,10 @@ nothing collects until you do the steps below, and **steps 4 and 5 wait until th
    games from `https://*.itch.zone`; add Poki or CrazyGames origins only if you decide to collect
    there too).
 5. **After the policy is live: switch the client on.** The itch build sends events only when it
-   is built with `VITE_INGEST_URL=https://api.rushwarden.com/ingest`. The Lead adds that variable
-   to the itch deploy workflow in the same PR as step 4. No public build has it before then.
+   is built with `VITE_INGEST_URL=https://api.rushwarden.com/ingest` **and**
+   `VITE_PRIVACY_URL=https://rushwarden.com/privacy`. The build fails if the ingest URL is set
+   without an https privacy URL (ADR-025 point 5). The Lead adds both variables to the itch deploy
+   workflow in the same PR as step 4. No public build has them before then.
 6. **Reading gate criterion 1** (ADR-010). Run this, filling in the 14-day window, and you get the
    session count and median length. It contains no install IDs:
    `curl -H "Authorization: Bearer $STATS_TOKEN" "https://api.rushwarden.com/ingest/sessions?platform=itch&from=2026-11-01T00:00:00Z&to=2026-11-15T00:00:00Z"`
