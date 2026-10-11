@@ -20,6 +20,8 @@ async function selectPlayable(page: Page): Promise<number> {
 
 /** Holds the map for 2× until the round leaves the Go phase. */
 async function playRoundFast(page: Page): Promise<void> {
+  // A hold that starts before Go has rendered is a place-phase tap, not a 2× hold.
+  await expect(state(page)).toHaveAttribute('data-phase', 'go');
   const box = await page.locator('.rw-map').boundingBox();
   if (!box) throw new Error('no map');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -115,6 +117,7 @@ test('touch: tap a target from the H5 rects, tap again to undo', async ({ page }
   await expect(state(page)).toHaveAttribute('data-phase', 'place');
   await selectPlayable(page);
   const rects = JSON.parse(await attr(page, 'target-rects')) as {
+    key: string;
     x: number;
     y: number;
     w: number;
@@ -126,7 +129,8 @@ test('touch: tap a target from the H5 rects, tap again to undo', async ({ page }
   const pos = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
   await canvas.click({ position: pos });
   await expect(state(page)).not.toHaveAttribute('data-placed', '');
-  if (r.w < 300) {
+  // By key, not size: the fitted map can make the whole-grid district rect small.
+  if (r.key !== 'district') {
     // Tile targets undo by tapping them again; district cards undo from their chip.
     await canvas.click({ position: pos });
     await expect(state(page)).toHaveAttribute('data-placed', '');
@@ -284,6 +288,8 @@ test('Poki and CrazyGames builds (ADR-024): no unlock, no links but share and po
     await expect(page.getByRole('region', { name: 'Help balance Rushwarden?' })).toHaveCount(
       portal === 'none' ? 1 : 0,
     );
+    // Go is held until the scene and worker are up; start the round once they are.
+    await expect(page.locator('.rw-map canvas')).toBeVisible();
     await page.keyboard.press(' ');
     await playRoundFast(page);
     await expect(state(page)).toHaveAttribute('data-phase', 'end');

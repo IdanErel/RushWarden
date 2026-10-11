@@ -29,7 +29,7 @@
   "consent.privacy": "Privacy",
   "privacy.open": "Privacy",
   "privacy.title": "Privacy",
-  "privacy.body": "Rushwarden keeps your progress on this device. With stats on, it sends gameplay events tagged with a random install ID and nothing else about you.",
+  "privacy.body": "Rushwarden keeps your progress on this device. With stats on, it sends a few gameplay events (rounds, results, cards played) with a random install ID, the platform, game version, language setting and a device class (low, mid or high). Never your name, email, location or an advertising ID.",
   "privacy.collectsNothing": "This build collects nothing: no stats and no install ID.",
   "privacy.switch": "Send anonymous gameplay stats",
   "privacy.on": "on",
