@@ -49,8 +49,8 @@ layouts:
 
 ## What it makes
 
-All frames come from seed 93 (`MARKET_DAY_SEED`). "With cards" is the Market Day round (round 1)
-with the clip director's plays (Roundabout and Bus Priority, 246 through against a quota of 177).
+All frames come from seed 4 (`MARKET_DAY_SEED`). "With cards" is the Market Day round (round 1)
+with the clip director's plays (One-Way, 300 through against a quota of 266).
 "Read the demand" is round 2 of the same run, the Parade. "No cards" is the same
 round with nothing played, which gridlocks. The capsules crop the "no cards" map mid-round,
 when the queues are building.
