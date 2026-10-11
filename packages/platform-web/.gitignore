@@ -1,2 +1,4 @@
 # itch HTML5 zip written by `pnpm package:itch` (P1-PLT-01)
 /itch/
+# Poki and CrazyGames zips written by `pnpm package:poki` / `package:crazygames` (P1-PLT-02)
+/portals/

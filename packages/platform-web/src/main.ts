@@ -37,11 +37,18 @@ function localStore(): Storage | null {
 }
 
 async function boot(): Promise<void> {
+  // Poki and CrazyGames builds start with no share URL, so a blocked SDK shares the line with no
+  // link; only the portal's own URL is allowed there (ADR-024 point 5). The flag is a literal after
+  // Vite's inlining, so portal bundles do not contain our website's URL (checked by package:poki).
+  const flag = import.meta.env.VITE_PORTAL;
+  const adapter = createPortalAdapter({
+    shareUrl:
+      flag === 'poki' || flag === 'crazygames'
+        ? ''
+        : import.meta.env.VITE_SHARE_URL || DEFAULT_SHARE_URL,
+  });
   // H4: in hooks builds the adapter is wrapped in a spy that records calls on window.
   // The TEST_HOOKS_ENABLED checks are literal after Vite's inlining, so public builds drop the hooks.
-  const adapter = createPortalAdapter({
-    shareUrl: import.meta.env.VITE_SHARE_URL || DEFAULT_SHARE_URL,
-  });
   const portal = TEST_HOOKS_ENABLED ? withPortalSpy(adapter, location.search, window) : adapter;
   await portal.init();
 

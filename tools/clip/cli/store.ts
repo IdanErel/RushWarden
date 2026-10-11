@@ -1,7 +1,8 @@
 /**
  * `pnpm --filter @rushwarden/clip store-assets`: renders the store assets (P1-QA-03) to
  * tools/clip/out/store/: the Steam capsules, library hero and logo, six 1920×1080 screenshots,
- * and the itch cover, plus `manifest.json` with each file's sha256.
+ * the itch cover and the Poki/CrazyGames thumbnail and cover, plus `manifest.json` with each
+ * file's sha256.
  *
  * Frames come from the clip page, which draws with the game's own `TrafficScene` (ADR-028). The
  * layout is src/store.ts, and page/store.ts draws it on a 2D canvas in the same headless
