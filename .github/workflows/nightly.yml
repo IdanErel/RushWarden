@@ -1,5 +1,6 @@
 # P1-LEAD-02: nightly golden (all three browsers), sim throughput and the GDD section 11 balance
-# report. The report is uploaded as an artifact and never committed (ADR-027).
+# report. The report is uploaded as an artifact, and on main the publish-report job also pushes it
+# to the reports/balance-nightly branch; nothing is committed to main (ADR-027).
 name: Nightly
 
 on:
@@ -83,9 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     # 2,000 seeds per bot on the runner's cores; the hard ceiling is GitHub's 6 h job limit.
     timeout-minutes: 300
-    # Write access only for this job, and only to push the report branch below (ADR-027 point 5).
-    permissions:
-      contents: write
+    outputs:
+      present: ${{ steps.runner.outputs.present }}
     env:
       SEEDS: ${{ inputs.seeds || '2000' }}
     steps:
@@ -125,13 +125,33 @@ jobs:
           path: ${{ runner.temp }}/balance/latest.md
           if-no-files-found: error
           retention-days: 30
-      - name: Publish the report to the reports/balance-nightly branch
-        # Runs on main only. The branch holds one orphan commit with latest.md, replaced (force-
-        # pushed) on every run; nothing else is ever pushed, and main is never written (ADR-027
-        # point 5). It lets agents without artifact access fetch the report with git.
-        if: steps.runner.outputs.present == 'true' && github.ref == 'refs/heads/main'
+
+  publish-report:
+    name: Publish the balance report to reports/balance-nightly
+    # The only job with write access, and it runs no repo code: checkout, the artifact, and git.
+    # Main only; it force-pushes one orphan commit holding latest.md to that one ref (ADR-027
+    # point 5). GITHUB_TOKEN cannot be limited to a branch, so main relies on its protection.
+    needs: balance
+    if: github.ref == 'refs/heads/main' && needs.balance.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          # The token is passed to the push command only, not stored in .git/config.
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: balance-report-${{ github.run_number }}-${{ github.sha }}
+          path: ${{ runner.temp }}/balance
+      - name: Push latest.md to reports/balance-nightly
         env:
           REPORT: ${{ runner.temp }}/balance/latest.md
+          SEEDS: ${{ inputs.seeds || '2000' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           blob=$(git hash-object -w "$REPORT")
           tree=$(printf '100644 blob %s\tlatest.md\n' "$blob" | git mktree)
@@ -139,5 +159,8 @@ jobs:
             -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit-tree "$tree" \
             -m "docs(balance): nightly report for ${GITHUB_SHA::7} (run ${GITHUB_RUN_NUMBER}, ${SEEDS} seeds per bot)")
-          git push --force origin "$commit:refs/heads/reports/balance-nightly"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push --force origin "$commit:refs/heads/reports/balance-nightly"
           echo "Report pushed to \`reports/balance-nightly\` (${commit::7})." >> "$GITHUB_STEP_SUMMARY"

@@ -19,9 +19,11 @@ The Phase 1 task table (P1-LEAD-02) says the nightly balance report is "committe
    on every tuning PR, so this is not a deviation from the brief, only from the task table's
    delivery mechanism.
 5. **Amendment (2026-10-11, Lead): the report is also pushed to a branch.** Some agents cannot
-   download workflow artifacts (their network blocks the artifact storage host). After the upload,
-   the nightly's balance job force-pushes a single orphan commit holding `latest.md` to the
-   dedicated branch `reports/balance-nightly`, using only `GITHUB_TOKEN` with `contents: write` on
-   that job. It runs only for runs on `main`, never writes `main` or any other branch, and the
-   artifact upload stays. Committing `docs/balance/latest.md` is still a reviewed PR by the balance
-   owner (point 2), copied from that branch.
+   download workflow artifacts (their network blocks the artifact storage host). On runs on
+   `main`, a separate `publish-report` job runs after the balance job: it downloads the report
+   artifact and force-pushes a single orphan commit holding `latest.md` to the dedicated branch
+   `reports/balance-nightly`. Only that job has `contents: write` (5-minute timeout, no install or
+   repo code; the token is passed to the push command only). The workflow pushes only that ref;
+   `GITHUB_TOKEN` itself cannot be limited to one branch, so keeping `main` unwritten relies on
+   its branch protection. The artifact upload stays, and committing `docs/balance/latest.md` is
+   still a reviewed PR by the balance owner (point 2), copied from that branch.
