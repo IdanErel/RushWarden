@@ -11,8 +11,8 @@ things:
 
 The specs are in `packages/platform-web/e2e/toy/` (the second P1-QA-01 PR). Since P1-WEB-01 (#50)
 mounts the run screen in the platform-web build, they run against it with no gate: a run screen
-that fails to mount fails every spec. The only fixmes left name their own reason (E2E-14,
-E2E-18).
+that fails to mount fails every spec. No spec is fixme any more: E2E-18 runs since #72 and
+E2E-14 since the audio wiring (#86).
 
 Sources: GDD §2 (core loop), §8 (screens, input), §9 (portal rules), §11 (test layers, device
 matrix, bug policy), §13 (Phase 1 gate); ADR-006 (Steam gate, accepted); ADR-007 (Phase 1 scope); ADR-008 (name); ADR-009 (event time
@@ -78,7 +78,7 @@ projects unless the row says otherwise, in `packages/platform-web/e2e/toy/`. Per
 - `phone-webkit` runs the whole suite nightly.
 
 E2E-04 compares paused frames with reduced motion on, because the §7 queue pulse keeps animating
-while paused. E2E-18 is fixme until render-ui's landscape fix lands (ADR-029).
+while paused.
 
 | ID     | Flow                                   | Steps                                                                                                           | Pass when                                                                                                                                                            |
 | ------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -95,7 +95,7 @@ while paused. E2E-18 is fixme until render-ui's landscape fix lands (ADR-029).
 | E2E-11 | Full run to the end and share          | Seed S1 with a scripted play; play all 5 rounds including the Market Day rush round.                            | Run-end screen shows result and rounds; the share line matches the agreed format (§5, ending in "N through" plus the link); clipboard fallback copies the same text. |
 | E2E-12 | Retry                                  | From run end, press Retry.                                                                                      | A new run starts at round 1 with approval 3 and the starting deck, with no reload and no console errors.                                                             |
 | E2E-13 | Portal call pattern (H4)               | Run E2E-11 with the spy adapter for `poki` and for `crazygames`.                                                | `commercialBreak` before run start and after run end; `gameplayStart`/`gameplayStop` around every round; `happyTime` only on a win (§9).                             |
-| E2E-14 | Sound only after a gesture             | Load with audio enabled; check the `AudioContext` state before and after the first tap.                         | No audio before the first user gesture (Poki rule, §9). Skipped while audio is not built.                                                                            |
+| E2E-14 | Sound only after a gesture             | Load with audio enabled; check the `AudioContext` state before and after the first tap.                         | No audio before the first user gesture (Poki rule, §9): with sound saved on, no `AudioContext` and H2 `data-audio` idle until the tap, then one running context.     |
 | E2E-15 | No network unless `/ingest` is on      | Record every request during E2E-11 on the itch build (portal builds also load their SDK).                       | With ingest off (the default), only same-origin static files are requested. With ingest on, only the four ADR-007 events, no other fields than §10 lists.            |
 | E2E-16 | Embedded in an iframe at 390×844       | Load the itch build inside a test page with a 390×844 iframe; press fullscreen.                                 | Whole run screen visible with no scroll; fullscreen enters and exits; input works inside the frame (§9 itch and Poki).                                               |
 | E2E-17 | Reduced motion                         | Emulate `prefers-reduced-motion: reduce` (or the in-game setting if it exists), reload, and press Go.           | H2 `data-reduced-motion` is `true` with the setting and `false` without it. No shake and no trails in that mode is render's unit test (`effects`, §8).               |

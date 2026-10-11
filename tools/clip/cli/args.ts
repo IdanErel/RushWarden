@@ -42,7 +42,7 @@ export const USAGE = `Usage: pnpm clip [options]
 Renders one round of a seeded toy run (default: the first rush round, round 1 Market Day) from its
 replay to a 9:16 MP4 (1080x1920) and GIF, plus a .json sidecar that reproduces it.
 
-  --spec <file>        clip spec JSON: { "seed": 93, "round"?: 1, "plays"?: "greedy"|"none",
+  --spec <file>        clip spec JSON: { "seed": 4, "round"?: 1, "plays"?: "greedy"|"none",
                        "actions"?: [...] } (e.g. tools/clip/clips/market-day.json)
   --seed <u32>         run seed, instead of --spec
   --round <n>          round to show (default: the run's first rush round, 1)

@@ -364,11 +364,43 @@ test.describe('toy flow', () => {
     }
   });
 
-  test('E2E-14 sound only after a gesture', async () => {
-    test.fixme(
-      true,
-      'needs the audio wiring (P1-AUD-01 in the game build); the run screen e2e in packages/ui covers the toggle gesture',
-    );
+  test('E2E-14 sound only after a gesture', async ({ page }) => {
+    // Poki rule (GDD §9): no audio before the first user gesture. Sound is off by default
+    // (ADR-007), so this loads with it saved on, the case where audio could start early. The
+    // spec counts AudioContexts by wrapping the browser's constructor (test-side only) and reads
+    // H2 `data-audio` (idle until a context exists, started after) and `data-muted`.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('rushwarden.sound', 'on');
+      } catch {
+        // The game reads the same key; without storage the spec fails on data-muted below.
+      }
+      const w = window as unknown as { AudioContext: typeof AudioContext; __ctxs: AudioContext[] };
+      const Real = w.AudioContext;
+      w.__ctxs = [];
+      w.AudioContext = class extends Real {
+        constructor(...args: ConstructorParameters<typeof AudioContext>) {
+          super(...args);
+          w.__ctxs.push(this);
+        }
+      };
+    });
+    const contexts = (): Promise<string[]> =>
+      page.evaluate(() =>
+        (window as unknown as { __ctxs: AudioContext[] }).__ctxs.map((c) => c.state),
+      );
+
+    await openToy(page, passSeed());
+    await expect(state(page)).toHaveAttribute('data-muted', 'false');
+    await expect(state(page)).toHaveAttribute('data-audio', 'idle');
+    expect(await contexts(), 'no AudioContext before a gesture').toEqual([]);
+
+    // The first tap: on the map, which is not a control, so the only effect is the gesture.
+    const box = await page.locator('canvas').first().boundingBox();
+    if (!box) throw new Error('no map canvas');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(state(page)).toHaveAttribute('data-audio', 'started');
+    await expect.poll(contexts, 'one AudioContext, running after the tap').toEqual(['running']);
   });
 
   test('E2E-16 embedded in a 390x844 iframe', async ({ page }) => {

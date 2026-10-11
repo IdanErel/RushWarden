@@ -1,6 +1,7 @@
 # ADR-021: Round demand model, seed salts and District 1 bosses
 
-Status: Accepted · Lead (proposed by Content Designer) · values tuned 2026-10-10 (P1-CON-05)
+Status: Accepted · Lead (proposed by Content Designer) · values tuned 2026-10-10 (P1-CON-05) ·
+toy-only per-template demand factor added 2026-10-11 (ADR-032, CON-06)
 
 GDD §2, §3 and §5 fix the demand mix, the quota formula, the rush multiplier, the heat-strip and
 the boss names. They leave open how many vehicles a round spawns, when and where they spawn, how
@@ -28,11 +29,13 @@ Changing a value is a content change with a balance report; changing a rule need
 2. **Quota.** `roundQuota` is the single source (Lead decision): `base[d] * (1000 + 110*(r-1)) *
 rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5). GDD §2 leaves
    `base` to the balance sim. District 1's base is 83 (P1-CON-05), about 90% of round 1's demand
-   score, so a round that flows passes with about 10% to spare and a round that jams fails.
+   score, so a round that flows passes with about 10% to spare and a round that jams fails. In
+   the toy only, the quota also takes the round's map and is multiplied by its template factor
+   and a level of 1.06 (ADR-032).
    Districts 2 and 3 keep the GDD's 34 and 42 until they have maps and a report.
 3. **Volume.** A round spawns `baseVehicles * (1 + 0.11*(r-1)) * rush * festival` vehicles,
-   rounded half up. It grows with the quota, while the map's capacity stays fixed, so congestion
-   rises each round. In District 1:
+   rounded half up, times the map's template factor in the toy (ADR-032). It grows with the
+   quota, while the map's capacity stays fixed, so congestion rises each round. In District 1:
    - `baseVehicles` is 66. With the mean score of 1.4 per vehicle, a round 1 that flows scores
      about 92 against a quota of 83. The trial value of 28 never jammed a map, so every bot
      passed every normal round at about 1.5× quota.
@@ -49,7 +52,9 @@ rush * mayor`, in per-mille integers and rounded half up (ADR-018 item 5). GDD �
    - Its spawn edge is drawn from per-round edge weights. Each edge gets a seeded weight of 1–5,
      so the heat-strip shows hot edges to plan around.
    - Its destination is uniform over the other edges. ADR-016 guarantees every pair is routable.
-   - (tick, edge) is unique: a taken tick probes forward, wrapping over the round.
+   - (tick, edge) is unique: a taken tick probes forward, wrapping over the round. An edge with
+     a spawn on every tick passes the vehicle on to the next edge that is not its destination
+     (ADR-032).
    - The profile is sorted by (tick, edge).
 6. **Heat-strip.** Spawns per edge per second, in `map.edges` order, plus the maximum for
    scaling. It is derived from the profile, so it can't disagree with it.
