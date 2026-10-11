@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SNAPSHOT_HEADER } from '@rushwarden/sim';
 import { stateAttributes } from '../src/hooks.js';
 import { format, setLanguage, t } from '../src/i18n.js';
-import { cardAtJunction, gridRef } from '../src/jam.js';
+import { cardAtJunction } from '../src/jam.js';
 import { keyAction } from '../src/keys.js';
 import { ExitCounter } from '../src/live.js';
 import { devRun } from './helpers.js';
@@ -206,12 +206,6 @@ describe('tags', () => {
 });
 
 describe('gridlock origin on the result card', () => {
-  it('names a tile A–G by 1–9 from the top left', () => {
-    expect(gridRef({ x: 0, y: 0 })).toBe('A1');
-    expect(gridRef({ x: 3, y: 4 })).toBe('D5');
-    expect(gridRef({ x: 6, y: 8 })).toBe('G9');
-  });
-
   it('finds the card on the junction, or on a run ending next to it', () => {
     const card = devRun(1).state().hand[0]!;
     const at = { x: 3, y: 4 };
@@ -237,9 +231,10 @@ describe('gridlock origin on the result card', () => {
   });
 
   it('has the result lines in English', () => {
-    expect(t('result.jam', { ref: 'D5' })).toBe('It started at the junction ringed in red (D5).');
-    expect(t('result.jamCard', { ref: 'D5', name: 'Smart Signal' })).toBe(
-      'It started at the junction ringed in red (D5), by your Smart Signal.',
+    // "Next to", not "by": the card sits where the jam began; it need not have caused it.
+    expect(t('result.jam')).toBe('It started at the junction ringed in red.');
+    expect(t('result.jamCard', { name: 'Smart Signal' })).toBe(
+      'It started at the junction ringed in red, next to your Smart Signal.',
     );
   });
 });

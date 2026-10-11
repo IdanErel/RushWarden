@@ -6,8 +6,8 @@
  * A junction is *stuck* on a tick when at least one vehicle waits at it (stopped in its box, or
  * stopped on a neighbouring tile heading into it) and no vehicle there moves. At gridlock every
  * vehicle has been stopped for `GRIDLOCK_TICKS`, so every junction with a queue is stuck; the
- * origin is the one whose current stuck stretch began first (ties: the longer queue, then the
- * lower intersection index). Pure: no Pixi, no DOM. Works with any `LaneLayout`, so the dev
+ * origin is the one whose current stuck stretch began first (ties: the one where a vehicle
+ * stopped for good first, then the lower intersection index). Pure: no Pixi, no DOM. Works with any `LaneLayout`, so the dev
  * page's fake traffic gets it too.
  */
 import {
@@ -28,6 +28,12 @@ export interface JamOrigin {
   readonly since: number;
   /** Vehicles waiting at it on the last snapshot. */
   readonly waiting: number;
+  /**
+   * Tick the longest-stopped vehicle waiting at it came to rest (it has not moved since). Breaks
+   * ties between junctions that got stuck on the same tick: the jam began where a vehicle stopped
+   * for good first.
+   */
+  readonly firstStop: number;
 }
 
 /** cos 45°: a heading within 45° of "towards the junction" counts as approaching it. */
@@ -40,6 +46,10 @@ export class JamTracer {
   private since = new Int32Array(0);
   private waiting = new Int32Array(0);
   private moving = new Uint8Array(0);
+  private firstStop = new Int32Array(0);
+  /** Vehicle id to the tick it came to rest, for vehicles stopped now. */
+  private stoppedAt = new Map<number, number>();
+  private nextStopped = new Map<number, number>();
   private lastTick = -1;
   private readonly p: LanePoint = { x: 0, y: 0, heading: 0 };
 
@@ -60,6 +70,7 @@ export class JamTracer {
     this.since = new Int32Array(n);
     this.waiting = new Int32Array(n);
     this.moving = new Uint8Array(n);
+    this.firstStop = new Int32Array(n);
     this.reset();
   }
 
@@ -67,6 +78,7 @@ export class JamTracer {
   reset(): void {
     this.since.fill(-1);
     this.waiting.fill(0);
+    this.stoppedAt.clear();
     this.lastTick = -1;
   }
 
@@ -78,14 +90,23 @@ export class JamTracer {
     this.lastTick = tick;
     this.waiting.fill(0);
     this.moving.fill(0);
+    this.firstStop.fill(0x7fffffff);
+    this.nextStopped.clear();
     const count = Math.min(s[1] ?? 0, Math.floor((s.length - SNAPSHOT_HEADER) / SNAPSHOT_STRIDE));
     for (let i = 0; i < count; i++) {
       const o = SNAPSHOT_HEADER + i * SNAPSHOT_STRIDE;
+      const id = s[o] ?? 0;
+      const stopped = (s[o + 3] ?? 0) === 0;
+      const at = stopped ? (this.stoppedAt.get(id) ?? tick) : -1;
+      if (stopped) this.nextStopped.set(id, at);
       const j = this.junctionOf(s[o + 1] ?? 0, s[o + 2] ?? 0);
       if (j < 0) continue;
-      if ((s[o + 3] ?? 0) === 0) this.waiting[j] = (this.waiting[j] ?? 0) + 1;
-      else this.moving[j] = 1;
+      if (stopped) {
+        this.waiting[j] = (this.waiting[j] ?? 0) + 1;
+        this.firstStop[j] = Math.min(this.firstStop[j] ?? at, at);
+      } else this.moving[j] = 1;
     }
+    [this.stoppedAt, this.nextStopped] = [this.nextStopped, this.stoppedAt];
     for (let j = 0; j < this.junctions.length; j++) {
       const stuck = (this.waiting[j] ?? 0) > 0 && this.moving[j] === 0;
       if (!stuck) this.since[j] = -1;
@@ -116,15 +137,18 @@ export class JamTracer {
     return this.at[y * GRID_WIDTH + x] ?? -1;
   }
 
-  /** The junction stuck longest, or null when none is stuck now. */
+  /**
+   * The junction stuck longest, or null when none is stuck now. Ties: the one where a vehicle
+   * stopped for good first, then the lower intersection index.
+   */
   origin(): JamOrigin | null {
     let best: JamOrigin | null = null;
     this.junctions.forEach((j, i) => {
       const since = this.since[i] ?? -1;
-      const waiting = this.waiting[i] ?? 0;
       if (since < 0) return;
-      if (!best || since < best.since || (since === best.since && waiting > best.waiting))
-        best = { x: j.x, y: j.y, since, waiting };
+      const firstStop = this.firstStop[i] ?? since;
+      if (!best || since < best.since || (since === best.since && firstStop < best.firstStop))
+        best = { x: j.x, y: j.y, since, waiting: this.waiting[i] ?? 0, firstStop };
     });
     return best;
   }

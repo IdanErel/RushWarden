@@ -1,18 +1,15 @@
 /**
- * Naming where a gridlock started on the result card (P1-UI readability, from the #81 feel
- * report). The scene rings the junction (`TrafficScene.gridlockOrigin`); this names it with a grid
- * reference and the card the player put there, if any, so the jam can be traced to a play.
+ * Where a gridlock started, on the result card (P1-UI readability, from the #81 feel report).
+ * The scene rings the junction (`TrafficScene.gridlockOrigin`); the card points at the ring and
+ * says which of the player's cards sits next to it, if any. It says "next to", not "by": the card
+ * is where the jam began, which does not make it the cause (reviewer-2 on #90: taking the named
+ * card away cleared the jam in 5 of 62 cases).
  */
 import type { PlacedCard } from './run/port.js';
 
 export interface JamPoint {
   readonly x: number;
   readonly y: number;
-}
-
-/** Spreadsheet-style reference: columns A–G left to right, rows 1–9 top to bottom ("D5"). */
-export function gridRef(p: JamPoint): string {
-  return `${String.fromCharCode(65 + p.x)}${p.y + 1}`;
 }
 
 const touches = (a: JamPoint, b: JamPoint): boolean =>

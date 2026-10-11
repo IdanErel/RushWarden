@@ -32,7 +32,7 @@ import {
 import { GLYPH_SIZE, cardGlyph } from './glyph.js';
 import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
-import { cardAtJunction, gridRef, type JamPoint } from './jam.js';
+import { cardAtJunction, type JamPoint } from './jam.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
 import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
@@ -843,9 +843,7 @@ function Result(p: {
       </h2>
       {o.gridlocked && p.jam && (
         <p class="rw-jam">
-          {p.jamCard
-            ? t('result.jamCard', { ref: gridRef(p.jam), name: p.jamCard })
-            : t('result.jam', { ref: gridRef(p.jam) })}
+          {p.jamCard ? t('result.jamCard', { name: p.jamCard }) : t('result.jam')}
         </p>
       )}
       <p>{t('result.score', { n: o.throughput, quota: o.quota })}</p>

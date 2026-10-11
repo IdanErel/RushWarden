@@ -35,11 +35,8 @@ test('a gridlock rings the junction where it started and the result card names i
 
   const origin = await attr(page, 'gridlock-origin');
   expect(origin).toMatch(/^\d,\d$/);
-  const [x = 0, y = 0] = origin.split(',').map(Number);
-  const ref = `${String.fromCharCode(65 + x)}${y + 1}`;
-  await expect(page.getByRole('dialog')).toContainText(
-    `It started at the junction ringed in red (${ref})`,
-  );
+  // No card was placed, so the line points at the ring alone.
+  await expect(page.getByRole('dialog')).toContainText('It started at the junction ringed in red.');
   await page.screenshot({ path: `${SHOTS}/readability-gridlock-${info.project.name}.png` });
 
   // The next round starts clean.
