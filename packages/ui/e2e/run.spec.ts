@@ -7,6 +7,11 @@ const attr = async (page: Page, k: string): Promise<string> =>
 
 /** Selects the first playable hand card by keyboard (H5 path); returns its index. */
 async function selectPlayable(page: Page): Promise<number> {
+  // H5 target rects come from the Pixi scene, which starts async after the place phase renders:
+  // until it is up every card reads `[]` and looks unplayable. Wait for the canvas, and for Go to
+  // be enabled, which the screen does only once the scene is set (#50).
+  await expect(page.locator('.rw-map canvas')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Go: start the rush hour' })).toBeEnabled();
   for (let i = 0; i < 5; i++) {
     await page.keyboard.press(String(i + 1));
     // Wait for the selection to render before reading its targets (slow machines).
