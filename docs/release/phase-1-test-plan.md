@@ -140,7 +140,7 @@ itch:
 | Web download size                                 | Lead; `pnpm size`, ADR-004                                   | Initial ≤ 7.5 MB gzipped (also under Poki's 8 MB)                                   |
 | Headless sim speed                                | Sim; P1-SIM-06 bench                                         | ≥ 2,000 rounds/s/core, reported in the PR                                           |
 | Frame time                                        | QA; Playwright trace, 4× CPU throttle on the desktop project | Reported in the itch release notes; not a Phase 1 gate (the 60 fps gate is Phase 2) |
-| Soak                                              | QA; `tools/soak`, in the itch deploy workflow                | 500 full toy runs (5 rounds) without an exception before each itch upload           |
+| Soak                                              | QA; `tools/soak`, in the itch deploy workflow                | 500 headless toy runs (5 rounds) without an exception before each itch upload       |
 
 ### 2.4 CI changes (approved by the Lead)
 
@@ -287,10 +287,11 @@ shows the data next to the bar so Idan can see how close it was.
 - The itch build can go public (Idan's action) when:
   1. CI is green.
   2. E2E-01 to E2E-13 and E2E-15 to E2E-16 pass.
-  3. The 500-run soak is clean (`pnpm --filter @rushwarden/soak run soak`; the itch deploy
-     workflow runs it before the upload). It plays the toy with the seven Phase 1 bots in turn,
-     checks every round's controller hash against the browser worker's tick-by-tick path, and
-     fails on any exception or more than 8 MB of heap growth after run 50.
+  3. The 500-run headless soak is clean (`pnpm --filter @rushwarden/soak run soak`; the itch
+     deploy workflow runs it before the upload). It plays the toy with the seven Phase 1 bots in
+     turn, checks every round's controller hash against the sim worker's real message handler,
+     and fails on any exception, worker error or more than 2 MB of heap growth after run 50. It
+     covers app, sim, content and the bots only; render and UI memory is the §3 device checklist.
   4. The three "Must" devices in §3.2 pass the checklist.
   5. There are no open P0 or P1 bugs.
   6. If `/ingest` is on, the privacy policy is live.

@@ -16,7 +16,7 @@ const { values } = parseArgs({
     runs: { type: 'string', default: '500' },
     out: { type: 'string' },
     commit: { type: 'string' },
-    'limit-mb': { type: 'string', default: '8' },
+    'limit-mb': { type: 'string', default: '2' },
     warmup: { type: 'string', default: '50' },
   },
 });

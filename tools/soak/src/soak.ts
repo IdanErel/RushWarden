@@ -5,10 +5,15 @@
  * Phase 1 bots taking turns so random, greedy and every archetype's plays are exercised.
  *
  * Each round is played twice, the two ways the game plays it: the run controller's `go`
- * (`Sim.simulate`, what scores the round) and the tick-by-tick path the browser's sim worker uses
- * (`Sim.init`, `step`, `snapshot`, `controllerSnapshot`). Their final hashes must match. An
- * exception, a run that does not end within its rounds, or a hash mismatch fails the soak, with
- * the seed and bot needed to reproduce it.
+ * (`Sim.simulate`, what scores the round) and the browser's sim worker, driven through its real
+ * handler (`createSimWorkerHandler`, the code `render/src/worker/sim.worker.ts` runs) with `step`
+ * requests of varying size as the main thread sends them. Their final hashes must match. An
+ * exception, an `error` message from the worker, a round with no `done`, a run that does not end
+ * within its rounds, or a hash mismatch fails the soak, with the seed and bot to reproduce it.
+ *
+ * It is headless: app, sim, content and the bots. The browser build's own memory (the Pixi
+ * scene, textures, listeners) is not covered; that is the device checklist and the frame-time
+ * trace (test plan §2.3 and §3).
  *
  * Portal builds (itch, Poki, CrazyGames) share this code path: they differ in the portal adapter
  * and analytics only, so one soak covers them all in Phase 1.
@@ -29,7 +34,16 @@ import {
   phase1Bots,
   type Bot,
 } from '@rushwarden/balance';
-import { Sim, controllerSnapshot, type RoundInput } from '@rushwarden/sim';
+import {
+  MAX_TICKS_PER_STEP,
+  createSimWorkerHandler,
+  createPrng,
+  nextInt,
+  type FromSimWorker,
+  type PostFromWorker,
+  type RoundInput,
+  type ToSimWorker,
+} from '@rushwarden/sim';
 
 export interface SoakFailure {
   readonly seed: number;
@@ -51,6 +65,8 @@ export interface SoakOptions {
   readonly gc?: () => void;
   readonly heapUsed?: () => number;
   readonly onRun?: (done: number) => void;
+  /** The sim worker handler; tests inject a faulty one. */
+  readonly makeHandler?: WorkerFactory;
 }
 
 export interface HeapSample {
@@ -77,18 +93,38 @@ export function salt(name: string): number {
   return h;
 }
 
-/** The browser worker's path: tick by tick, with the snapshots it posts. Returns the final hash. */
-export function tickPath(input: RoundInput): { finalHash: string; ticks: number } {
-  let s = Sim.init(input);
-  Sim.snapshot(s);
-  controllerSnapshot(s);
-  while (!s.done) {
-    s = Sim.step(s);
-    Sim.snapshot(s);
-    controllerSnapshot(s);
+/** Makes a worker handler; tests pass one that misbehaves. */
+export type WorkerFactory = (post: PostFromWorker) => (msg: ToSimWorker) => void;
+
+/**
+ * Plays a round through the browser sim worker's handler: `start`, then `step` requests of 1 to
+ * `MAX_TICKS_PER_STEP` ticks (seeded, so a failure reproduces) until `done`. Throws on an `error`
+ * message, on frames that do not add up to the result's ticks, or when no `done` arrives.
+ */
+export function workerRound(
+  input: RoundInput,
+  roundId: number,
+  makeHandler: WorkerFactory = createSimWorkerHandler,
+): { finalHash: string; ticks: number } {
+  const posts: FromSimWorker[] = [];
+  const handle = makeHandler((m) => posts.push(m));
+  const prng = createPrng(input.seed ^ 0x50a1c);
+  handle({ type: 'start', roundId, input });
+  let frames = 0;
+  for (let guard = 0; guard < 100_000; guard++) {
+    handle({ type: 'step', roundId, ticks: 1 + nextInt(prng, MAX_TICKS_PER_STEP) });
+    for (const m of posts.splice(0)) {
+      if (m.type === 'error') throw new Error(`worker error: ${m.message}`);
+      if (m.type === 'frames') frames += m.frames.length;
+      if (m.type === 'done') {
+        if (m.roundId !== roundId) throw new Error(`worker done for round ${m.roundId}`);
+        if (frames !== m.result.ticks)
+          throw new Error(`worker sent ${frames} frames for ${m.result.ticks} ticks`);
+        return { finalHash: m.result.finalHash, ticks: m.result.ticks };
+      }
+    }
   }
-  const r = Sim.result(s);
-  return { finalHash: r.finalHash, ticks: r.ticks };
+  throw new Error('worker never sent done');
 }
 
 function apply(state: RunState, action: RunAction, env: RunEnv): RunState {
@@ -110,6 +146,7 @@ export function soakRun(
   bot: Bot,
   targetsPerKind: number,
   at: { round: number },
+  makeHandler?: WorkerFactory,
 ): RunStats {
   const env = CONTENT_ENV;
   const config = configFor('toy')(seed);
@@ -120,7 +157,7 @@ export function soakRun(
     if (guard >= config.rounds) throw new Error(`run did not end within ${config.rounds} rounds`);
     at.round = state.round;
     for (const a of bot.plays(state, ctx)) state = apply(state, a, env);
-    const worker = tickPath(roundInput(state));
+    const worker = workerRound(roundInput(state), state.round, makeHandler);
     state = apply(state, { type: 'go' }, env);
     const outcome = state.history.at(-1);
     if (!outcome) throw new Error('go recorded no round outcome');
@@ -166,7 +203,7 @@ export function soak(opts: SoakOptions): SoakResult {
     const bot = bots[i % bots.length] as Bot;
     const at = { round: 0 };
     try {
-      const r = soakRun(seed, bot, opts.targetsPerKind ?? 3, at);
+      const r = soakRun(seed, bot, opts.targetsPerKind ?? 3, at, opts.makeHandler);
       rounds += r.rounds;
       ticks += r.ticks;
       if (r.win) wins++;
@@ -224,12 +261,12 @@ export function formatSoak(
   const lines = [
     `# Soak: ${pass ? 'clean' : 'FAILED'}`,
     '',
-    `${r.runs} full toy runs (5 rounds, \`toyRunConfig\`) at commit \`${opts.commit}\` in ${opts.seconds.toFixed(0)} s. GDD §11; Phase 1 test plan §5 item 3.`,
+    `${r.runs} full toy runs, headless (5 rounds, \`toyRunConfig\`; app, sim, content and bots, not the browser's render or UI) at commit \`${opts.commit}\` in ${opts.seconds.toFixed(0)} s. GDD §11; Phase 1 test plan §5 item 3.`,
     '',
     '| Check | Result |',
     '| --- | --- |',
     `| Runs without an exception, ending within their rounds | ${r.runs - r.failures.length} of ${r.runs} |`,
-    `| Rounds played (controller and worker path hashes equal) | ${r.rounds} |`,
+    `| Rounds played (controller and sim worker handler hashes equal) | ${r.rounds} |`,
     `| Heap growth after run ${opts.warmupRuns} (limit ${mb(opts.limitBytes)}) | ${g ? mb(g.growth) : 'no sample'}${r.gcForced ? '' : ' (no forced GC)'} |`,
     '',
     `Wins ${r.wins}, gridlocked rounds ${r.gridlocks}, simulated ticks ${r.ticks}. Runs per bot: ${Object.entries(
