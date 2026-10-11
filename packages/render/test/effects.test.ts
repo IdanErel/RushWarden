@@ -5,11 +5,13 @@ import {
   HEAT_GUTTER_PX,
   HEAT_LEVELS,
   HEAT_STRIP_MIN_PX,
+  JAM_RIPPLE_MS,
   PULSE_PERIOD_MS,
   SHAKE_MS,
   SHAKE_PX,
   demandBins,
   heatLevel,
+  jamRipple,
   maxBin,
   pulseAlpha,
   shakeOffset,
@@ -162,5 +164,23 @@ describe('demand heat-strips', () => {
       expect(outside).toBe(true);
     }
     expect(HEAT_STRIP_MIN_PX).toBe(6);
+  });
+});
+
+describe('gridlock-origin ripple (steam-run-3: the ring must not read as a card mark)', () => {
+  it('spreads from the ring and fades once per period', () => {
+    expect(jamRipple(0, normal)).toEqual({ scale: 1, alpha: 0.9 });
+    const mid = jamRipple(JAM_RIPPLE_MS / 2, normal);
+    expect(mid.scale).toBeCloseTo(1.3);
+    expect(mid.alpha).toBeCloseTo(0.45);
+    const late = jamRipple(JAM_RIPPLE_MS - 1, normal);
+    expect(late.scale).toBeGreaterThan(1.59);
+    expect(late.alpha).toBeLessThan(0.01);
+    expect(jamRipple(JAM_RIPPLE_MS * 3 + 100, normal)).toEqual(jamRipple(100, normal));
+    expect(jamRipple(-100, normal)).toEqual(jamRipple(JAM_RIPPLE_MS - 100, normal));
+  });
+
+  it('is off under reduced motion; the ring itself stays', () => {
+    for (const t of [0, 300, 900]) expect(jamRipple(t, reduced)).toEqual({ scale: 1, alpha: 0 });
   });
 });

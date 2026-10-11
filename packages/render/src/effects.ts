@@ -76,6 +76,20 @@ export function pulseAlpha(now: number, prefs: MotionPrefs): number {
   return t < PULSE_ON_MS ? 1 - t / PULSE_ON_MS : 0;
 }
 
+/** One ripple off the gridlock-origin ring per this many ms. */
+export const JAM_RIPPLE_MS = 1200;
+
+/**
+ * The ripple that spreads off the gridlock-origin ring at time `now` (GDD §7, #81 follow-up: the
+ * ring must never read as a card mark). `scale` grows from 1 to 1.6 of the ring's radius while
+ * `alpha` fades from 0.9 to 0. Reduced motion: no ripple (alpha 0); the ring itself stays.
+ */
+export function jamRipple(now: number, prefs: MotionPrefs): { scale: number; alpha: number } {
+  if (prefs.reducedMotion) return { scale: 1, alpha: 0 };
+  const t = (((now % JAM_RIPPLE_MS) + JAM_RIPPLE_MS) % JAM_RIPPLE_MS) / JAM_RIPPLE_MS;
+  return { scale: 1 + 0.6 * t, alpha: 0.9 * (1 - t) };
+}
+
 export const SHAKE_MS = 300;
 export const SHAKE_PX = 4;
 
