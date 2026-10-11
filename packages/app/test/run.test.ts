@@ -657,12 +657,13 @@ describe('round end, offers and run end', () => {
       };
       let s = startRun(config, env).state;
       const seen: number[] = [];
-      for (let i = 0; i < config.rounds; i++) {
+      // The toy's 5 rounds, and a full run up to its first rush round.
+      for (let i = 0; i < 5; i++) {
         seen.push(s.quota);
         s = must(s, { type: 'go' }, env);
         if (s.phase === 'result') s = must(s, { type: 'choose', pick: 'skip' }, env);
       }
-      expect(seen).toEqual(quotas);
+      expect(seen).toEqual(quotas.slice(0, 5));
       expect(new Set(seen).size).toBeGreaterThan(1);
     }
     // The toy's quota differs from the unscaled one on a scaled map.
