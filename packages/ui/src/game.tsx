@@ -31,7 +31,7 @@ import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
-import { TURN_ALLOWANCE_PX, fitMap } from './fit.js';
+import { fitMap, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
 import type { RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
@@ -88,7 +88,14 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const mapSize = useRef({ width: 0, height: 0 });
   /** Height of the controls under the map at the start of a turn (nothing selected or placed). */
   const baseline = useRef(0);
+  // GDD §8 "landscape rearranges HUD to the right": on a wide screen the board sits on the left
+  // at full height and the HUD, controls and hand form a right column.
+  const [wide, setWide] = useState(() => isWide(window.innerWidth, window.innerHeight));
+  const side = wide ? wideLayout(window.innerWidth, window.innerHeight).side : 0;
   const measureMap = (): { width: number; height: number } => {
+    // The landscape board's size depends only on the viewport, never on the controls beside it.
+    if (isWide(window.innerWidth, window.innerHeight))
+      return wideLayout(window.innerWidth, window.innerHeight).map;
     const root = rootEl.current;
     const el = mapEl.current;
     let above = 0;
@@ -121,14 +128,17 @@ export function Game(props: GameOptions): preact.JSX.Element {
     scene.resize(next.width, next.height);
     bump(0); // H5 target rects come from the scene's new fit
   };
-  // Once the scene exists, at the start of every round, and when the window changes size; never
-  // in the middle of a turn.
-  useEffect(fit, [scene, s.round, s.phase === 'place']);
+  // Once the scene exists, at the start of every round, when the window changes size, and after
+  // a switch between portrait and landscape has rendered; never in the middle of a turn.
+  useEffect(fit, [scene, s.round, s.phase === 'place', wide]);
   // One listener for the screen's life; it calls the latest `fit` (which closes over `scene`).
   const fitRef = useRef(fit);
   fitRef.current = fit;
   useEffect(() => {
-    const onResize = (): void => fitRef.current();
+    const onResize = (): void => {
+      setWide(isWide(window.innerWidth, window.innerHeight));
+      fitRef.current();
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -464,7 +474,11 @@ export function Game(props: GameOptions): preact.JSX.Element {
   );
 
   return (
-    <div class="rw-game" ref={rootEl}>
+    <div
+      class={wide ? 'rw-game rw-wide' : 'rw-game'}
+      style={wide ? { '--side': `${side}px` } : undefined}
+      ref={rootEl}
+    >
       {hookAttrs && <div id="game-state" hidden {...hookAttrs} />}
       <header class="rw-hud">
         <span class="rw-round">
