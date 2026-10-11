@@ -39,13 +39,13 @@ export interface CliOptions {
 
 export const USAGE = `Usage: pnpm clip [options]
 
-Renders one round of a seeded toy run (default: the round 5 Market Day rush round) from its
+Renders one round of a seeded toy run (default: the first rush round, round 1 Market Day) from its
 replay to a 9:16 MP4 (1080x1920) and GIF, plus a .json sidecar that reproduces it.
 
-  --spec <file>        clip spec JSON: { "seed": 4, "round"?: 5, "plays"?: "greedy"|"none",
+  --spec <file>        clip spec JSON: { "seed": 93, "round"?: 1, "plays"?: "greedy"|"none",
                        "actions"?: [...] } (e.g. tools/clip/clips/market-day.json)
   --seed <u32>         run seed, instead of --spec
-  --round <n>          round to show (default: the run's rush round, 5)
+  --round <n>          round to show (default: the run's first rush round, 1)
   --plays greedy|none  how the shown round is played when there are no actions (default greedy)
   --fps <n>            video frames per second (default 30)
   --speed <x>          sim speed, 1 = the game's 1x, 2 = hold-for-2x (default 1)
@@ -254,7 +254,7 @@ export function reproduceArgs(opts: CliOptions, sidecar: string): string[] {
   return out;
 }
 
-/** Default base name: `rushwarden-s4-r5`, with `-none` for an unplayed round. */
+/** Default base name: `rushwarden-s93-r1`, with `-none` for an unplayed round. */
 export function baseName(spec: SpecArg, round: number): string {
   const suffix = spec.plays === 'none' && !spec.actions ? '-none' : '';
   return `rushwarden-s${spec.seed}-r${round}${suffix}`;

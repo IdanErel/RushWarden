@@ -18,7 +18,12 @@ import {
   toPlacement,
 } from '../src/index.js';
 
-/** One straight road down column 3 with a bus stop at (3,4) and an edge at each end. */
+/**
+ * A straight road down column 3, with an edge at each end and a bus stop at (3,3), plus a
+ * one-tile road stub on each side at y = 4, so (3,4) is an intersection. The stubs are dead ends
+ * without edges, so `buildWorld` (and `Sim.init`) would reject this map; it is only for
+ * `placementError`, which checks targets against tiles. Give the stubs edges before simulating it.
+ */
 function testMap(): GridMap {
   const tiles: MapTile[] = [];
   for (let y = 0; y < GRID_HEIGHT; y++) {
