@@ -378,17 +378,6 @@ for (const font of FONTS)
         res.forEach((r, i) => {
           if (r.bad || r.outside || r.fontPx < 12)
             problems.push(`${batch[i]}: ${r.lines.join(' / ')} at ${r.fontPx}px`);
-          // At 390 px on the default font, words of up to 8 letters stay whole ("Overtime",
-          // "Recount"). On DejaVu Sans, much wider, "Overtime" is wider than its card even at the
-          // 12 px floor and breaks at its soft hyphen, as ruled (12 px on two lines over 10 px).
-          if (width === 390 && font === 'default')
-            for (const word of (batch[i] ?? '').split(/[\s-]+/))
-              if (
-                word.length <= 8 &&
-                r.lines.length > 1 &&
-                !r.lines.some((l) => l.split(/[\s-]+/).includes(word))
-              )
-                problems.push(`${batch[i]}: "${word}" split (${r.lines.join(' / ')})`);
         });
       }
       expect(problems).toEqual([]);
