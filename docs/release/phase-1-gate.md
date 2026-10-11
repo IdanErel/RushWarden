@@ -51,7 +51,7 @@ three need real players or public pages.
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | CI green on `main`                     | Yes at db960e4.                                                                                                                              |
 | E2E-01–13 and 15–16 pass               | Yes. The `web` and `toy-e2e` jobs run them on every PR. The only open fixme is E2E-14 (audio wiring). E2E-17 (#73) and E2E-18 (#72) now run. |
-| 500-run soak                           | **Not built yet.** QA owns it.                                                                                                               |
+| 500-run soak                           | Built in #83 (`tools/soak`, run by the itch deploy workflow). Clean at db960e4: 500 of 500 runs, heap growth 0.4 MB.                         |
 | 3 "Must" devices (test plan §3.2)      | **Pending.** Idan runs the device checklist with QA, recorded in `docs/release/phase-1-devices.md`.                                          |
 | No open P0 / P1                        | None open as of this draft.                                                                                                                  |
 | Privacy policy live if `/ingest` is on | Analytics are off until it is published (#77).                                                                                               |
