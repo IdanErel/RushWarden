@@ -6,6 +6,9 @@
  * ignore custom text, and they only ask after the player has interacted with the page. The
  * listener exists only while the guard is on, so a page with no run in progress stays eligible
  * for the back/forward cache.
+ *
+ * Only the own-site and itch builds guard: a game embedded on Poki or CrazyGames must not block the
+ * portal's own navigation, and browsers often suppress the prompt inside iframes anyway.
  */
 export const LEAVE_MESSAGE = 'Leave this run? It will be lost.';
 
@@ -14,6 +17,16 @@ type UnloadTarget = Pick<Window, 'addEventListener' | 'removeEventListener'>;
 export interface LeaveGuard {
   /** True while a run is in progress: the page asks before unloading. */
   set(inRun: boolean): void;
+}
+
+/** Portals whose builds never ask before unloading (they own the page around the game). */
+export const NO_LEAVE_GUARD_PORTALS: readonly string[] = ['poki', 'crazygames'];
+
+/** The guard for this build's `VITE_PORTAL` flag: a no-op on Poki and CrazyGames. */
+export function leaveGuardFor(portal: string | undefined, target: UnloadTarget): LeaveGuard {
+  return portal !== undefined && NO_LEAVE_GUARD_PORTALS.includes(portal)
+    ? { set: () => undefined }
+    : leaveGuard(target);
 }
 
 export function leaveGuard(target: UnloadTarget): LeaveGuard {

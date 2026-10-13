@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEAVE_MESSAGE, leaveGuard } from './leave-guard.js';
+import { LEAVE_MESSAGE, leaveGuard, leaveGuardFor } from './leave-guard.js';
 
 /** A window stand-in that keeps its beforeunload listeners and fires a cancelable event. */
 function fakeWindow() {
@@ -46,5 +46,19 @@ describe('leave guard (playtest S1)', () => {
     guard.set(true);
     guard.set(true);
     expect(win.listeners.size).toBe(1);
+  });
+
+  it('guards the own-site and itch builds only, never Poki or CrazyGames', () => {
+    for (const portal of [undefined, '', 'none', 'itch']) {
+      const win = fakeWindow();
+      leaveGuardFor(portal, win as unknown as Window).set(true);
+      expect(win.unload(), String(portal)).toBe(true);
+    }
+    for (const portal of ['poki', 'crazygames']) {
+      const win = fakeWindow();
+      leaveGuardFor(portal, win as unknown as Window).set(true);
+      expect(win.listeners.size, portal).toBe(0);
+      expect(win.unload(), portal).toBe(false);
+    }
   });
 });
