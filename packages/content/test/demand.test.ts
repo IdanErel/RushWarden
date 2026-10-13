@@ -30,6 +30,7 @@ import {
   TEMPLATE_DEMAND_PERMILLE,
   templateDemandPermille,
   TOY_PARADE_MIN_EDGES,
+  TOY_QUOTA_SHARE_PERMILLE,
   TOY_ROUNDS,
   toyRushRounds,
 } from '../src/index.js';
@@ -79,28 +80,28 @@ describe('quota (GDD §2)', () => {
     expect(roundQuota(1, 1, false, 1100)).toBe(91);
   });
 
-  it('with a map, is 85% of the score the toy round spawns, boss traffic included (ADR-032)', () => {
+  it('with a map, is 86% of the score the toy round spawns, boss traffic included (ADR-032)', () => {
     // Round 11 on d1-01 (factor 1280): 66 * 2.1 * 1.28 = 177.4 vehicles, mixed 124 cars, 26 buses,
-    // 18 trucks, 9 bikes = 124 + 78 + 36 + 9 = 247 points; 0.85 * 247 = 210.0.
+    // 18 trucks, 9 bikes = 124 + 78 + 36 + 9 = 247 points; 0.86 * 247 = 212.4.
     expect(roundScore(1, 11, false, null, 'd1-01')).toBe(247);
-    expect(roundQuota(1, 11, false, 1000, 'd1-01')).toBe(210);
-    // Market Day on d1-12 (1920): 270 vehicles make 379 points, plus 30 trucks (60): 439; 373.2.
-    expect(roundScore(1, 4, true, 'market-day', 'd1-12')).toBe(439);
-    expect(roundQuota(1, 4, true, 1000, 'd1-12')).toBe(373);
-    // Festival on d1-11 (290): 108 vehicles with 5 emergency vehicles make 175 points; 148.8.
+    expect(roundQuota(1, 11, false, 1000, 'd1-01')).toBe(212);
+    // Market Day on d1-12 (1880): 264 vehicles make 370 points, plus 30 trucks (60): 430; 369.8.
+    expect(roundScore(1, 4, true, 'market-day', 'd1-12')).toBe(430);
+    expect(roundQuota(1, 4, true, 1000, 'd1-12')).toBe(370);
+    // Festival on d1-11 (290): 108 vehicles with 5 emergency vehicles make 175 points; 150.5.
     expect(roundScore(1, 12, true, 'festival', 'd1-11')).toBe(175);
-    expect(roundQuota(1, 12, true, 1000, 'd1-11')).toBe(149);
+    expect(roundQuota(1, 12, true, 1000, 'd1-11')).toBe(151);
     // A variant uses its template's factor; the boss follows the round (8 is Parade).
     expect(roundQuota(1, 8, true, 1000, 'd1-04-mx')).toBe(roundQuota(1, 8, true, 1000, 'd1-04'));
-    expect(roundQuota(1, 8, true, 1000, 'd1-04-mx')).toBe(209);
-    // A mayor modifier multiplies on top: round 10 on d1-07 makes 170 points; 0.85 * 1.1 * 170.
-    expect(roundQuota(1, 10, false, 1100, 'd1-07')).toBe(159);
-    // A map or round with no factor plays at 1: round 1 makes 93 points, 79.05.
-    expect(roundQuota(1, 1, false, 1000, 'd1-01')).toBe(79);
-    expect(roundQuota(1, 11, false, 1000, 'not-a-template')).toBe(166);
+    expect(roundQuota(1, 8, true, 1000, 'd1-04-mx')).toBe(212);
+    // A mayor modifier multiplies on top: round 10 on d1-07 makes 170 points; 0.86 * 1.1 * 170 = 160.8.
+    expect(roundQuota(1, 10, false, 1100, 'd1-07')).toBe(161);
+    // A map or round with no factor plays at 1: round 1 makes 93 points, 80.0.
+    expect(roundQuota(1, 1, false, 1000, 'd1-01')).toBe(80);
+    expect(roundQuota(1, 11, false, 1000, 'not-a-template')).toBe(168);
   });
 
-  it('leaves the same 15% slack on every toy round, whatever the map (ADR-032, playtest B1)', () => {
+  it('leaves the same slack, at least 10%, on every toy round, whatever the map (ADR-032, playtest B1)', () => {
     for (const m of maps) {
       TOY_ROUNDS.forEach((round) => {
         const rush = RUSH_ROUNDS.includes(round);
@@ -108,7 +109,9 @@ describe('quota (GDD §2)', () => {
         const boss = rush ? (DISTRICT_DEMAND[1].bosses[k] ?? null) : null;
         const score = roundScore(1, round, rush, boss, m.id);
         const quota = roundQuota(1, round, rush, 1000, m.id);
-        expect(Math.abs(quota - 0.85 * score)).toBeLessThanOrEqual(0.5);
+        expect(Math.abs(quota - (TOY_QUOTA_SHARE_PERMILLE / 1000) * score)).toBeLessThanOrEqual(
+          0.5,
+        );
         expect(quota / score).toBeLessThanOrEqual(0.9);
       });
     }

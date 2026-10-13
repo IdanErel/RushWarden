@@ -87,7 +87,7 @@ languages other than English. Sound stays out of the copy until the audio task s
 (`MARKET_DAY_SEED` in `tools/clip/src/director.ts`, re-picked after CON-05, ADR-031, ADR-030,
 ADR-032 and its playtest amendment, which sets the toy's quota to 85% of the traffic that spawns).
 `clips/market-day.json` gives a clip on map d1-06 in which One-Way and Bus Priority carry Market
-Day to 384 through, against a quota of 353. `clips/market-day-none.json` is the same round with no
+Day to 384 through, against a quota of 357. `clips/market-day-none.json` is the same round with no
 cards, which gridlocks at 0:08 with 69 through. Both outcomes are the same under the ADR-033
 gridlock rule. The clip tests pin both outcomes, so a content change
 that breaks them fails CI; the fix is a new seed there and here. CI uploads both as MP4 and GIF on every push to

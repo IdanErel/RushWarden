@@ -114,7 +114,7 @@ export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, Readonly<Record<n
   {
     'd1-01': { 4: 1070, 8: 670, 10: 1370, 11: 1280, 12: 460 },
     'd1-02': { 4: 610, 10: 840, 11: 810, 12: 290 },
-    'd1-03': { 4: 1790, 10: 2230, 11: 2120, 12: 800 },
+    'd1-03': { 4: 1750, 10: 2230, 11: 2120, 12: 800 },
     'd1-04': { 4: 1930, 8: 940, 10: 2370, 11: 2140, 12: 820 },
     'd1-05': { 4: 840, 10: 1140, 11: 1080, 12: 390 },
     'd1-06': { 4: 1810, 10: 2290, 11: 2180, 12: 820 },
@@ -123,7 +123,7 @@ export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, Readonly<Record<n
     'd1-09': { 4: 790, 10: 1080, 11: 1020, 12: 370 },
     'd1-10': { 4: 730, 10: 1000, 11: 940, 12: 350 },
     'd1-11': { 4: 600, 8: 590, 10: 830, 11: 790, 12: 290 },
-    'd1-12': { 4: 1920, 10: 2370, 11: 2260, 12: 850 },
+    'd1-12': { 4: 1880, 10: 2370, 11: 2260, 12: 850 },
   };
 
 /**
@@ -142,9 +142,9 @@ export const TOY_PARADE_MIN_EDGES = 5;
 /**
  * ADR-032 (amended, B1): a toy round's quota is this share of the score the round spawns, boss
  * traffic included (Market Day trucks, Festival volume and emergency vehicles). Every toy round
- * then has the same slack: 15% of what spawns may stay on the road, whatever its map and boss.
+ * then has the same slack: 14% of what spawns may stay on the road, whatever its map and boss.
  */
-export const TOY_QUOTA_SHARE_PERMILLE = 850;
+export const TOY_QUOTA_SHARE_PERMILLE = 860;
 
 /**
  * The demand factor of a map in a D1 round (ADR-032), by its template: a variant id (`d1-03-mx`)

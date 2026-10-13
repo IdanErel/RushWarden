@@ -66,7 +66,7 @@ round passed. Three findings shaped the decision:
 5. **Level.** A toy round's quota is also multiplied by `TEMPLATE_QUOTA_LEVEL_PERMILLE` (1060).
    That takes the base from 83 to about 88, about 95% of a clean round 1's score. The base quota
    (83) and `baseVehicles` (66) don't change.
-   **Replaced (A1):** the level is gone; the quota is 85% of the spawned score.
+   **Replaced (A1):** the level is gone; the quota is 86% of the spawned score.
 
 6. **Toy mapping.** `TOY_ROUNDS` becomes `[4, 8, 11, 8, 12]`, amending ADR-030 item 2. With the
    templates evened out, Parade and Festival are the hardest rounds for every bot. Two Festivals
@@ -153,7 +153,8 @@ round passed. Three findings shaped the decision:
 ## Amendment 1: playtest B1, B2 and E1 (2026-10-13)
 
 Status: Proposed · Content Designer · from the Lead's playtest triage
-(`2026-10-13-triage-and-plan.md`), with the code freeze lifted for these three items.
+(`2026-10-13-triage-and-plan.md`), with the code freeze lifted for these three items, and the
+Lead's ruling on #100 (quota share and toy targets).
 
 ### Context
 
@@ -168,19 +169,37 @@ caused or left:
 - **E1, dead cards.** Under the GDD's 2-play cap, 18 of the toy's 20 cards cost 1, so energy never
   binds. Overtime (+1 energy) and Pilot Program (next card free) buy nothing and cost a play.
 
-The Lead's bar for the next candidate: toy `no-cards` at most 20%; card bots passing every toy
-round at least 50% of the time on every map; no toy round below 10% slack; §11 still in range on
-full 12-round runs.
+The triage asked for about 85% of the spawned score, card bots passing every toy round at least
+50% of the time on every map, and no toy round below 10% slack. At 85% the card bots won 64–84%
+of toys, so the Lead ruled on #100: a share of 0.86–0.90 (0.88 first), and new toy targets in
+ADR-030 item 3. Each archetype bot 55–75%, `greedy-throughput` at most 80%, `random` 10–30%,
+`no-cards` at most 20%, and no toy round or map below 35% for any archetype bot. Full-run §11 is
+unchanged.
 
 ### Decision
 
-1. **Quota (B1).** A toy round's quota is `TOY_QUOTA_SHARE_PERMILLE` (850) of the score the round
+1. **Quota (B1).** A toy round's quota is `TOY_QUOTA_SHARE_PERMILLE` (860) of the score the round
    spawns, times the mayor modifier, rounded half up. `roundScore(1, round, rush, boss, mapId)`
    sums each vehicle's §5 score over the round's exact type counts (`mixCounts`), so it includes
    the Festival's volume and emergency vehicles, and adds Market Day's 30 trucks (60 points). It
-   is exact, so the quota needs no demand profile. Every toy round, on every map, leaves 15% of
+   is exact, so the quota needs no demand profile. Every toy round, on every map, leaves 14% of
    what spawns as slack. A content test checks this for every map and toy round.
-2. **Factor per template and toy round (B1, B2).** `TEMPLATE_DEMAND_PERMILLE[template][round]`
+2. **Share 0.86.** Measured over 600 seeds per bot (2,000 for 0.86) with the factors below:
+
+   | Share | `no-cards` | `random` | `greedy` | archetypes | Lowest archetype cell |
+   | ----- | ---------- | -------- | -------- | ---------- | --------------------- |
+   | 0.85  | 19.4%      | 10.4%    | 84.0%    | 64.4–77.7% | 42%                   |
+   | 0.86  | 18.5%      | 9.4%     | 81.2%    | 59.0–74.0% | 38%                   |
+   | 0.88  | 13.7%      | 5.5%     | 74.7%    | 48.2–66.8% | 23%                   |
+   | 0.90  | 11.2%      | 4.0%     | 64.2%    | 38.5–58.3% | 11%                   |
+
+   (0.85 was measured before #95 merged.) A higher share hurts `random` most, since it fails
+   anyway on clear roads with no slack, and it puts the 4-edge maps' steep cells below 35%. 0.86
+   meets the `no-cards`, archetype and per-cell targets and misses `random` (9.4% for 10%) and
+   `greedy-throughput` (81.2% for 80%) by about a point each. Those two pull against each other:
+   making the toy harder lowers both, and easier raises both.
+
+3. **Factor per template and toy round (B1, B2).** `TEMPLATE_DEMAND_PERMILLE[template][round]`
    now scales only the round's vehicles: it sets how busy a map is, and the quota follows. Each
    boss loads a map its own way (a Parade closes a road, a Festival adds 60% and emergency
    vehicles), so a single number per template can't even out every round. A map or round without
@@ -190,7 +209,7 @@ full 12-round runs.
    | -------- | --------------- | ----------- | ----- | ----- | -------------- |
    | d1-01    | 1070            | 670         | 1280  | 1370  | 460            |
    | d1-02    | 610             | –           | 810   | 840   | 290            |
-   | d1-03    | 1790            | –           | 2120  | 2230  | 800            |
+   | d1-03    | 1750            | –           | 2120  | 2230  | 800            |
    | d1-04    | 1930            | 940         | 2140  | 2370  | 820            |
    | d1-05    | 840             | –           | 1080  | 1140  | 390            |
    | d1-06    | 1810            | –           | 2180  | 2290  | 820            |
@@ -199,79 +218,71 @@ full 12-round runs.
    | d1-09    | 790             | –           | 1020  | 1080  | 370            |
    | d1-10    | 730             | –           | 940   | 1000  | 350            |
    | d1-11    | 600             | 590         | 790   | 830   | 290            |
-   | d1-12    | 1920            | –           | 2260  | 2370  | 850            |
+   | d1-12    | 1880            | –           | 2260  | 2370  | 850            |
 
-3. **Calibration.** Each cell (template × toy round) was tuned so that the card bots
-   (`greedy-throughput` and the five archetypes, pooled) pass it about 64% of the time. The
-   method: a sweep of one factor for all maps (600–1250, Festival at half), then per-cell
-   iterations on fresh seed ranges, each cell's next factor solved from a logistic fit of its pass
-   rate against log factor over all its measurements, with steps capped at ±7%. The final table
-   was checked on seeds 1–2,000 with the run's real code path. Measured on the sim with the ADR-033
-   gridlock rule (#94), since that rule changes outcomes. To recalibrate after a map or rule
-   change, rerun the same loop.
-4. **Parade pool (B2).** A toy Parade picks only maps with at least `TOY_PARADE_MIN_EDGES` (5)
+4. **Calibration.**
+   - The cells were tuned at share 0.85 so that the card bots (`greedy-throughput` and the five
+     archetypes, pooled) pass each about 64% of the time.
+   - The method: a sweep of one factor for all maps (600–1250, Festival at half), then per-cell
+     iterations on fresh seed ranges. Each cell's next factor was solved from a logistic fit of
+     its pass rate against log factor over all its measurements, with steps capped at ±7%.
+   - At 0.86, d1-03 and d1-12 Market Day were eased 2% (1790 to 1750, 1920 to 1880) to lift FLOW's
+     weakest cells.
+   - Everything was measured on the sim with the ADR-033 gridlock rule (#94), since that rule
+     changes outcomes.
+   - To recalibrate after a map or rule change, rerun the same loop.
+5. **Parade pool (B2).** A toy Parade picks only maps with at least `TOY_PARADE_MIN_EDGES` (5)
    edges, and a closable segment as before. That leaves d1-01, d1-04, d1-07 and d1-11 and their
    variants. A full-run Parade still draws from the whole bank.
-5. **One Parade (B2).** `TOY_ROUNDS = [4, 8, 11, 10, 12]`: Market Day, Parade, round 11, round 10,
+6. **One Parade (B2).** `TOY_ROUNDS = [4, 8, 11, 10, 12]`: Market Day, Parade, round 11, round 10,
    Festival. Round 10 replaces the second Parade, so each event comes once. This amends ADR-030
    item 2 again.
-6. **Toy cards (E1).** `TOY_EXCLUDED_CARDS = ['overtime', 'pilot-program']`. `toyRunConfig` drops
+7. **Toy cards (E1).** `TOY_EXCLUDED_CARDS = ['overtime', 'pilot-program']`. `toyRunConfig` drops
    them from the starting deck (12 to 10 cards) and from the offer pool (20 to 18 cards). This is
    toy-only, like ADR-007's Grant swap. Full runs keep them, and the 2-play cap and energy 3 stay
    as the GDD sets them.
 
 ### Results
 
-Toy, seeds 1–2,000 per bot, branch content plus the ADR-033 sim. `no-cards` is local to the
-measurement, as before. "Card" pools `greedy-throughput` and the five archetypes. A round's pass
-rate counts only runs that reached it.
+Toy, seeds 1–2,000 per bot, on this branch with `main` at 7bee954 merged in and the ADR-033 sim
+commit (d8a8ef4) applied locally. `no-cards` is local to the measurement, as before. A round's
+pass rate counts only runs that reached it.
 
-| Bot                 | Toy win | ADR-030 target |
-| ------------------- | ------- | -------------- |
-| `no-cards`          | 19.4%   | at most 20%    |
-| `random`            | 10.4%   | 10–30%         |
-| `greedy-throughput` | 84.0%   | at most 75%    |
-| `archetype(FLOW)`   | 64.4%   | 35–65%         |
-| `archetype(MASS)`   | 75.8%   | 35–65%         |
-| `archetype(TOLL)`   | 77.2%   | 35–65%         |
-| `archetype(CHAOS)`  | 77.0%   | 35–65%         |
-| `archetype(TEMPO)`  | 77.7%   | 35–65%         |
+| Bot                 | Toy win | Target (ADR-030 item 3, amended) |
+| ------------------- | ------- | -------------------------------- |
+| `no-cards`          | 18.5%   | at most 20%                      |
+| `random`            | 9.4%    | 10–30% (missed by 0.6)           |
+| `greedy-throughput` | 81.2%   | at most 80% (missed by 1.2)      |
+| `archetype(FLOW)`   | 59.0%   | 55–75%                           |
+| `archetype(MASS)`   | 71.5%   | 55–75%                           |
+| `archetype(TOLL)`   | 74.0%   | 55–75%                           |
+| `archetype(CHAOS)`  | 71.1%   | 55–75%                           |
+| `archetype(TEMPO)`  | 72.6%   | 55–75%                           |
 
-Card-bot pass rate by toy round and template (pooled):
+- **Lowest cell per archetype** (toy round, template):
+  - FLOW 38% (Festival, d1-12)
+  - CHAOS 47% (round 4, d1-01)
+  - TEMPO 49% (round 3, d1-01)
+  - MASS 50% (Festival, d1-09)
+  - TOLL 52% (round 4, d1-03)
 
-| Toy round      | d1-01 | d1-02 | d1-03 | d1-04 | d1-05 | d1-06 | d1-07 | d1-08 | d1-09 | d1-10 | d1-11 | d1-12 |
-| -------------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
-| 1 (Market Day) | 65%   | 62%   | 62%   | 65%   | 65%   | 67%   | 64%   | 65%   | 62%   | 60%   | 70%   | 64%   |
-| 2 (Parade)     | 66%   | –     | –     | 61%   | –     | –     | 66%   | –     | –     | –     | 64%   | –     |
-| 3 (D1 11)      | 65%   | 65%   | 66%   | 69%   | 63%   | 65%   | 66%   | 68%   | 66%   | 69%   | 65%   | 65%   |
-| 4 (D1 10)      | 62%   | 63%   | 59%   | 67%   | 65%   | 65%   | 63%   | 63%   | 64%   | 64%   | 66%   | 65%   |
-| 5 (Festival)   | 66%   | 71%   | 64%   | 63%   | 65%   | 66%   | 62%   | 68%   | 64%   | 64%   | 67%   | 61%   |
+  Every cell is above the 35% floor. `greedy-throughput`'s lowest cell is 57%.
 
-- **Against the Lead's bar.** `no-cards` 19.4%. Every cell is 59–71% for the pooled card bots.
-  Slack is 15% on every toy round. The full run is unchanged by this amendment (every change is
-  toy-only), so §11 stands as reported for the sim it runs on.
-- **By single bot,** `greedy-throughput` passes every cell at least 60% of the time and MASS,
-  TOLL, CHAOS and TEMPO at least 53%. FLOW dips below 50% in 5 of 52 cells, all on 4-edge maps:
-  d1-12 round 1 (42%) and round 5 (43%), d1-03 round 1 (48%), d1-06 round 1 (48%) and round 4
-  (49%).
-- **`no-cards` per round** is 30–34% on average and 10–52% by cell.
-- **Quotas.** A toy Parade asks 132–209 (d1-11 to d1-04), down from 354–451. By toy round, the
-  quota runs 151–374 (Market Day), 129–372 (round 11), 129–371 (round 10) and 149–431 (Festival).
+- **Card bots pooled:** 55–69% in every cell. **`no-cards`** is 28–35% per round on average.
+- **Slack** is 14% on every toy round and map.
+- **Quotas.** A toy Parade asks 133–212 (d1-11 to d1-04), down from 354–451.
+- **Full run.** Unchanged by this amendment: every change is toy-only.
 
 ### Consequences
 
-- **The toy is easier for the card bots than ADR-030's targets.** A card bot passing each round
-  about 64% of the time wins 64–84% of toys with 3 approvals. "At least 50% on every map"
-  and "archetypes at most 65%" can't both hold: the second needs about 55% per round, which
-  leaves no margin over the first. This amendment follows the Lead's bar, and ADR-030's
-  targets for `greedy-throughput` and the archetypes are no longer met.
-- **The margin on `no-cards` is small.** Card bots beat no cards by about 32 points per round;
-  the bar needs both a 50% floor for the card bots and about 33% at most for no cards. More
-  card-bot headroom per cell would raise `no-cards` above 20%.
-- **Flat difficulty.** Every round is tuned to the same pass rate, so the toy no longer ramps.
-  The quota still rises from Market Day to the Festival on each map.
-- **Store copy.** `docs/store/itch.md` lists 20 cards and the TEMPO cards Overtime and Pilot
-  Program for the toy. The toy now has 18. The copy isn't changed here.
-- **Clip seed.** The Market Day clip seed is now 20 (d1-06; One-Way and Bus Priority pass, no cards
-  gridlocks at 0:08). It gives the same outcomes with and without the ADR-033 gridlock rule.
+- **Two targets are missed by about a point.** `random` is at 9.4% (target 10%) and
+  `greedy-throughput` at 81.2% (target at most 80%), and no share in 0.86–0.90 meets both. The
+  Lead decides whether to accept the residual.
+- **Flat difficulty.** Every round is tuned to about the same pass rate, so the toy no longer
+  ramps. The quota still rises from Market Day to the Festival on each map.
+- **Store copy.** `docs/store/itch.md` now lists the toy's 18 cards and says three of the five
+  rounds bring an event.
+- **Clip seed.** The Market Day clip seed is now 20, on d1-06. With One-Way and Bus Priority it
+  passes 384 against 357; with no cards it gridlocks at 0:08. The outcomes are the same with and
+  without the ADR-033 gridlock rule.
 - **The final report** runs on `main` after ADR-033 (#94) merges, as the Lead asked.
