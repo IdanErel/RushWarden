@@ -1,8 +1,8 @@
 /**
  * Playtest fixes U2, U3 and U6 (docs: 2026-10-13 triage and plan; Idan's playtest bugs 2 and 3,
  * QA's phone validation). Driven through the hooks only, like the rest of the toy e2e:
- * - U2: a stray Space or Enter right after the last round never skips the run summary, and the
- *   round that ends the run shows its own result first.
+ * - U2: the round that ends the run shows its own result first ("See the run" goes on), and a stray
+ *   Space or Enter as the board stops never skips it; Space never retries (#96).
  * - U3: Space toggles pause during Go, with "Paused" on screen and the button reading Resume.
  * - U6: "Hold anywhere for 2×" works outside the map too (the phone's empty lower half), but not
  *   on a button.
@@ -41,7 +41,7 @@ async function toLastGo(page: Page, run: HeadlessRun): Promise<void> {
 /** A point in the run screen that is neither the map nor a control: the panel's empty space. */
 async function emptyPanelPoint(page: Page): Promise<{ x: number; y: number }> {
   const map = await page.locator('canvas').first().boundingBox();
-  const pause = await page.getByRole('button', { name: 'Pause' }).boundingBox();
+  const pause = await page.getByRole('button', { name: /Pause/ }).boundingBox();
   const vp = page.viewportSize();
   if (!map || !pause || !vp) throw new Error('no layout');
   // Phone (portrait): below the Pause button. Desktop (landscape): the right column, below it.
@@ -65,18 +65,26 @@ test.describe('playtest controls', () => {
     const run = shortLoss();
     await openToy(page, run.seed);
     await toLastGo(page, run);
-    await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 60_000 });
+    // Catch the round's end on the next frame: an expect() poll can notice it up to 1 s late,
+    // which is past the 800 ms key guard.
+    await page.waitForFunction(
+      () => document.querySelector('#game-state')?.getAttribute('data-phase') !== 'go',
+      null,
+      { polling: 'raf', timeout: 60_000 },
+    );
 
-    // Idan's bug 2: keys pressed as the board freezes. Space, Enter, Space within 0.5 s.
+    // Idan's bug 2: keys pressed as the board stops. Space, Enter, Space, all inside the guard.
     for (const key of ['Space', 'Enter', 'Space']) await page.keyboard.press(key);
     const last = run.rounds.at(-1);
     if (!last) throw new Error('empty run');
-    // The run-ending round's own result is on screen, with its score.
+    // The run-ending round's own result is still on screen, with its score.
     await expect(page.getByRole('heading', { name: RESULT_TITLE })).toBeVisible();
     await expect(page.getByRole('dialog').first()).toContainText(
       `${last.throughput} through · quota ${last.quota}`,
     );
-    // Space never retries, however long the player keeps pressing it.
+    await expect(page.getByRole('button', { name: 'See the run' })).toBeVisible();
+    // Past the guard Space may move on to the run end, but it never retries, however long the
+    // player keeps pressing it.
     for (let i = 0; i < 10; i++) {
       await page.keyboard.press('Space');
       await page.waitForTimeout(250);
@@ -84,13 +92,13 @@ test.describe('playtest controls', () => {
     expect(await attr(page, 'history'), 'the run was not restarted').toBe(
       run.rounds.map((r) => r.mark).join(','),
     );
-    await expect(state(page)).not.toHaveAttribute('data-phase', 'place');
+    await expect(state(page)).toHaveAttribute('data-phase', 'end');
 
-    // The summary is reachable, and Retry (a click) starts a new run.
-    const retry = page.getByRole('button', { name: 'Retry' });
-    if (!(await retry.isVisible()))
-      await page.getByRole('dialog').first().getByRole('button').last().click();
+    // The run end; Retry (a click) starts a new run.
+    const seeRun = page.getByRole('button', { name: 'See the run' });
+    if (await seeRun.isVisible()) await seeRun.click();
     await expect(page.getByRole('heading', { name: 'Run over' })).toBeVisible();
+    const retry = page.getByRole('button', { name: 'Retry' });
     await page.waitForTimeout(1_000); // past the confirm-key guard
     await page.keyboard.press('Space');
     await page.waitForTimeout(500);
@@ -110,7 +118,7 @@ test.describe('playtest controls', () => {
     await page.keyboard.press('Space');
     await expect(state(page)).toHaveAttribute('data-paused', 'true');
     await expect(page.getByText('Paused', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Resume' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Resume/ })).toBeVisible();
     // Frozen while paused.
     const t0 = await attr(page, 'throughput');
     await page.waitForTimeout(1_500);
@@ -120,9 +128,10 @@ test.describe('playtest controls', () => {
     await page.keyboard.press('Space');
     await expect(state(page)).toHaveAttribute('data-paused', 'false');
     await expect(page.getByText('Paused', { exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
-    // Space works again after the Pause button was used with the mouse (focus left on a button).
-    await page.getByRole('button', { name: 'Pause' }).click();
+    await expect(page.getByRole('button', { name: /Pause/ })).toBeVisible();
+    // Space still works after the Pause button was clicked (focus left on a button): it must not
+    // also fire the focused button, which would toggle twice.
+    await page.getByRole('button', { name: /Pause/ }).click();
     await expect(state(page)).toHaveAttribute('data-paused', 'true');
     await page.keyboard.press('Space');
     await expect(state(page)).toHaveAttribute('data-paused', 'false');
@@ -153,7 +162,7 @@ test.describe('playtest controls', () => {
     await expect(state(page)).toHaveAttribute('data-speed', '1');
 
     // A press on the Pause button pauses; it does not speed up.
-    const pause = await page.getByRole('button', { name: 'Pause' }).boundingBox();
+    const pause = await page.getByRole('button', { name: /Pause/ }).boundingBox();
     if (!pause) throw new Error('no Pause button');
     await page.mouse.move(pause.x + pause.width / 2, pause.y + pause.height / 2);
     await page.mouse.down();
