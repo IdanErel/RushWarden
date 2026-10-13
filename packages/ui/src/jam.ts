@@ -5,6 +5,7 @@
  * is where the jam began, which does not make it the cause (reviewer-2 on #90: taking the named
  * card away cleared the jam in 5 of 62 cases).
  */
+import { t } from './i18n.js';
 import type { PlacedCard } from './run/port.js';
 
 export interface JamPoint {
@@ -28,4 +29,18 @@ export function cardAtJunction(placed: readonly PlacedCard[], at: JamPoint): Pla
     if (ends.some((e) => touches(e, at))) return p;
   }
   return null;
+}
+
+/**
+ * The result card's gridlock line. A junction card on the ringed junction itself reads "at your
+ * X" (playtest U7: "next to" read wrong when the ring sat on the card); a card beside it reads
+ * "next to your X".
+ */
+export function jamLine(placed: readonly PlacedCard[], at: JamPoint): string {
+  const on = placed.find(
+    (p) => p.target.kind === 'intersection' && p.target.x === at.x && p.target.y === at.y,
+  );
+  if (on) return t('result.jamAt', { name: on.card.name });
+  const near = cardAtJunction(placed, at);
+  return near ? t('result.jamCard', { name: near.card.name }) : t('result.jam');
 }

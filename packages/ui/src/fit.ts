@@ -9,10 +9,11 @@ export const MAP_MAX_W = 430;
 export const MAP_MIN_W = 180;
 const GUTTER = 12;
 /**
- * Height kept free under the map for what a turn adds below it: a row of placed-card chips
- * (44 px + 8 px gap) and one more line of card text (20 px).
+ * Height kept free under the map for what a turn adds below it: one more line of card text
+ * (20 px) past the three the hint holds open. The placed-card chips row is always there (U1), so
+ * it is already in the baseline.
  */
-export const TURN_ALLOWANCE_PX = 72;
+export const TURN_ALLOWANCE_PX = 20;
 
 export function mapHeightFor(width: number): number {
   return Math.round(((width - GUTTER) / 7) * 9 + GUTTER);

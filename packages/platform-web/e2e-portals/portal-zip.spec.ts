@@ -174,13 +174,18 @@ for (const portal of PORTALS)
       if (!map) throw new Error('no map canvas');
       await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
       await page.mouse.down();
+      // The last round shows its own result before the run end ("See the run", playtest U2);
+      // the toy hides funds, so skipping reads "Skip" (E4).
+      const toEnd = game.getByRole('button', { name: 'See the run' });
       const after = end
-        .or(game.getByRole('button', { name: 'Skip, +2 funds' }))
+        .or(toEnd)
+        .or(game.getByRole('button', { name: /^Skip/ }))
         .or(game.getByRole('button', { name: 'Next round' }));
       await expect(after.first()).toBeVisible({ timeout: 60_000 });
       await page.mouse.up();
+      if (await toEnd.isVisible()) await toEnd.click();
       if (await end.isVisible()) break;
-      const skip = game.getByRole('button', { name: 'Skip, +2 funds' });
+      const skip = game.getByRole('button', { name: /^Skip/ });
       if (await skip.isVisible()) await skip.click();
       else await game.getByRole('button', { name: 'Next round' }).click();
       await expect(

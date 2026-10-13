@@ -178,3 +178,35 @@ export function fitGrid(width: number, height: number, gutterPx = 0): ViewFit {
     heightPx,
   };
 }
+
+/**
+ * Where badge `n` of a mark goes, in px: above a horizontal run, left of a vertical one, and off
+ * the top-left corner of a junction (in the block on its diagonal, clear of all four roads). Kept
+ * on the canvas: a target on the map's edge has its badge just inside.
+ */
+export function badgeCentre(
+  r: { x: number; y: number; w: number; h: number },
+  T: number,
+  rad: number,
+  n: number,
+  width: number,
+  height: number,
+): [number, number] {
+  const step = n * (rad * 2 + 2);
+  let cx: number;
+  let cy: number;
+  if (r.h > r.w) {
+    cx = r.x * T - rad - 1;
+    cy = r.y * T + rad + 2 + step;
+  } else if (r.w > r.h) {
+    cx = r.x * T + rad + 2 + step;
+    cy = r.y * T - rad - 1;
+  } else {
+    cx = r.x * T - rad * 0.8 + step;
+    cy = r.y * T - rad * 0.8;
+  }
+  return [
+    Math.min(Math.max(cx, rad + 1), width - rad - 1),
+    Math.min(Math.max(cy, rad + 1), height - rad - 1),
+  ];
+}

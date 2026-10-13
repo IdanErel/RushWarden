@@ -108,11 +108,12 @@ test('a placed card’s badge stays on top of the traffic during Go', async ({ p
   const want = (color.match(/\d+/g) ?? []).slice(0, 3).map(Number);
   const canvas = await page.locator('.rw-map canvas').boundingBox();
   if (!canvas) throw new Error('no canvas');
-  // The badge: radius max(7, 15% of a tile) at the tile's top-left corner. Sample its coloured
-  // ring, between the white centre dot and the dark rim.
+  // The badge: radius max(7, 15% of a tile), off the junction's top-left corner in the block on
+  // its diagonal (playtest U8: clear of the queues). Sample its coloured ring, between the white
+  // centre dot and the dark rim.
   const rad = Math.max(7, r.w * 0.15);
-  const bx = canvas.x + r.x + rad + 2 + rad * 0.7;
-  const by = canvas.y + r.y + rad + 2;
+  const bx = canvas.x + r.x - rad * 0.8 + rad * 0.7;
+  const by = canvas.y + r.y - rad * 0.8;
 
   await page.keyboard.press(' ');
   await expect(state(page)).toHaveAttribute('data-phase', 'go');
@@ -150,7 +151,7 @@ test('the gridlock ring stays distinct from a red CHAOS card mark on the same ju
   await playRound(page);
   await expect(state(page)).toHaveAttribute('data-gridlock-origin', '3,4');
   await expect(page.getByRole('dialog')).toContainText(
-    'It started at the junction ringed in red, next to your Roundabout.',
+    'It started at your Roundabout, ringed in red.',
   );
 
   // The ring's light band (between its dark rim and red core) shows on all four sides, so the
