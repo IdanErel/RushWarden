@@ -15,7 +15,7 @@
 export const TICKS_PER_SECOND = 20;
 /** Ticks in one Go phase (15 s). */
 export const ROUND_TICKS = 300;
-/** Consecutive ticks with zero total speed that end the round as gridlock (3 s). */
+/** Consecutive ticks with vehicles on the map and no exit or junction entry that end the round as gridlock (3 s, ADR-033). */
 export const GRIDLOCK_TICKS = 60;
 /** Map width in tiles (portrait). */
 export const GRID_WIDTH = 7;

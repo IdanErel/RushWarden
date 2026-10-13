@@ -157,6 +157,8 @@ export interface Traffic {
   spawned: number;
   exited: number;
   throughput: number;
+  /** Vehicles that have entered a junction box this round (the gridlock detector's progress input, ADR-033). */
+  boxEntries: number;
   /** Sum of speeds after the last tick (the gridlock detector's input, P1-SIM-04). */
   speedSum: number;
   /**
@@ -381,6 +383,7 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
     spawned: 0,
     exited: 0,
     throughput: 0,
+    boxEntries: 0,
     speedSum: 0,
     pSlowPermille: 0,
     prng: null,

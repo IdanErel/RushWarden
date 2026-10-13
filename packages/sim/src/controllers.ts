@@ -265,6 +265,7 @@ export function mayEnter(t: Traffic, i: number, ix: number, inSide: number, box:
 export function enterBox(t: Traffic, i: number, box: number): void {
   const ix = t.laneIx[box]!;
   t.boxCount[ix]!++;
+  t.boxEntries++;
   if (t.entryLog) t.entryLog.push(i, ix, t.tick);
   if (t.type[i] === VehicleType.Truck && t.laneTurn[box] !== Turn.Straight) t.truckTurning[ix]!++;
 }
