@@ -161,6 +161,7 @@ export class ControllerRun implements RunPort {
     const controller = controllerOf(def);
     return {
       id: d.id,
+      uid: d.uid,
       name: info.name,
       text: info.text,
       cost: costOf(s, d),

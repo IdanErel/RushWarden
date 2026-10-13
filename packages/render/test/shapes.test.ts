@@ -7,6 +7,7 @@ import {
   chevronPoints,
   controllerShapes,
   octagonPoints,
+  vehicleCellShapes,
   vehicleOutline,
   vehicleShapes,
   type Shape,
@@ -96,6 +97,30 @@ describe('vehicle shapes (GDD §7)', () => {
       vehicleShapes(VehicleType.Emergency, 1),
     );
     expect(vehicleShapes(VehicleType.Car, 0)).toEqual(vehicleShapes(VehicleType.Car, 1));
+  });
+
+  it('draws long vehicles one cell at a time, each inside its own cell', () => {
+    for (const t of TYPES) {
+      const len = VEHICLE_LENGTH[t];
+      if (len === 1) {
+        expect(vehicleCellShapes(t, 0)).toEqual(vehicleShapes(t));
+        continue;
+      }
+      for (let c = 0; c < len; c++) {
+        const b = bounds(vehicleCellShapes(t, c));
+        // Inside the cell, with a bumper gap at each end so neighbours never overlap on a bend.
+        expect(b.x0).toBeGreaterThanOrEqual(-0.5);
+        expect(b.x1).toBeLessThanOrEqual(0.5);
+        expect(b.x1 - b.x0).toBeGreaterThan(0.8);
+        expect(Math.max(-b.y0, b.y1)).toBeLessThanOrEqual(lane / 2);
+      }
+    }
+    // The truck's cab is its head cell; the bus has a window in each cell.
+    const fills = (t: number, c: number) => vehicleCellShapes(t, c).map((x) => x.fill);
+    expect(fills(VehicleType.Truck, 0)).toContain('truckCab');
+    expect(fills(VehicleType.Truck, 1)).toEqual(['truckBox']);
+    expect(fills(VehicleType.Bus, 0)).toContain('busWindow');
+    expect(fills(VehicleType.Bus, 1)).toContain('busWindow');
   });
 
   it('falls back to a car for unknown types', () => {

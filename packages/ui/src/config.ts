@@ -17,6 +17,11 @@ export interface UiConfig {
   readonly openExternalLink?: (url: string) => void;
   /** The build's portal (`VITE_PORTAL`); omitted = `none` (own site, dev, e2e). */
   readonly portal?: UiPortal;
+  /**
+   * Show funds earned and the "+2 funds" for a skip. Funds buy cards in the shop (GDD §8 screen
+   * 6), which Phase 1 does not have (ADR-007), so the toy leaves them out (playtest E4).
+   */
+  readonly showFunds?: boolean;
 }
 
 export const DEFAULT_CONFIG: UiConfig = { privacyUrl: '', shareUrl: '' };

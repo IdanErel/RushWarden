@@ -215,7 +215,7 @@ test.describe('toy flow', () => {
     await expect(state(page)).toHaveAttribute('data-phase', 'result');
     const offers = page.getByRole('button', { name: /^Take / });
     await expect(offers).toHaveCount(3);
-    await expect(page.getByRole('button', { name: 'Skip, +2 funds' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Skip/ })).toBeVisible();
     await offers.nth(1).click();
     await expect(state(page)).toHaveAttribute('data-phase', 'place');
     await expect(state(page)).toHaveAttribute('data-round', '2');
@@ -228,7 +228,7 @@ test.describe('toy flow', () => {
     await pressGo(page);
     await holdRound(page);
     await expect(state(page)).toHaveAttribute('data-phase', 'result');
-    await page.getByRole('button', { name: 'Skip, +2 funds' }).click();
+    await page.getByRole('button', { name: /^Skip/ }).click();
     await expect(state(page)).toHaveAttribute('data-phase', 'place');
     await expect(state(page)).toHaveAttribute('data-round', '2');
     await expect(state(page)).toHaveAttribute('data-approval', '3');

@@ -19,6 +19,14 @@ export interface VehiclePose {
   y: number;
   heading: number;
   speed: number;
+  /** Body cells to draw: 1 for one-cell vehicles, 2 for a bus, 3 for a truck. */
+  cells: number;
+  /**
+   * One pose per body cell, head first (only the first `cells` are current). Each is that cell's
+   * centre and its heading along the path, so a long vehicle bends with the lane through a turn
+   * instead of overhanging it as one rigid body.
+   */
+  parts: LanePoint[];
 }
 
 /** Milliseconds per sim tick at 1× (50 ms). */
@@ -37,6 +45,11 @@ export function snapshotCount(s: Uint16Array): number {
   const n = s[1] ?? 0;
   // Never trust the header past the buffer's length.
   return Math.min(n, Math.floor((s.length - SNAPSHOT_HEADER) / SNAPSHOT_STRIDE));
+}
+
+/** `a[i]`, or 0 past the end. */
+function at(a: readonly number[], i: number): number {
+  return a[i] ?? 0;
 }
 
 /** Shortest-arc blend between two angles. */
@@ -69,6 +82,8 @@ export class SnapshotBuffer {
   private readonly mid: LanePoint = { x: 0, y: 0, heading: 0 };
   private readonly hp: LanePoint = { x: 0, y: 0, heading: 0 };
   private readonly tp: LanePoint = { x: 0, y: 0, heading: 0 };
+  /** Scratch polyline for `cellPoses`: (x, y, heading, arc length) per point. */
+  private readonly poly: number[] = [];
   /** Lane id → cell count, probed through `cellPoint` (the layout does not expose it). */
   private readonly laneCells = new Map<number, number>();
   /** The move being sampled: from (`fl`, `fc`) forward `fm` cells to the newest head cell. */
@@ -178,7 +193,48 @@ export class SnapshotBuffer {
     return true;
   }
 
-  /** The point `d` cells (fractional) behind the newest head along the path. */
+  /**
+   * Fills `parts[0..len)` with one pose per body cell, head first. The head is `d` cells behind
+   * the newest head along the path; the path back from it is the polyline through the cell
+   * centres, and cell `j` sits `j` cell lengths along that polyline, so the body stays joined
+   * and evenly spaced even where cell centres are unevenly spaced (box quarters). Each cell takes
+   * the lane heading there, blended between the two nearest cell centres, as a one-cell vehicle
+   * would. Uses the move set by `setMove`.
+   */
+  private cellPoses(d: number, len: number, parts: LanePoint[]): boolean {
+    const P = this.poly;
+    P.length = 0;
+    if (!this.along(d, this.hp)) return false;
+    P.push(this.hp.x, this.hp.y, this.hp.heading, 0);
+    const cl = 1 / this.layout.cellsPerLane;
+    const need = (len - 1) * cl;
+    const first = Math.floor(d) + 1;
+    let total = 0;
+    for (let k = first; total < need; k++) {
+      // Cell centres are at most two cells apart, so this many always covers the body.
+      if (k > first + 2 * len || !this.behind(k, this.pa)) return false;
+      const o = P.length - 4;
+      total += Math.hypot(this.pa.x - at(P, o), this.pa.y - at(P, o + 1));
+      P.push(this.pa.x, this.pa.y, this.pa.heading, total);
+    }
+    let v = 0;
+    for (let j = 0; j < len; j++) {
+      const p = parts[j];
+      if (!p) return false;
+      const s = j * cl;
+      while (v + 8 < P.length && at(P, v + 7) < s) v += 4;
+      const s0 = at(P, v + 3);
+      const span = v + 4 < P.length ? at(P, v + 7) - s0 : 0;
+      const f = span > 0 ? Math.min(1, Math.max(0, (s - s0) / span)) : 0;
+      const n = span > 0 ? v + 4 : v;
+      p.x = at(P, v) + (at(P, n) - at(P, v)) * f;
+      p.y = at(P, v + 1) + (at(P, n + 1) - at(P, v + 1)) * f;
+      p.heading = lerpAngle(at(P, v + 2), at(P, n + 2), f);
+    }
+    return true;
+  }
+
+  /** The point `d` cells (fractional) behind the newest head along the path, with its heading. */
   private along(d: number, out: LanePoint): boolean {
     const k = Math.floor(d);
     const f = d - k;
@@ -187,6 +243,7 @@ export class SnapshotBuffer {
     if (!this.behind(k + 1, this.pb)) return false;
     out.x += (this.pb.x - out.x) * f;
     out.y += (this.pb.y - out.y) * f;
+    out.heading = lerpAngle(out.heading, this.pb.heading, f);
     return true;
   }
 
@@ -276,6 +333,8 @@ export class SnapshotBuffer {
       let tx = bodyB ? this.tb.x : 0;
       let ty = bodyB ? this.tb.y : 0;
       let heading = this.b.heading;
+      /** Distance of the head behind the newest head along the path, when the path is known. */
+      let pathD = -1;
       const po = prev ? this.prevIndex.get(id) : undefined;
       if (prev && po !== undefined && t < 1) {
         const pl = word(prev, po + 1);
@@ -294,6 +353,7 @@ export class SnapshotBuffer {
             heading = this.mid.heading;
             tx = x;
             ty = y;
+            pathD = (1 - t) * this.fm;
           } else if (dx * dx + dy * dy <= MAX_BLEND_TILES * MAX_BLEND_TILES) {
             x = this.a.x + dx * t;
             y = this.a.y + dy * t;
@@ -315,12 +375,30 @@ export class SnapshotBuffer {
         heading = this.mid.heading;
         tx = x;
         ty = y;
+        pathD = 0;
       }
       if (bodyB && (x !== tx || y !== ty)) heading = Math.atan2(y - ty, x - tx);
       let pose = out[w];
       if (!pose) {
-        pose = { id: 0, type: 0, x: 0, y: 0, heading: 0, speed: 0 };
+        pose = { id: 0, type: 0, x: 0, y: 0, heading: 0, speed: 0, cells: 1, parts: [] };
         out[w] = pose;
+      }
+      const len = back + 1;
+      while (pose.parts.length < len) pose.parts.push({ x: 0, y: 0, heading: 0 });
+      pose.cells = len;
+      if (!(bodyB && pathD >= 0 && this.cellPoses(pathD, len, pose.parts))) {
+        // One-cell vehicles, and long ones off a known path (a re-route or a snap): cells in a
+        // straight line back from the anchor, as one rigid body.
+        const cpl = this.layout.cellsPerLane;
+        const c = Math.cos(heading) / cpl;
+        const sn = Math.sin(heading) / cpl;
+        for (let j = 0; j < len; j++) {
+          const p = pose.parts[j];
+          if (!p) break;
+          p.x = x - c * j;
+          p.y = y - sn * j;
+          p.heading = heading;
+        }
       }
       pose.id = id;
       pose.type = word(curr, o + 4);
