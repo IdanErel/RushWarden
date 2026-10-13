@@ -85,7 +85,7 @@ test('place by keyboard, preview, undo, go, pause, result, offer, run end, share
     }
     const take = page.getByRole('button', { name: /^Take / }).first();
     if (await take.isVisible()) {
-      await expect(page.getByRole('button', { name: 'Skip, +2 funds' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Skip', exact: true })).toBeVisible();
       await take.click();
     } else {
       await page.getByRole('button', { name: 'Next round' }).click();
@@ -95,6 +95,8 @@ test('place by keyboard, preview, undo, go, pause, result, offer, run end, share
     await playRoundFast(page);
   }
   await expect(state(page)).toHaveAttribute('data-phase', 'end');
+  // The run-ending round's own result first (playtest U2), then the run end.
+  await page.getByRole('button', { name: 'See the run' }).click();
   const share = await page.getByLabel('Share text').textContent();
   expect(share).toMatch(/^Rushwarden · Old Town · [🟩🟨🟥⬛]+ · \d+ through/u);
   expect([...(share ?? '').matchAll(/[🟩🟨🟥⬛]/gu)].length).toBe(
@@ -298,6 +300,7 @@ test('Poki and CrazyGames builds (ADR-024): no unlock, no links but share and po
     await page.keyboard.press(' ');
     await playRoundFast(page);
     await expect(state(page)).toHaveAttribute('data-phase', 'end');
+    await page.getByRole('button', { name: 'See the run' }).click();
     const won = (await attr(page, 'won')) === 'true';
     const unlock = page.getByRole('button', { name: 'Unlock Districts 2 and 3' });
     await expect(unlock).toHaveCount(portal === 'none' && won ? 1 : 0);

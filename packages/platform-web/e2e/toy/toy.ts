@@ -97,8 +97,13 @@ export async function holdRound(page: Page): Promise<void> {
  */
 export async function skipOffer(page: Page): Promise<void> {
   await expect(state(page)).toHaveAttribute('data-phase', /result|end/);
-  if ((await attr(page, 'phase')) === 'end') return;
-  const skip = page.getByRole('button', { name: 'Skip, +2 funds' });
+  if ((await attr(page, 'phase')) === 'end') {
+    // The run-ending round shows its own result first (playtest U2).
+    await page.getByRole('button', { name: 'See the run' }).click();
+    return;
+  }
+  // "Skip" (funds are hidden in the toy, playtest E4).
+  const skip = page.getByRole('button', { name: /^Skip/ });
   if (await skip.isVisible()) await skip.click();
   else await page.getByRole('button', { name: 'Next round' }).click();
   await expect(state(page)).toHaveAttribute('data-phase', /place|end/);

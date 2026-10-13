@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GRID_HEIGHT, GRID_WIDTH, emptyMap, type GridMap, type MapTile } from '@rushwarden/sim';
 import {
+  badgeCentre,
   connections,
   fitGrid,
   intersections,
@@ -101,5 +102,29 @@ describe('geometry', () => {
   it('makes roads wider with more lanes but always inside a tile', () => {
     expect(roadWidth(1)).toBeLessThan(roadWidth(2));
     expect(roadWidth(2)).toBeLessThan(1);
+  });
+});
+
+describe('badgeCentre (playtest U8: badges off the road)', () => {
+  const T = 60;
+  const rad = 9;
+  it('puts a junction badge off its top-left corner, in the diagonal block', () => {
+    const [x, y] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 0, 7 * T, 9 * T);
+    expect(x + rad).toBeLessThanOrEqual(3 * T + 2);
+    expect(y + rad).toBeLessThanOrEqual(4 * T + 2);
+  });
+  it('puts a horizontal run badge above the run and a vertical one to its left', () => {
+    const [, hy] = badgeCentre({ x: 1, y: 4, w: 2, h: 1 }, T, rad, 0, 7 * T, 9 * T);
+    expect(hy + rad).toBeLessThanOrEqual(4 * T);
+    const [vx] = badgeCentre({ x: 3, y: 1, w: 1, h: 2 }, T, rad, 0, 7 * T, 9 * T);
+    expect(vx + rad).toBeLessThanOrEqual(3 * T);
+  });
+  it('stays on the grid at the map edge, and stacks', () => {
+    const [x, y] = badgeCentre({ x: 0, y: 0, w: 1, h: 1 }, T, rad, 0, 7 * T, 9 * T);
+    expect(x - rad).toBeGreaterThanOrEqual(0);
+    expect(y - rad).toBeGreaterThanOrEqual(0);
+    const [x2] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 1, 7 * T, 9 * T);
+    const [x1] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 0, 7 * T, 9 * T);
+    expect(x2 - x1).toBe(rad * 2 + 2);
   });
 });

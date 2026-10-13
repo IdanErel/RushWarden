@@ -5,6 +5,7 @@ import { Sim, sampleInput } from '@rushwarden/sim';
 import { ControllerRun, mountGame, type CardCatalog } from '@rushwarden/ui';
 import { privacyControlsFor, startAnalytics } from './analytics.js';
 import { uiConfigFor } from './game-config.js';
+import { leaveGuardFor } from './leave-guard.js';
 import { DEFAULT_SHARE_URL, createPortalAdapter } from './portal/index.js';
 import { TEST_HOOKS_ENABLED, seedOverride, withPortalSpy } from './test-hooks.js';
 
@@ -80,6 +81,10 @@ async function boot(): Promise<void> {
   });
   // ADR-025: the consent and Privacy panels get the client only when collection is on.
   const privacy = privacyControlsFor(analytics);
+  // Playtest S1: no save until Phase 2, so ask before a reload or close loses a run in progress.
+  // Own site and itch only: portal builds never block the portal's navigation.
+  const leave = leaveGuardFor(flag, window);
+  leave.set(true);
   mountGame(el, {
     run,
     spawnWorker: spawnSimWorker,
@@ -93,10 +98,14 @@ async function boot(): Promise<void> {
       roundStart: () => portal.gameplayStart(),
       roundEnd: () => portal.gameplayStop(),
       runEnd: (s) => {
+        leave.set(false); // The end screen has nothing to lose.
         if (s.won) portal.happyTime();
         void portal.commercialBreak();
       },
-      runStart: () => void portal.commercialBreak(),
+      runStart: () => {
+        leave.set(true);
+        void portal.commercialBreak();
+      },
     },
   });
   portal.loadingFinished();

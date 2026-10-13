@@ -35,8 +35,10 @@
 .rw-game button:focus-visible,
 .rw-game a:focus-visible,
 .rw-game input:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 2px;
+  /* Keyboard focus is a dashed accent ring set off from the button, so it never reads as the
+     selected card's solid ink ring (playtest U9). */
+  outline: 3px dashed var(--accent);
+  outline-offset: 3px;
 }
 .rw-hud {
   display: flex;
@@ -70,8 +72,28 @@
   justify-content: center;
 }
 .rw-map {
+  position: relative;
   display: flex;
   justify-content: center;
+  touch-action: none;
+}
+/* U3: a paused board says so, at the top of the map (clear of the junctions). */
+.rw-paused {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  border-radius: 10px;
+  pointer-events: none;
+}
+/* U6: hold anywhere for 2× — no scrolling or text selection under a held finger. */
+.rw-game:has(.rw-goph) {
   touch-action: none;
 }
 .rw-row {
@@ -90,7 +112,9 @@
   padding: 8px 16px 16px;
 }
 .rw-detail {
-  min-height: 40px;
+  /* Three lines held open, so a card's hint (One-Way's wraps to three on a phone) does not push
+     the hand down when the card is picked (U1). */
+  min-height: calc(3 * 1.35em);
   margin: 6px 0;
 }
 .rw-pips {
@@ -164,6 +188,23 @@
 .rw-card.dim {
   opacity: 0.55;
 }
+/* U4: a played card keeps its slot, dimmed further, with a "Played" label across it. */
+.rw-card.played {
+  opacity: 0.4;
+  cursor: default;
+}
+.rw-played {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-12deg);
+  padding: 2px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 14px;
+  font-weight: 700;
+}
 .rw-cost {
   position: absolute;
   top: 4px;
@@ -208,10 +249,18 @@
   margin-top: auto;
 }
 .rw-placed {
+  /* One row, always present (U1): a placed chip never pushes the hand down. */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  height: 44px;
   gap: 6px;
   margin-bottom: 8px;
+}
+.rw-chip-group {
+  display: flex;
+  flex: none;
+  gap: 6px;
 }
 .rw-flip {
   min-width: 44px;
@@ -416,6 +465,20 @@
   grid-row: 2;
   align-self: end;
 }
+/*
+ * U1: the place panel fills the column's row with Go pinned at its top and the hand at its
+ * bottom, so a longer hint or a placed chip never moves either (a centred or bottom-aligned panel
+ * moved Go by up to 100 px as the hand changed).
+ */
+.rw-wide .rw-place {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.rw-wide .rw-place .rw-hand {
+  margin-top: auto;
+}
 .rw-wide .rw-sheet {
   left: auto;
   right: 16px;
@@ -436,10 +499,9 @@
 }
 
 /*
- * Tall landscape (`rw-roomy`, GDD §8): the controls sit centred in the right column and the hand
- * is 3 + 2 larger cards that show their rules text, so the column has no empty band.
+ * Tall landscape (`rw-roomy`, GDD §8): the hand is 3 + 2 larger cards that show their rules text,
+ * so the column has no empty band; the Go-phase controls sit centred in the column.
  */
-.rw-roomy .rw-place,
 .rw-roomy .rw-goph {
   align-self: center;
 }
