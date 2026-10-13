@@ -1,4 +1,4 @@
-import { TOY_ROUNDS, toyRushRounds } from '@rushwarden/content';
+import { TOY_EXCLUDED_CARDS, TOY_ROUNDS, toyRushRounds } from '@rushwarden/content';
 import type { BossCondition } from '@rushwarden/sim';
 import type { RunCard, RunConfig, RushRound } from './types.js';
 
@@ -64,8 +64,11 @@ export function toyRunConfig(a: PresetArgs): RunConfig {
     rushRounds: toyRushRounds(),
     curveRounds: TOY_ROUNDS,
     templateDemand: true,
-    startingDeck: a.startingDeck ?? PHASE1_STARTING_DECK,
-    cards: a.cards,
+    // ADR-032 (E1): Overtime and Pilot Program are left out of the toy's deck and offers.
+    startingDeck: (a.startingDeck ?? PHASE1_STARTING_DECK).filter(
+      (id) => !TOY_EXCLUDED_CARDS.includes(id),
+    ),
+    cards: a.cards.filter((c) => !TOY_EXCLUDED_CARDS.includes(c.id)),
   };
 }
 
