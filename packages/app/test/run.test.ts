@@ -435,7 +435,7 @@ describe('run-level effects', () => {
     expect(t.hand).toHaveLength(4);
   });
 
-  it('Recount shuffles the returned cards in, so an empty pile no longer hands back the same hand (playtest E3)', () => {
+  it('Recount discards the returned cards, so it no longer hands back the same cards (playtest E3)', () => {
     // The identical hand happened when the draw pile was empty: the returned cards went to the
     // bottom and were drawn straight back in the same order. Seed 11, pile run out.
     const ids = ['recount', 'detour', 'turn-lane', 'overtime', 'bus-priority'];
@@ -443,23 +443,38 @@ describe('run-level effects', () => {
       const base = startRun(toy(seed), fakeEnv()).state;
       return { ...withHand(base, ids), drawPile: [], spent: [...base.spent, ...base.drawPile] };
     };
+    const set = (cards: readonly { uid: number }[]) =>
+      cards
+        .map((c) => c.uid)
+        .sort((a, b) => a - b)
+        .join();
     const s = emptyPile(11);
-    const back = s.hand.slice(1).map((c) => c.uid);
+    const back = s.hand.slice(1);
     const after = (playId(s, 'recount') as { state: RunState }).state;
-    expect(after.hand.map((c) => c.uid)).not.toEqual(back);
-    expect([...after.hand.map((c) => c.uid)].sort()).toEqual([...back].sort());
+    expect(after.hand).toHaveLength(4);
+    expect(set(after.hand)).not.toEqual(set(back));
+    expect(deckOf(after).length).toBe(deckOf(s).length);
     // Deterministic from the run seed.
     const again = (playId(emptyPile(11), 'recount') as { state: RunState }).state;
     expect(again.hand).toEqual(after.hand);
-    // Across seeds, the same order comes back only by chance (4 cards: 1 in 24), not every time.
+    // Across seeds, the same set of cards comes back at most by rare chance (4 of 11: 1 in 330).
     let same = 0;
     for (let seed = 1; seed <= 240; seed++) {
       const t = emptyPile(seed);
-      const order = t.hand.slice(1).map((c) => c.uid);
       const r = (playId(t, 'recount') as { state: RunState }).state;
-      if (r.hand.map((c) => c.uid).join() === order.join()) same++;
+      if (set(r.hand) === set(t.hand.slice(1))) same++;
     }
-    expect(same).toBeLessThan(24);
+    expect(same).toBeLessThanOrEqual(2);
+  });
+
+  it('Recount draws new cards from the pile before any returned card', () => {
+    const base = startRun(toy(11), fakeEnv()).state;
+    const s = withHand(base, ['recount', 'detour', 'turn-lane', 'overtime', 'bus-priority']);
+    const back = new Set(s.hand.slice(1).map((c) => c.uid));
+    expect(s.drawPile.length).toBeGreaterThanOrEqual(4);
+    const after = (playId(s, 'recount') as { state: RunState }).state;
+    expect(after.hand.some((c) => back.has(c.uid))).toBe(false);
+    expect(after.hand.map((c) => c.uid)).toEqual(s.drawPile.slice(0, 4).map((c) => c.uid));
   });
 
   it('run-duration cards persist as run effects and per-round energy', () => {

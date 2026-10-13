@@ -399,11 +399,12 @@ function play(state: RunState, action: Extract<RunAction, { type: 'play' }>): St
             ? hand[action.keepHandIndex]
             : undefined;
         const back = hand.filter((c) => c !== keep);
-        // The returned cards are shuffled into the draw pile first, so a short pile cannot hand
-        // back the same cards in the same order (playtest E3).
+        // The returned cards are discarded, then the new hand is drawn: from the draw pile first,
+        // and when it runs out from the spent pile (returned cards included) reshuffled. So a
+        // Recount almost never hands back the same cards (playtest E3).
         const dealt = draw(
-          shuffle([...drawPile, ...back], prng),
-          spent,
+          drawPile,
+          [...spent, ...back],
           back.length,
           prng,
           lastRoundSkip(state, state.round),
