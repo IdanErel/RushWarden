@@ -65,16 +65,24 @@ test.describe('playtest controls', () => {
     const run = shortLoss();
     await openToy(page, run.seed);
     await toLastGo(page, run);
-    // Catch the round's end on the next frame: an expect() poll can notice it up to 1 s late,
-    // which is past the 800 ms key guard.
-    await page.waitForFunction(
-      () => document.querySelector('#game-state')?.getAttribute('data-phase') !== 'go',
-      null,
-      { polling: 'raf', timeout: 60_000 },
+    // Idan's bug 2: keys pressed as the board stops. Space, Enter, Space are sent from inside the
+    // page on the frame the phase leaves Go, so they land inside the 800 ms key guard however
+    // slow the test runner is (an expect poll or a keyboard.press round trip can take longer).
+    await page.evaluate(
+      () =>
+        new Promise<void>((done) => {
+          const tick = (): void => {
+            if (document.querySelector('#game-state')?.getAttribute('data-phase') !== 'go') {
+              for (const key of [' ', 'Enter', ' '])
+                window.dispatchEvent(
+                  new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+                );
+              done();
+            } else requestAnimationFrame(tick);
+          };
+          tick();
+        }),
     );
-
-    // Idan's bug 2: keys pressed as the board stops. Space, Enter, Space, all inside the guard.
-    for (const key of ['Space', 'Enter', 'Space']) await page.keyboard.press(key);
     const last = run.rounds.at(-1);
     if (!last) throw new Error('empty run');
     // The run-ending round's own result is still on screen, with its score.
