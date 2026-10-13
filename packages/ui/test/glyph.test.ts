@@ -6,6 +6,7 @@ import { TAG_COLOR, css } from '../src/tags.js';
 
 const card = (over: Partial<UiCard> = {}): UiCard => ({
   id: 'c',
+  uid: 1,
   name: 'C',
   cost: 1,
   target: 'intersection',

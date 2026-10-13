@@ -16,6 +16,7 @@ export {
   costOf,
   deckOf,
   resolveTier,
+  isNextRoundOnly,
   runEffectError,
   sameTarget,
 } from './controller.js';

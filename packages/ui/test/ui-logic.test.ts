@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SNAPSHOT_HEADER } from '@rushwarden/sim';
 import { stateAttributes } from '../src/hooks.js';
 import { format, setLanguage, t } from '../src/i18n.js';
-import { cardAtJunction } from '../src/jam.js';
+import { cardAtJunction, jamLine } from '../src/jam.js';
 import { keyAction } from '../src/keys.js';
 import { ExitCounter } from '../src/live.js';
 import { devRun } from './helpers.js';
@@ -85,6 +85,10 @@ describe('keyboard map (GDD §8)', () => {
     expect(keyAction('result', 'Escape')).toEqual({ type: 'skip' });
     expect(keyAction('end', 'Enter')).toEqual({ type: 'confirm' });
     expect(keyAction('end', 'Escape')).toBeNull();
+    // U2: Space never retries; U3: Space pauses and resumes the board in Go.
+    expect(keyAction('end', ' ')).toBeNull();
+    expect(keyAction('go', ' ')).toEqual({ type: 'togglePause' });
+    expect(keyAction('go', ' ', true)).toBeNull();
     expect(keyAction('place', 'Escape', true)).toEqual({ type: 'pause' });
     expect(keyAction('place', '1', true)).toBeNull();
   });
@@ -231,6 +235,14 @@ describe('gridlock origin on the result card', () => {
     expect(cardAtJunction([road, junction], at)).toBe(road);
     // A segment without its run falls back to its own tile.
     expect(cardAtJunction([{ card, target: { kind: 'segment', x: 4, y: 4 } }], at)).not.toBeNull();
+    // U7: "at your X" when the ring is on the card, "next to" when beside it.
+    expect(jamLine([road, junction], at)).toBe(
+      `It started at your ${junction.card.name}, ringed in red.`,
+    );
+    expect(jamLine([road], at)).toBe(
+      `It started at the junction ringed in red, next to your ${road.card.name}.`,
+    );
+    expect(jamLine([elsewhere], at)).toBe('It started at the junction ringed in red.');
   });
 
   it('has the result lines in English', () => {
