@@ -37,7 +37,13 @@ import { boxAlpha, readControllers, stopBars, type LiveIntersection } from '../c
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
 import { worldLaneLayout, type LaneLayout } from '../lanes.js';
 import { OLD_TOWN, type Palette } from '../palette.js';
-import { VEHICLE_LENGTH, controllerShapes, vehicleOutline, vehicleShapes } from '../shapes.js';
+import {
+  VEHICLE_LENGTH,
+  controllerShapes,
+  vehicleCellShapes,
+  vehicleOutline,
+  vehicleShapes,
+} from '../shapes.js';
 import {
   GRIDLOCK_TINT,
   HEAT_BINS,
@@ -108,11 +114,20 @@ export interface PlacedMark {
   };
 }
 
-/** One drawn vehicle: the shared-context body plus its queue-pulse outline. */
-interface VehicleView {
+/** One drawn cell of a vehicle: the shared-context body plus its queue-pulse outline. */
+interface VehicleCellView {
   readonly root: Container;
   readonly body: Graphics;
   readonly pulse: Graphics;
+}
+
+/**
+ * One drawn vehicle: a view per body cell (one for cars, two for a bus, three for a truck), each
+ * placed at its own pose along the path so long vehicles bend through turns.
+ */
+interface VehicleView {
+  readonly root: Container;
+  readonly cells: VehicleCellView[];
 }
 
 /** What the last frame drew; read by tests and the dev page's state node. */
@@ -171,7 +186,8 @@ export class TrafficScene {
   readonly stats: SceneStats = { vehicles: 0, queued: 0, trails: 0, gridlock: false };
   private readonly poses: VehiclePose[] = [];
   private readonly seen = new Set<number>();
-  private contexts: GraphicsContext[] = [];
+  /** Per vehicle type, one shared context per body cell (head first). */
+  private contexts: GraphicsContext[][] = [];
   /** Second beacon frame for emergency vehicles. */
   private beaconAlt: GraphicsContext | null = null;
   private controllers = new Map<number, ControllerMark>();
@@ -423,7 +439,7 @@ export class TrafficScene {
   }
 
   destroy(): void {
-    for (const c of this.contexts) c.destroy();
+    for (const c of this.contexts.flat()) c.destroy();
     for (const c of this.pulseContexts) c.destroy();
     this.beaconAlt?.destroy();
     this.app.destroy(true, { children: true });
@@ -489,7 +505,7 @@ export class TrafficScene {
   private buildVehicleContexts(): void {
     const cellPx = this.fit.tilePx / CELLS_PER_TILE;
     const old = [
-      ...this.contexts,
+      ...this.contexts.flat(),
       ...this.pulseContexts,
       ...(this.beaconAlt ? [this.beaconAlt] : []),
     ];
@@ -497,7 +513,9 @@ export class TrafficScene {
       drawShapes(new GraphicsContext(), vehicleOutline(t), this.palette, cellPx),
     );
     this.contexts = VEHICLE_TYPES.map((t) =>
-      drawShapes(new GraphicsContext(), vehicleShapes(t, 0), this.palette, cellPx),
+      Array.from({ length: VEHICLE_LENGTH[t] }, (_, cell) =>
+        drawShapes(new GraphicsContext(), vehicleCellShapes(t, cell, 0), this.palette, cellPx),
+      ),
     );
     this.beaconAlt = drawShapes(
       new GraphicsContext(),
@@ -777,11 +795,22 @@ export class TrafficScene {
   private takeView(): VehicleView {
     const pooled = this.pool.pop();
     if (pooled) return pooled;
-    const root = new Container();
-    const body = new Graphics();
-    const pulse = new Graphics();
-    root.addChild(body, pulse);
-    return { root, body, pulse };
+    return { root: new Container(), cells: [] };
+  }
+
+  /** The view's cell `j`, created on first use. */
+  private cellView(v: VehicleView, j: number): VehicleCellView {
+    let c = v.cells[j];
+    if (!c) {
+      const root = new Container();
+      const body = new Graphics();
+      const pulse = new Graphics();
+      root.addChild(body, pulse);
+      v.root.addChild(root);
+      c = { root, body, pulse };
+      v.cells[j] = c;
+    }
+    return c;
   }
 
   private frame(now: number): void {
@@ -820,11 +849,8 @@ export class TrafficScene {
     for (let i = 0; i < n; i++) {
       const pose = this.poses[i];
       if (!pose) continue;
-      const ctx =
-        pose.type === VehicleType.Emergency && beacon && this.beaconAlt
-          ? this.beaconAlt
-          : (this.contexts[pose.type] ?? this.contexts[0]);
-      if (!ctx) continue;
+      const ctxs = this.contexts[pose.type] ?? this.contexts[0];
+      if (!ctxs) continue;
       this.seen.add(pose.id);
       let v = this.vehicles.get(pose.id);
       if (!v) {
@@ -832,22 +858,41 @@ export class TrafficScene {
         this.vehicles.set(pose.id, v);
         this.vehicleLayer.addChild(v.root);
       }
-      if (v.body.context !== ctx) v.body.context = ctx;
-      const pctx = this.pulseContexts[pose.type] ?? this.pulseContexts[0];
-      if (pctx && v.pulse.context !== pctx) v.pulse.context = pctx;
-      v.root.position.set(pose.x * T, pose.y * T);
-      v.root.rotation = pose.heading;
-
       const stopped = pose.speed === 0;
       if (stopped) queued++;
-      v.body.tint = gridlock && stopped ? GRIDLOCK_TINT : 0xffffff;
-      v.pulse.visible = stopped && !gridlock && pulse > 0;
-      v.pulse.alpha = pulse;
+      const tint = gridlock && stopped ? GRIDLOCK_TINT : 0xffffff;
+      const pulsing = stopped && !gridlock && pulse > 0;
+      // Long vehicles use the one-cell outline per cell; the rest their own.
+      const pctx =
+        pose.cells > 1
+          ? this.pulseContexts[VehicleType.Car]
+          : (this.pulseContexts[pose.type] ?? this.pulseContexts[0]);
+      const n = Math.min(pose.cells, ctxs.length);
+      for (let j = 0; j < n; j++) {
+        const part = pose.parts[j];
+        const ctx =
+          j === 0 && pose.type === VehicleType.Emergency && beacon && this.beaconAlt
+            ? this.beaconAlt
+            : ctxs[j];
+        if (!part || !ctx) continue;
+        const c = this.cellView(v, j);
+        c.root.visible = true;
+        if (c.body.context !== ctx) c.body.context = ctx;
+        if (pctx && c.pulse.context !== pctx) c.pulse.context = pctx;
+        c.root.position.set(part.x * T, part.y * T);
+        c.root.rotation = part.heading;
+        c.body.tint = tint;
+        c.pulse.visible = pulsing;
+        c.pulse.alpha = pulse;
+      }
+      for (const [j, c] of v.cells.entries()) if (j >= n) c.root.visible = false;
 
       const cells = trailCells(pose.speed, this.motion);
       if (cells > 0) {
         trailing++;
-        this.drawTrail(trails, pose, cells, cellPx, T);
+        // Behind the tail cell, along its own heading.
+        const tail = pose.parts[pose.cells - 1] ?? pose;
+        this.drawTrail(trails, tail, cells, cellPx, T);
       }
     }
     for (const [id, v] of this.vehicles) {
@@ -863,20 +908,19 @@ export class TrafficScene {
     this.stats.gridlock = gridlock;
   }
 
-  /** 1–3 cell tapering streak behind the vehicle's tail, fading with distance (GDD §7). */
+  /** 1–3 cell tapering streak behind a vehicle's tail cell (`at`), fading with distance (GDD §7). */
   private drawTrail(
     g: Graphics,
-    pose: VehiclePose,
+    at: { readonly x: number; readonly y: number; readonly heading: number },
     cells: number,
     cellPx: number,
     T: number,
   ): void {
-    const len = VEHICLE_LENGTH[pose.type as VehicleType] ?? 1;
-    const c = Math.cos(pose.heading);
-    const s = Math.sin(pose.heading);
-    const cx = pose.x * T;
-    const cy = pose.y * T;
-    for (const p of trailPieces(cells, len)) {
+    const c = Math.cos(at.heading);
+    const s = Math.sin(at.heading);
+    const cx = at.x * T;
+    const cy = at.y * T;
+    for (const p of trailPieces(cells, 1)) {
       const pts = [p.a0, -p.h0, p.a0, p.h0, p.a1, p.h1, p.a1, -p.h1];
       const out: number[] = [];
       for (let k = 0; k < pts.length; k += 2) {
