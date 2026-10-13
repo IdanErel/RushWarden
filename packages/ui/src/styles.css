@@ -605,8 +605,11 @@
   overflow-x: auto;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
-  /* A scrolling row clips: room for the selected card's 8 px raise and 3 px ring. */
+  /* A scrolling row clips: room for the selected card's 8 px raise and 3 px ring, and at each
+     end so the first or 7th card selected or focused never sits flush with the screen edge. */
   padding-top: 12px;
+  padding-inline: 6px;
+  scroll-padding-inline: 6px;
 }
 .rw-game:not(.rw-wide) .rw-hand-big .rw-card {
   scroll-snap-align: start;

@@ -22,6 +22,9 @@ most games and video players.
    summary.
 4. The GDD text is left as it is. This extends GDD §8 rather than changing it: "Space = Go"
    has nothing to do once a round is running, so this ADR adds the Go-phase binding.
+5. **Keys 6 and 7 select the 6th and 7th card** when the hand holds that many (a Second Shift
+   hand, #103, playtest U10). GDD §8 numbers the keys for a 5-card hand; this extends the same
+   binding to the larger one.
 
 ## Consequences
 

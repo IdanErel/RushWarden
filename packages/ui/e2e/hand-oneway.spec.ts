@@ -107,5 +107,7 @@ test('a controller over another this round says it replaces it (U11)', async ({ 
   await expect(state(page)).toHaveAttribute('data-placed', 'roundabout');
   // Number keys name the round's slots (U4), so Smart Signal keeps its opening number.
   await page.keyboard.press(String(hand.indexOf('smart-signal') + 1));
-  await expect(page.locator('.rw-detail')).toContainText('Replaces your Roundabout here.');
+  await expect(page.locator('.rw-detail')).toContainText(
+    'Replaces your Roundabout here; its energy is refunded.',
+  );
 });
