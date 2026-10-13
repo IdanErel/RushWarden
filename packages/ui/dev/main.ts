@@ -18,7 +18,7 @@ import {
 } from '../src/index.js';
 import { fitNames } from '../src/fit-text.js';
 import { displayName } from '../src/names.js';
-import { DEV_CARDS, devCatalog, devEnv } from './cards.js';
+import { DEV_CARDS, DEV_STARTING_DECK, devCatalog, devEnv } from './cards.js';
 
 const q = new URLSearchParams(location.search);
 const seed = Number(q.get('seed') ?? '1') >>> 0;
@@ -89,7 +89,7 @@ const privacy: PrivacyControls = {
 const unlockCalls: number[] = [];
 /** `rounds=N`: a shorter run with no rush round, so e2e reaches the run end quickly. */
 const rounds = Number(q.get('rounds') ?? '0');
-const toy = toyRunConfig({ seed, cards: DEV_CARDS });
+const toy = toyRunConfig({ seed, cards: DEV_CARDS, startingDeck: DEV_STARTING_DECK });
 // The toy's rounds sample District 1's curve (ADR-030): keep one curve round per round played.
 const shortRun =
   rounds > 0
