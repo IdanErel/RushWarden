@@ -235,6 +235,14 @@ export class ControllerRun implements RunPort {
     this.marks.set(d.uid, target);
   }
 
+  segmentOf(
+    target: TargetMark,
+  ): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+    if (target.kind !== 'segment') return null;
+    const t = toSimTarget(target, this.ctl.state.map);
+    return t.kind === 'segment' ? { from: t.from, to: t.to } : null;
+  }
+
   canUndo(placedIndex: number): boolean {
     const s = this.ctl.state;
     if (this.going || s.phase !== 'place' || !s.plays[placedIndex]) return false;

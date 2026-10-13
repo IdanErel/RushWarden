@@ -91,6 +91,11 @@ export interface RunPort {
    * the round, which the rules never undo (ADR-018 point 8), and outside the place phase.
    */
   canUndo(placedIndex: number): boolean;
+  /**
+   * The straight run a segment target covers, pointing the way a directional card placed on it
+   * would run (its `reverse` included); null for any other target. For the One-Way preview.
+   */
+  segmentOf(target: TargetMark): { readonly from: TileXY; readonly to: TileXY } | null;
   /** Takes back a card placed this round ("tap again to undo before Go"). No-op if `!canUndo`. */
   undo(placedIndex: number): void;
   /** Whether play `placedIndex` is a directional card that can still be turned round. */

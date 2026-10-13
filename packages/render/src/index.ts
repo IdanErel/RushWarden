@@ -18,6 +18,7 @@ export { SimClient, spawnSimWorker, type SimClientHandlers } from './worker/clie
 export {
   TrafficScene,
   type ControllerMark,
+  type GhostArrow,
   type PlacedMark,
   type SceneStats,
   type TrafficSceneOptions,

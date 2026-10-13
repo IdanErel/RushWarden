@@ -59,6 +59,9 @@ describe('share line (GDD §5)', () => {
 describe('keyboard map (GDD §8)', () => {
   it('place: 1–5, arrows, Enter, Space, Esc', () => {
     expect(keyAction('place', '3')).toEqual({ type: 'select', index: 2 });
+    // U10: a 7-card hand (Second Shift) has keys 6 and 7.
+    expect(keyAction('place', '7')).toEqual({ type: 'select', index: 6 });
+    expect(keyAction('place', '8')).toBeNull();
     expect(keyAction('place', 'ArrowLeft')).toEqual({ type: 'cursor', dir: 'w' });
     expect(keyAction('place', 'Enter')).toEqual({ type: 'confirm' });
     expect(keyAction('place', ' ')).toEqual({ type: 'go' });
