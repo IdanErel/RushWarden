@@ -1,6 +1,6 @@
 # ADR-034: Space pauses and resumes during the Go phase
 
-Status: Proposed · 2026-10-13 · Render/UI (#96, playtest U3). Number to be confirmed by the Lead.
+Status: Accepted (Lead) · 2026-10-13 · Render/UI (#96, playtest U3). Number assigned by the Lead.
 
 ## Context
 
@@ -20,8 +20,8 @@ most games and video players.
 3. **Space never answers a result or run-end sheet with Retry.** Only Enter retries, and only
    0.8 s after the sheet appears (U2). A stray Space press from the Go phase cannot skip the run
    summary.
-4. The GDD text is left as it is. This ADR records the Go-phase meaning of Space until the GDD's
-   §8 map is next revised.
+4. The GDD text is left as it is. This extends GDD §8 rather than changing it: "Space = Go"
+   has nothing to do once a round is running, so this ADR adds the Go-phase binding.
 
 ## Consequences
 
