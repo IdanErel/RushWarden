@@ -1,6 +1,6 @@
 # ADR-033: Gridlock is no progress, not zero speed
 
-Status: Accepted (Lead) · 2026-10-13 · Sim Engineer (B3). Number assigned by the Lead.
+Status: Proposed (Idan) · 2026-10-13 · Sim Engineer (B3). Number assigned by the Lead.
 
 ## Context
 
@@ -44,3 +44,8 @@ ending as "Quota missed".
 - Known edge: a single slow vehicle on a route with no junction (a straight edge-to-edge road)
   could take more than 3 s to cross with heavy p_slow and be called gridlock. It did not occur in
   the sample above: every gridlock had at least 14 vehicles on the map.
+- Known edge, round start: until the first vehicle enters a junction, the window runs from its
+  spawn. On a map with long approach roads, a round whose first vehicles need more than 3 s to
+  reach a junction would be called gridlock in its first 3 s. A car (vmax 3) covers 180 cells in
+  60 ticks and no road lane on a District 1–3 map is longer than 20 cells, so this needs a slow
+  vehicle (a shared-lane bike at vmax 1) or heavy p_slow on a long approach. No toy round hit it.
