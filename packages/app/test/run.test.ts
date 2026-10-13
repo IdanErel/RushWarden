@@ -14,6 +14,7 @@ import {
   costOf,
   deckOf,
   fullRunConfig,
+  isNextRoundOnly,
   replay,
   roundInput,
   runEffectError,
@@ -434,6 +435,33 @@ describe('run-level effects', () => {
     expect(t.hand).toHaveLength(4);
   });
 
+  it('Recount shuffles the returned cards in, so an empty pile no longer hands back the same hand (playtest E3)', () => {
+    // The identical hand happened when the draw pile was empty: the returned cards went to the
+    // bottom and were drawn straight back in the same order. Seed 11, pile run out.
+    const ids = ['recount', 'detour', 'turn-lane', 'overtime', 'bus-priority'];
+    const emptyPile = (seed: number): RunState => {
+      const base = startRun(toy(seed), fakeEnv()).state;
+      return { ...withHand(base, ids), drawPile: [], spent: [...base.spent, ...base.drawPile] };
+    };
+    const s = emptyPile(11);
+    const back = s.hand.slice(1).map((c) => c.uid);
+    const after = (playId(s, 'recount') as { state: RunState }).state;
+    expect(after.hand.map((c) => c.uid)).not.toEqual(back);
+    expect([...after.hand.map((c) => c.uid)].sort()).toEqual([...back].sort());
+    // Deterministic from the run seed.
+    const again = (playId(emptyPile(11), 'recount') as { state: RunState }).state;
+    expect(again.hand).toEqual(after.hand);
+    // Across seeds, the same order comes back only by chance (4 cards: 1 in 24), not every time.
+    let same = 0;
+    for (let seed = 1; seed <= 240; seed++) {
+      const t = emptyPile(seed);
+      const order = t.hand.slice(1).map((c) => c.uid);
+      const r = (playId(t, 'recount') as { state: RunState }).state;
+      if (r.hand.map((c) => c.uid).join() === order.join()) same++;
+    }
+    expect(same).toBeLessThan(24);
+  });
+
   it('run-duration cards persist as run effects and per-round energy', () => {
     let s = withHand({ ...startRun(toy(), fakeEnv()).state, energy: 3 }, ['ring-bond']);
     s = (playId(s, 'ring-bond') as { state: RunState }).state;
@@ -709,6 +737,90 @@ describe('round end, offers and run end', () => {
       expect(s.hand.length).toBeGreaterThanOrEqual(5);
       expect(deckOf(s)).toHaveLength(12);
     }
+  });
+});
+
+describe('next-round cards in the last round (playtest E2)', () => {
+  const card = (id: string) => CARDS.find((c) => c.id === id)!;
+
+  it('knows which cards only pay off next round', () => {
+    expect(isNextRoundOnly(card('overtime'), 1)).toBe(true);
+    expect(isNextRoundOnly(card('second-shift'), 1)).toBe(true);
+    expect(isNextRoundOnly(card('second-shift'), 2)).toBe(true);
+    for (const id of ['recount', 'detour', 'bus-priority', 'remove-signal'])
+      expect(isNextRoundOnly(card(id), 1), id).toBe(false);
+  });
+
+  it('never deals them in the last round, also when the draw pile is all next-round cards', () => {
+    const env = fakeEnv();
+    let s = startRun(toy(3), env).state;
+    for (let i = 0; i < 3; i++)
+      s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+    s = must(s, { type: 'go' }, env);
+    // Before round 5: stack the top of the pile with next-round cards.
+    const nextRound = (id: string, uid: number) => ({ uid, id, tier: 1 as const });
+    s = {
+      ...s,
+      drawPile: [nextRound('overtime', 900), nextRound('second-shift', 901), ...s.drawPile],
+    };
+    s = must(s, { type: 'choose', pick: 'skip' }, env);
+    expect(s.round).toBe(5);
+    expect(s.hand).toHaveLength(5);
+    expect(s.hand.some((c) => isNextRoundOnly(card(c.id), c.tier))).toBe(false);
+    // They stay in the deck, on top of the pile.
+    expect(s.drawPile.slice(0, 2).map((c) => c.uid)).toEqual([900, 901]);
+    expect(deckOf(s)).toHaveLength(14);
+  });
+
+  it('still deals them before the last round', () => {
+    const s = startRun(toy(3), fakeEnv()).state;
+    const stacked = {
+      ...s,
+      hand: [],
+      drawPile: [{ uid: 900, id: 'overtime', tier: 1 as const }, ...s.drawPile],
+    };
+    const r = must(must(stacked, { type: 'go' }), { type: 'choose', pick: 'skip' });
+    expect(r.round).toBe(2);
+    expect(r.hand.map((c) => c.uid)).toContain(900);
+  });
+
+  it('a Recount in the last round does not draw them either', () => {
+    const env = fakeEnv();
+    let s = startRun(toy(5), env).state;
+    for (let i = 0; i < 4; i++)
+      s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+    expect(s.round).toBe(5);
+    s = {
+      ...withHand(s, ['recount', 'detour', 'turn-lane']),
+      drawPile: [
+        { uid: 900, id: 'overtime', tier: 1 },
+        { uid: 901, id: 'second-shift', tier: 1 },
+        ...s.drawPile,
+      ],
+    };
+    const r = (playId(s, 'recount') as { state: RunState }).state;
+    expect(r.hand).toHaveLength(2);
+    expect(r.hand.some((c) => c.uid === 900 || c.uid === 901)).toBe(false);
+  });
+
+  it('are not offered after the second-to-last round, and are before it', () => {
+    const env = fakeEnv((i) => i.districtRules.quota * 2);
+    const offered = (rounds: number): Set<string> => {
+      const ids = new Set<string>();
+      for (let seed = 1; seed <= 150; seed++) {
+        let s = startRun(toy(seed), env).state;
+        for (let r = 1; r < rounds; r++)
+          s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+        s = must(s, { type: 'go' }, env);
+        for (const c of s.offer ?? []) ids.add(c.id);
+      }
+      return ids;
+    };
+    const last = offered(4); // the offer after round 4 feeds only round 5
+    expect(last.size).toBeGreaterThan(5);
+    for (const id of last) expect(isNextRoundOnly(card(id), 1), id).toBe(false);
+    const earlier = offered(3);
+    expect([...earlier].some((id) => isNextRoundOnly(card(id), 1))).toBe(true);
   });
 });
 
