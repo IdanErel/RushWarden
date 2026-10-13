@@ -30,7 +30,6 @@ import {
   type WorkerLike,
 } from '@rushwarden/render';
 import {
-  GRID_WIDTH,
   ROUND_TICKS,
   TICKS_PER_SECOND,
   type GridMap,
@@ -58,7 +57,7 @@ import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js
 import type { PlacedCard, RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { MARK_GLYPH, copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
-import { busyFactor, markLabel, readTipSeen, writeTipSeen } from './info.js';
+import { busyFactor, markLabel, missNote, readTipSeen, writeTipSeen } from './info.js';
 
 export interface GameEvents {
   /** Go pressed; portal `gameplayStart` (GDD §9). */
@@ -103,21 +102,6 @@ export interface GameOptions {
 
 /** Keys that answer a result or run-end sheet are ignored this long after it opens (U2). */
 export const SHEET_KEY_DELAY_MS = 800;
-
-/** Why a map tap placed nothing (U5). */
-function missNote(
-  card: UiCard | undefined,
-  hasTargets: boolean,
-  map: GridMap,
-  tile: { x: number; y: number },
-): string {
-  if (!card) return t('place.miss.noCard');
-  if (!hasTargets) return t('place.miss.noTargets', { name: card.name });
-  const kind = map.tiles[tile.y * GRID_WIDTH + tile.x]?.kind;
-  if (card.directional && kind === 'road') return t('place.miss.short', { name: card.name });
-  if (kind === 'block') return t('place.miss.block', { name: card.name });
-  return t('place.miss', { name: card.name });
-}
 
 export function Game(props: GameOptions): preact.JSX.Element {
   const { run, events } = props;
@@ -597,7 +581,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
       const hit = hitTarget(placedTargets, tile, scene.currentMap);
       if (hit >= 0 && placedTargets[hit]?.kind !== 'district') return undo(hit);
       // A tap that does nothing says why (U5).
-      setToast(missNote(selCard, targets.length > 0, scene.currentMap, tile));
+      setToast(
+        missNote(
+          selCard,
+          targets.length > 0,
+          selected !== null ? run.missReason(selected, tile) : null,
+        ),
+      );
     }
   };
 
@@ -751,14 +741,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
       }}
     >
       {hookAttrs && <div id="game-state" hidden {...hookAttrs} />}
-      <h2 class="rw-sr">
-        {t('hud.round', { round: s.round, rounds: s.rounds })}
-        {s.rush ? ` · ${s.event ? t(`event.${s.event}`) : t('hud.rush')}` : ''}
-      </h2>
       <header class="rw-hud">
-        {/* On a phone an event name takes the word "Round"'s room; screen readers get the whole
-            line from the hidden heading before the HUD. */}
-        <span class={`rw-round${s.event ? ' rw-has-event' : ''}`} aria-hidden="true">
+        {/* On a phone an event name takes the word "Round"'s room. */}
+        <span class={`rw-round${s.event ? ' rw-has-event' : ''}`}>
           <span class="rw-round-word">{t('hud.roundWord')} </span>
           {t('hud.roundNum', { round: s.round, rounds: s.rounds })}
           {s.rush && <b class="rw-rush"> · {s.event ? t(`event.${s.event}`) : t('hud.rush')}</b>}

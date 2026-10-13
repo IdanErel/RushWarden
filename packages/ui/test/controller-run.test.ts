@@ -109,6 +109,16 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const placement = (run: ReturnType<typeof devRun>, id: string) =>
       run.roundInput().placements.find((p) => p.cardId === id)?.target;
 
+    it('says why a tap placed nothing: building, junction, road (U5)', () => {
+      const [run, i] = withOneWay();
+      // The test-plus map: a junction at (3,4), roads along row 4 and column 3.
+      expect(run.missReason(i, { x: 0, y: 0 })).toBe('block');
+      expect(run.missReason(i, { x: 3, y: 4 })).toBe('junction');
+      expect(run.missReason(i, { x: 1, y: 4 })).toBeNull();
+      const j = run.state().hand.findIndex((c) => c.target === 'intersection');
+      if (j >= 0) expect(run.missReason(j, { x: 1, y: 4 })).toBe('road');
+    });
+
     it('marks One-Way directional and no other card', () => {
       const [run, i] = withOneWay();
       const s = run.state();

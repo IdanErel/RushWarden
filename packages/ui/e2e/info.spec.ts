@@ -58,12 +58,9 @@ test('round timer on the bar; the result counts arrivals; the run end has a tabl
   await expect(timer).toContainText(/1[0-5] s left/);
   await holdToEnd(page);
   const sheet = page.getByRole('dialog');
-  // The run-ending round's result (from the controls PR) or the run end directly.
-  const toEnd = page.getByRole('button', { name: 'See the run' });
-  if (await toEnd.isVisible()) {
-    await expect(sheet).toContainText(/vehicles arrived; \d+ were still on the road/);
-    await toEnd.click();
-  }
+  // The run-ending round's own result first (U2), then the run end.
+  await expect(sheet).toContainText(/vehicles arrived; \d+ were still on the road/);
+  await page.getByRole('button', { name: 'See the run' }).click();
   const table = page.getByRole('table', { name: 'Round by round' });
   await expect(table.getByRole('row')).toHaveCount(2);
   await expect(table).toContainText(/\d+ \/ \d+/);

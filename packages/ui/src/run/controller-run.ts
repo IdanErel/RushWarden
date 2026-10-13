@@ -25,6 +25,7 @@ import type { RoundInput, RoundResult, Target } from '@rushwarden/sim';
 import { intersections, isIntersection, isRoad, type TargetMark } from '@rushwarden/render/core';
 import { GRID_HEIGHT, GRID_WIDTH, type GridMap } from '@rushwarden/sim';
 import type {
+  MissReason,
   PlacedCard,
   RoundMark,
   RoundOutcome,
@@ -243,6 +244,27 @@ export class ControllerRun implements RunPort {
     const r = this.ctl.dispatch({ type: 'play', handIndex, target: toSimTarget(target, s.map) });
     if (!r.ok) throw new Error(r.error);
     this.marks.set(d.uid, target);
+  }
+
+  missReason(handIndex: number, tile: { x: number; y: number }): MissReason | null {
+    const s = this.ctl.state;
+    const d = s.hand[handIndex];
+    const def = d && this.cards.get(d.id);
+    if (!def) return null;
+    const { x, y } = tile;
+    if (!isRoad(s.map, x, y)) return 'block';
+    const junction = isIntersection(s.map, x, y);
+    if (def.target === 'segment' && junction) return 'junction';
+    if (def.target === 'intersection' && !junction) return 'road';
+    const inside = (seg: { from: { x: number; y: number }; to: { x: number; y: number } }) =>
+      x >= Math.min(seg.from.x, seg.to.x) &&
+      x <= Math.max(seg.from.x, seg.to.x) &&
+      y >= Math.min(seg.from.y, seg.to.y) &&
+      y <= Math.max(seg.from.y, seg.to.y);
+    if (s.closedSegments.some(inside)) return 'closed';
+    if (def.target === 'segment' && isDirectional(def) && !hasDirection(segmentAt(s.map, x, y)))
+      return 'short';
+    return null;
   }
 
   canUndo(placedIndex: number): boolean {

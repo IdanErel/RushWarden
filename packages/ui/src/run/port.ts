@@ -28,6 +28,8 @@ export interface UiCard {
   readonly directional?: true;
 }
 
+export type MissReason = 'block' | 'junction' | 'road' | 'closed' | 'short';
+
 /** A tile on the map grid. */
 export interface TileXY {
   readonly x: number;
@@ -102,6 +104,13 @@ export interface RunPort {
    * the round, which the rules never undo (ADR-018 point 8), and outside the place phase.
    */
   canUndo(placedIndex: number): boolean;
+  /**
+   * Why hand card `i` cannot go on `tile`, for the note on a tap that places nothing (U5):
+   * `block` (a building), `junction` / `road` (the other kind of tile than the card takes),
+   * `closed` (a road closed this round, Parade), `short` (a one-tile road a directional card
+   * cannot point along), or null when there is no simpler reason to give.
+   */
+  missReason(handIndex: number, tile: TileXY): MissReason | null;
   /** Takes back a card placed this round ("tap again to undo before Go"). No-op if `!canUndo`. */
   undo(placedIndex: number): void;
   /** Whether play `placedIndex` is a directional card that can still be turned round. */

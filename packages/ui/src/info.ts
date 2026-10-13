@@ -3,7 +3,7 @@
  * for the busy-map note, the run-end table's words and the one-time first-round tip.
  */
 import { t } from './i18n.js';
-import type { RoundMark, RoundOutcome } from './run/port.js';
+import type { MissReason, RoundMark, RoundOutcome, UiCard } from './run/port.js';
 
 /** A quota this many times round 1's or more gets the "busy map" note. */
 export const BUSY_FACTOR = 1.5;
@@ -42,4 +42,15 @@ export function writeTipSeen(): void {
   } catch {
     // Private mode or blocked storage: the tip shows again next time.
   }
+}
+
+/** Why a map tap placed nothing (U5), from `RunPort.missReason`. */
+export function missNote(
+  card: UiCard | undefined,
+  hasTargets: boolean,
+  reason: MissReason | null,
+): string {
+  if (!card) return t('place.miss.noCard');
+  if (!hasTargets) return t('place.miss.noTargets', { name: card.name });
+  return t(reason ? `place.miss.${reason}` : 'place.miss', { name: card.name });
 }
