@@ -251,8 +251,8 @@ pass rate counts only runs that reached it.
 | Bot                 | Toy win | Target (ADR-030 item 3, amended) |
 | ------------------- | ------- | -------------------------------- |
 | `no-cards`          | 18.5%   | at most 20%                      |
-| `random`            | 9.4%    | 10–30% (missed by 0.6)           |
-| `greedy-throughput` | 81.2%   | at most 80% (missed by 1.2)      |
+| `random`            | 9.4%    | 10–30%, ±2 (accepted)            |
+| `greedy-throughput` | 81.2%   | at most 80%, ±2 (accepted)       |
 | `archetype(FLOW)`   | 59.0%   | 55–75%                           |
 | `archetype(MASS)`   | 71.5%   | 55–75%                           |
 | `archetype(TOLL)`   | 74.0%   | 55–75%                           |
@@ -277,7 +277,8 @@ pass rate counts only runs that reached it.
 
 - **Two targets are missed by about a point.** `random` is at 9.4% (target 10%) and
   `greedy-throughput` at 81.2% (target at most 80%), and no share in 0.86–0.90 meets both. The
-  Lead decides whether to accept the residual.
+  Lead accepted 0.86 with both residuals on #100, and ADR-030 item 3 now carries a ±2-point
+  tolerance on the bot bands.
 - **Flat difficulty.** Every round is tuned to about the same pass rate, so the toy no longer
   ramps. The quota still rises from Market Day to the Festival on each map.
 - **Store copy.** `docs/store/itch.md` now lists the toy's 18 cards and says three of the five

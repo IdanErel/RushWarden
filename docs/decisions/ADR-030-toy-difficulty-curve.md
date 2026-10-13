@@ -37,6 +37,10 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    round on any map below 35% for any archetype bot. This replaces the playtest triage's "card
    bots pass every toy round at least 50% on every map". The full-run §11 targets are unchanged.
 
+   The bot bands carry a ±2-point tolerance (Lead, #100): a 1-point miss on a 5-round demo isn't
+   worth a harder toy. At the chosen quota share (0.86, ADR-032 A1) the toy measures `random`
+   9.4% and `greedy-throughput` 81.2%, both inside the tolerance and accepted.
+
 4. **Run controller.** The toy preset reads both from content: `curveRounds: TOY_ROUNDS` and
    `rushRounds: toyRushRounds()`. The controller passes `curveRounds[round - 1]` (default `round`)
    to `setupRound` and `roundQuota`. The player still sees "round 1 of 5" to "round 5 of 5"; the
