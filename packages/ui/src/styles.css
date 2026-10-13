@@ -252,6 +252,9 @@
   left: 8px;
   right: 8px;
   bottom: 8px;
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -473,6 +476,9 @@
  * (fit-text.ts) then sizes them so no word breaks mid-word on whatever font the device has.
  */
 @media (max-width: 430px) {
+  .rw-has-event .rw-round-word {
+    display: none;
+  }
   .rw-hud {
     gap: 4px;
     padding: 4px 2px 4px 10px;
@@ -491,5 +497,79 @@
   /* "CHAOS" and "TEMPO" at 14 px reach the card border on wide fonts (DejaVu Sans) at 360 px. */
   .rw-hand .rw-tag {
     font-size: 12px;
+  }
+}
+
+/* Information layer (playtest 2026-10-13): round timer, rules, legends, run-end table. */
+.rw-clock {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--road);
+  transition: width 400ms linear;
+}
+.rw-left {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.rw-tip {
+  z-index: 2;
+}
+.rw-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rw-key-stripe,
+.rw-key-closed {
+  display: inline-block;
+  vertical-align: middle;
+  width: 22px;
+  height: 10px;
+  border-radius: 2px;
+}
+/* The heat-strip ramp (render palette heat1..heat3). */
+.rw-key-stripe {
+  background: linear-gradient(90deg, #e9b98f, #e08f5f, #c65a33);
+}
+/* A closed road: grey with red bars. */
+.rw-key-closed {
+  background: repeating-linear-gradient(90deg, #8f8a85 0 5px, #b83a24 5px 8px);
+}
+.rw-rounds {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+.rw-rounds th,
+.rw-rounds td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid #e0d6c8;
+}
+.rw-rounds th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.rw-legend {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.rw-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rw-clock {
+    transition: none;
   }
 }

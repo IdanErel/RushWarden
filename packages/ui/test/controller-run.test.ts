@@ -273,6 +273,11 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     expect(s.offer).toHaveLength(3);
     expect(s.history).toEqual(['pass']);
     expect(tracked).toEqual(['run_start', 'round_end']);
+    // The information layer: the round's vehicle counts, every round's outcome, plays per round.
+    expect(s.last).toMatchObject({ spawned: quota * 2, exited: quota * 2 });
+    expect(s.results).toEqual([s.last]);
+    expect(s.maxPlays).toBe(2);
+    expect(s).toMatchObject({ rush: true, event: 'market-day' }); // the toy's round 1
     run.pickOffer(1);
     expect(run.state()).toMatchObject({ phase: 'place', round: 2 });
   });
