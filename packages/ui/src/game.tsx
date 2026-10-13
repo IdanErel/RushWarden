@@ -29,7 +29,13 @@ import {
   type TargetMark,
   type WorkerLike,
 } from '@rushwarden/render';
-import { GRID_WIDTH, type GridMap, type RoundInput, type RoundResult } from '@rushwarden/sim';
+import {
+  ROUND_TICKS,
+  TICKS_PER_SECOND,
+  type GridMap,
+  type RoundInput,
+  type RoundResult,
+} from '@rushwarden/sim';
 import {
   DEFAULT_CONFIG,
   portalRules,
@@ -49,8 +55,9 @@ import { displayName } from './names.js';
 import { nextSlots, sameSlots, slotViews, type Slots } from './slots.js';
 import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
 import type { PlacedCard, RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
-import { copyText, shareLine, shareText } from './share.js';
+import { MARK_GLYPH, copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
+import { busyFactor, markLabel, missNote, readTipSeen, writeTipSeen } from './info.js';
 
 export interface GameEvents {
   /** Go pressed; portal `gameplayStart` (GDD §9). */
@@ -96,21 +103,6 @@ export interface GameOptions {
 /** Keys that answer a result or run-end sheet are ignored this long after it opens (U2). */
 export const SHEET_KEY_DELAY_MS = 800;
 
-/** Why a map tap placed nothing (U5). */
-function missNote(
-  card: UiCard | undefined,
-  hasTargets: boolean,
-  map: GridMap,
-  tile: { x: number; y: number },
-): string {
-  if (!card) return t('place.miss.noCard');
-  if (!hasTargets) return t('place.miss.noTargets', { name: card.name });
-  const kind = map.tiles[tile.y * GRID_WIDTH + tile.x]?.kind;
-  if (card.directional && kind === 'road') return t('place.miss.short', { name: card.name });
-  if (kind === 'block') return t('place.miss.block', { name: card.name });
-  return t('place.miss', { name: card.name });
-}
-
 export function Game(props: GameOptions): preact.JSX.Element {
   const { run, events } = props;
   const config = props.config ?? DEFAULT_CONFIG;
@@ -134,6 +126,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const client = useRef<SimClient | null>(null);
   const counter = useRef(new ExitCounter());
   const [live, setLive] = useState(0);
+  /** Whole seconds left in the Go phase's 15 (the round timer on the throughput bar). */
+  const ROUND_SECONDS = ROUND_TICKS / TICKS_PER_SECOND;
+  const [left, setLeft] = useState(ROUND_SECONDS);
   /** Where the last round's gridlock started (the scene's red ring), or null. */
   const [jam, setJam] = useState<JamPoint | null>(null);
   /** The cards placed when Go was pressed: their marks stay up through Go and the result. */
@@ -143,7 +138,21 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const [offerCursor, setOfferCursor] = useState(0);
   const [speed, setSpeed] = useState<1 | 2>(1);
   const [paused, setPaused] = useState(false);
-  const [menu, setMenu] = useState<'none' | 'pause' | 'privacy'>('none');
+  const [menu, setMenu] = useState<'none' | 'pause' | 'privacy' | 'rules'>('none');
+  // The one-time first-round tip (2 plays, 3 approvals, 5 rounds, the map's marks).
+  const [tipSeen, setTipSeen] = useState(readTipSeen);
+  /** The tip goes once the player acts (picks a card or presses Go), and does not come back. */
+  const dismissTip = (): void => {
+    if (tipSeen) return;
+    writeTipSeen();
+    setTipSeen(true);
+  };
+  // Where Rules' Close goes: the pause menu, or the run screen (the tip's link).
+  const rulesBack = useRef<'none' | 'pause'>('pause');
+  const openRules = (from: 'none' | 'pause'): void => {
+    rulesBack.current = from;
+    setMenu('rules');
+  };
   // Where Privacy's Close goes: back to the pause menu, or to the run screen (consent panel link).
   const privacyBack = useRef<'none' | 'pause'>('none');
   const openPrivacy = (from: 'none' | 'pause'): void => {
@@ -274,6 +283,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
           if (exits.length > 0 && exitSound.current.pass(performance.now()))
             sound?.play?.('vehicleExit', { pitch: exitPitch(Math.max(...exits)) });
           setLive((prev) => (prev === n ? prev : n));
+          // Word 0 of a snapshot is its tick (SNAPSHOT_HEADER).
+          const sec = Math.max(0, Math.ceil((ROUND_TICKS - (f[0] ?? 0)) / TICKS_PER_SECOND));
+          setLeft((prev) => (prev === sec ? prev : sec));
         },
         onDone: (r: RoundResult) => {
           run.finishRound(r);
@@ -331,6 +343,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
   }
   const slots = slotViews(slotsRef.current, handUids, playedUids);
 
+  // A quota well above round 1's: say so before Go (the map is busier, not the rules harder).
+  const busy = s.phase === 'place' ? busyFactor(s.quota, s.results) : null;
+
   const roundInput = useMemo(() => run.roundInput(), [run, s.round, s.phase === 'place']);
 
   // Each round: its map (content's templates), closures (Parade), demand heat-strips, and a lane
@@ -386,6 +401,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
       }
       setSelected(i);
       setCursor(run.targets(i).length > 0 ? 0 : null);
+      dismissTip();
     },
     [s, selected, run],
   );
@@ -438,6 +454,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
       return;
     }
     goPending.current = false;
+    dismissTip();
     const input = run.roundInput();
     goPlaced.current = s.placed;
     run.go();
@@ -447,6 +464,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
     setCursor(null);
     counter.current.reset();
     setLive(0);
+    setLeft(ROUND_SECONDS);
     setSpeed(1);
     scene?.setSpeed(1);
     client.current.setSpeed(1);
@@ -563,7 +581,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
       const hit = hitTarget(placedTargets, tile, scene.currentMap);
       if (hit >= 0 && placedTargets[hit]?.kind !== 'district') return undo(hit);
       // A tap that does nothing says why (U5).
-      setToast(missNote(selCard, targets.length > 0, scene.currentMap, tile));
+      setToast(
+        missNote(
+          selCard,
+          targets.length > 0,
+          selected !== null ? run.missReason(selected, tile) : null,
+        ),
+      );
     }
   };
 
@@ -718,9 +742,11 @@ export function Game(props: GameOptions): preact.JSX.Element {
     >
       {hookAttrs && <div id="game-state" hidden {...hookAttrs} />}
       <header class="rw-hud">
-        <span class="rw-round">
-          {t('hud.round', { round: s.round, rounds: s.rounds })}
-          {s.rush && <b class="rw-rush"> · {t('hud.rush')}</b>}
+        {/* On a phone an event name takes the word "Round"'s room. */}
+        <span class={`rw-round${s.event ? ' rw-has-event' : ''}`}>
+          <span class="rw-round-word">{t('hud.roundWord')} </span>
+          {t('hud.roundNum', { round: s.round, rounds: s.rounds })}
+          {s.rush && <b class="rw-rush"> · {s.event ? t(`event.${s.event}`) : t('hud.rush')}</b>}
         </span>
         <span>{t('hud.quota', { quota: s.quota })}</span>
         <Pips
@@ -770,7 +796,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
               ? targets.length
                 ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}`
                 : `${selCard.text} ${t('place.noTargets')}`
-              : t('place.hint')}
+              : busy
+                ? `${t('place.busy', { x: busy })} ${t('place.hint')}`
+                : t('place.hint')}
           </p>
           {/* Always there, one row high, so placing or undoing never moves the hand (U1). */}
           <div class="rw-placed">
@@ -844,7 +872,19 @@ export function Game(props: GameOptions): preact.JSX.Element {
             aria-label={t('go.through', { n: live, quota: s.quota })}
           >
             <div class="rw-fill" style={{ width: `${pct}%` }} />
-            <span>{t('go.through', { n: live, quota: s.quota })}</span>
+            {/* The round timer: a strip along the bar's foot that runs down over the 15 s. */}
+            <div
+              class="rw-clock"
+              style={{ width: `${Math.round((left / ROUND_SECONDS) * 100)}%` }}
+              aria-hidden="true"
+            />
+            <span>
+              {t('go.through', { n: live, quota: s.quota })}
+              <small class="rw-left" role="timer">
+                {' · '}
+                {t('go.left', { n: left })}
+              </small>
+            </span>
           </div>
           <div class="rw-row">
             <span class="rw-muted">{speed === 2 ? t('go.speed2') : t('go.hold')}</span>
@@ -872,6 +912,20 @@ export function Game(props: GameOptions): preact.JSX.Element {
           onNext={s.phase === 'end' ? () => setFinalResult(false) : next}
         />
       )}
+      {!tipSeen &&
+        !(askConsent && privacy) &&
+        menu === 'none' &&
+        s.phase === 'place' &&
+        s.round === 1 && (
+          <Tip
+            state={s}
+            onClose={dismissTip}
+            onRules={() => {
+              dismissTip();
+              openRules('none');
+            }}
+          />
+        )}
       {askConsent && privacy && s.phase === 'place' && (
         <Consent
           onAnswer={(yes) => {
@@ -895,10 +949,12 @@ export function Game(props: GameOptions): preact.JSX.Element {
           inGo={s.phase === 'go'}
           sound={sound}
           onResume={resume}
+          onRules={() => openRules('pause')}
           onPrivacy={() => openPrivacy('pause')}
           onChange={() => bump(0)}
         />
       )}
+      {menu === 'rules' && <Rules state={s} onClose={() => setMenu(rulesBack.current)} />}
       {menu === 'privacy' && (
         <Privacy
           privacyUrl={config.privacyUrl}
@@ -1021,6 +1077,14 @@ function Result(p: {
       </h2>
       {o.gridlocked && p.jamText && <p class="rw-jam">{p.jamText}</p>}
       <p>{t('result.score', { n: o.throughput, quota: o.quota })}</p>
+      {o.spawned !== undefined && o.exited !== undefined && (
+        <p class="rw-muted">
+          {t(o.gridlocked ? 'result.trafficJam' : 'result.traffic', {
+            arrived: o.exited,
+            left: Math.max(0, o.spawned - o.exited),
+          })}
+        </p>
+      )}
       {o.pass ? (
         p.showFunds && <p>{t('result.funds', { n: o.fundsEarned })}</p>
       ) : (
@@ -1072,9 +1136,35 @@ function End(p: {
         {s.won ? t('end.won') : t('end.lost')}
       </h2>
       <p>{t('end.summary', { rounds: s.history.length, n: s.totalThroughput })}</p>
+      <table class="rw-rounds">
+        <caption class="rw-sr">{t('end.table')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('end.col.round')}</th>
+            <th scope="col">{t('end.col.through')}</th>
+            <th scope="col">{t('end.col.result')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {s.results.map((o, i) => {
+            const mark = s.history[i] ?? 'fail';
+            return (
+              <tr key={o.round}>
+                <td>{o.round}</td>
+                <td>{t('end.cell.through', { n: o.throughput, quota: o.quota })}</td>
+                <td>
+                  <span aria-hidden="true">{MARK_GLYPH[mark]} </span>
+                  {markLabel(mark)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
       <pre class="rw-share" aria-label="Share text">
         {line}
       </pre>
+      <p class="rw-legend">{t('end.legend')}</p>
       <div class="rw-row">
         <button
           class="rw-btn"
@@ -1102,6 +1192,7 @@ function PauseMenu(p: {
   inGo: boolean;
   sound: SoundControl | undefined;
   onResume: () => void;
+  onRules: () => void;
   onPrivacy: () => void;
   onChange: () => void;
 }): preact.JSX.Element {
@@ -1124,6 +1215,9 @@ function PauseMenu(p: {
           {p.sound.muted ? t('sound.off') : t('sound.on')}
         </button>
       )}
+      <button class="rw-btn" onClick={p.onRules}>
+        {t('rules.open')}
+      </button>
       <button class="rw-btn" onClick={p.onPrivacy}>
         {t('privacy.open')}
       </button>
@@ -1292,4 +1386,62 @@ function SpeakerIcon(p: { on: boolean }): preact.JSX.Element {
 export function mountGame(el: HTMLElement, opts: GameOptions): () => void {
   render(<Game {...opts} />, el);
   return () => render(null, el);
+}
+
+/**
+ * The rules on screen (playtest "goals and rules 3/10"): what a round is, what wins and loses,
+ * and what the map's marks mean. Numbers come from the run's own settings.
+ */
+function RulesText(p: { state: RunState }): preact.JSX.Element {
+  const s = p.state;
+  return (
+    <ul class="rw-rules">
+      <li>{t('rules.round', { plays: s.maxPlays, energy: s.maxEnergy })}</li>
+      <li>{t('rules.go', { seconds: ROUND_TICKS / TICKS_PER_SECOND })}</li>
+      <li>{t('rules.lose', { approval: s.maxApproval })}</li>
+      <li>{t('rules.win', { rounds: s.rounds })}</li>
+      <li>
+        <i class="rw-key-stripe" aria-hidden="true" /> {t('rules.stripes')}
+      </li>
+      <li>
+        <i class="rw-key-closed" aria-hidden="true" /> {t('rules.closed')}
+      </li>
+    </ul>
+  );
+}
+
+function Rules(p: { state: RunState; onClose: () => void }): preact.JSX.Element {
+  return (
+    <section class="rw-sheet rw-menu" role="dialog" aria-labelledby="rw-rules-title">
+      <h2 id="rw-rules-title">{t('rules.title')}</h2>
+      <RulesText state={p.state} />
+      <button class="rw-go" onClick={p.onClose} autoFocus>
+        {t('rules.close')}
+      </button>
+    </section>
+  );
+}
+
+/** Shown once, at the first round of the first run on this device. */
+function Tip(p: { state: RunState; onClose: () => void; onRules: () => void }): preact.JSX.Element {
+  const s = p.state;
+  return (
+    <section class="rw-consent rw-tip" role="region" aria-labelledby="rw-tip-title">
+      <p>
+        <b id="rw-tip-title">{t('tip.title')}</b>{' '}
+        {t('tip.body', { plays: s.maxPlays, approval: s.maxApproval, rounds: s.rounds })}
+      </p>
+      <p class="rw-muted">
+        <i class="rw-key-stripe" aria-hidden="true" /> {t('tip.stripes')}
+      </p>
+      <div class="rw-row">
+        <button class="rw-btn rw-answer" onClick={p.onClose}>
+          {t('tip.ok')}
+        </button>
+        <button class="rw-link" onClick={p.onRules}>
+          {t('rules.open')}
+        </button>
+      </div>
+    </section>
+  );
 }

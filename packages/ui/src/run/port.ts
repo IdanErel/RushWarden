@@ -2,7 +2,7 @@
  * The UI's seam onto the run controller (GDD §2 core loop). Screens read `RunState` and call
  * `RunPort`; nothing else. `ControllerRun` implements it over P1-BAL-01's `RunController`.
  */
-import type { RoundInput, RoundResult } from '@rushwarden/sim';
+import type { BossCondition, RoundInput, RoundResult } from '@rushwarden/sim';
 import type { TargetMark } from '@rushwarden/render/core';
 
 export type Tag = 'FLOW' | 'MASS' | 'TOLL' | 'CHAOS' | 'TEMPO';
@@ -27,6 +27,8 @@ export interface UiCard {
    */
   readonly directional?: true;
 }
+
+export type MissReason = 'block' | 'junction' | 'road' | 'closed' | 'short';
 
 /** A tile on the map grid. */
 export interface TileXY {
@@ -54,6 +56,9 @@ export interface RoundOutcome {
   readonly approvalLost: number;
   /** The sim's final-state hash for the round (test hook H2 `data-round-hash`). */
   readonly hash: string;
+  /** Vehicles that entered the map and that left it (reached an exit) this round. */
+  readonly spawned?: number;
+  readonly exited?: number;
 }
 
 export type Phase = 'place' | 'go' | 'result' | 'end';
@@ -64,12 +69,16 @@ export interface RunState {
   readonly round: number;
   readonly rounds: number;
   readonly rush: boolean;
+  /** The rush round's event, if any. */
+  readonly event: BossCondition | null;
   readonly quota: number;
   readonly approval: number;
   readonly maxApproval: number;
   readonly energy: number;
   readonly maxEnergy: number;
   readonly playsLeft: number;
+  /** Plays allowed per round (GDD: 2). */
+  readonly maxPlays: number;
   readonly funds: number;
   readonly district: string;
   readonly hand: readonly UiCard[];
@@ -78,6 +87,8 @@ export interface RunState {
   readonly offer: readonly UiCard[] | null;
   readonly last: RoundOutcome | null;
   readonly history: readonly RoundMark[];
+  /** Every round played so far, oldest first (the run-end table). */
+  readonly results: readonly RoundOutcome[];
   readonly won: boolean | null;
   readonly totalThroughput: number;
 }
@@ -93,6 +104,13 @@ export interface RunPort {
    * the round, which the rules never undo (ADR-018 point 8), and outside the place phase.
    */
   canUndo(placedIndex: number): boolean;
+  /**
+   * Why hand card `i` cannot go on `tile`, for the note on a tap that places nothing (U5):
+   * `block` (a building), `junction` / `road` (the other kind of tile than the card takes),
+   * `closed` (a road closed this round, Parade), `short` (a one-tile road a directional card
+   * cannot point along), or null when there is no simpler reason to give.
+   */
+  missReason(handIndex: number, tile: TileXY): MissReason | null;
   /** Takes back a card placed this round ("tap again to undo before Go"). No-op if `!canUndo`. */
   undo(placedIndex: number): void;
   /** Whether play `placedIndex` is a directional card that can still be turned round. */
