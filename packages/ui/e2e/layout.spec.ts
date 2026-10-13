@@ -238,7 +238,7 @@ for (const font of FONTS)
   }, info) => {
     test.skip(info.project.name !== 'phone', 'runs on the phone project');
     await useFont(page, font);
-    // Seed 1's first round is a Rush round: the longest round label ("Round 1/5 · Rush").
+    // Seed 1's first round is a Market Day rush: the longest round label ("1/5 · Market Day" on a phone).
     await page.goto('/?seed=1');
     await expect(state(page)).toHaveAttribute('data-phase', 'place');
     await expect(page.locator('.rw-rush')).toBeVisible();

@@ -123,8 +123,15 @@ describe('badgeCentre (playtest U8: badges off the road)', () => {
     const [x, y] = badgeCentre({ x: 0, y: 0, w: 1, h: 1 }, T, rad, 0, 7 * T, 9 * T);
     expect(x - rad).toBeGreaterThanOrEqual(0);
     expect(y - rad).toBeGreaterThanOrEqual(0);
-    const [x2] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 1, 7 * T, 9 * T);
-    const [x1] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 0, 7 * T, 9 * T);
-    expect(x2 - x1).toBe(rad * 2 + 2);
+    // A second badge on a junction stays in the diagonal block, clear of both roads (#96).
+    const [x1, y1] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 0, 7 * T, 9 * T);
+    const [x2, y2] = badgeCentre({ x: 3, y: 4, w: 1, h: 1 }, T, rad, 1, 7 * T, 9 * T);
+    expect(Math.hypot(x2 - x1, y2 - y1)).toBeCloseTo(rad * 2 + 2);
+    expect(x2 + rad).toBeLessThan(3 * T);
+    expect(y2 + rad).toBeLessThan(4 * T);
+    // Along a run, they stack along its side.
+    const [hx1] = badgeCentre({ x: 1, y: 4, w: 2, h: 1 }, T, rad, 0, 7 * T, 9 * T);
+    const [hx2] = badgeCentre({ x: 1, y: 4, w: 2, h: 1 }, T, rad, 1, 7 * T, 9 * T);
+    expect(hx2 - hx1).toBe(rad * 2 + 2);
   });
 });

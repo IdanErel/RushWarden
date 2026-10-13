@@ -4,10 +4,26 @@ import { stateAttributes } from '../src/hooks.js';
 import { format, setLanguage, t } from '../src/i18n.js';
 import { cardAtJunction, jamLine } from '../src/jam.js';
 import { keyAction } from '../src/keys.js';
+import { missNote } from '../src/info.js';
 import { ExitCounter } from '../src/live.js';
 import { devRun } from './helpers.js';
 import { copyText, shareLine, shareText } from '../src/share.js';
 import { TAG_COLOR, css } from '../src/tags.js';
+
+describe('miss notes (U5)', () => {
+  it('gives the reason a tap placed nothing', () => {
+    const card = { name: 'One-Way' } as never;
+    expect(missNote(undefined, true, null)).toBe(
+      'Pick a card first, then tap a highlighted target.',
+    );
+    expect(missNote(card, false, null)).toBe('One-Way can’t be played now.');
+    expect(missNote(card, true, 'closed')).toBe(
+      'This road is closed this round, so One-Way can’t go there. Tap a highlighted spot.',
+    );
+    expect(missNote(card, true, 'short')).toMatch(/one tile long/);
+    expect(missNote(card, true, null)).toBe('Not a target for One-Way. Tap a highlighted spot.');
+  });
+});
 
 describe('i18n', () => {
   it('fills placeholders and ICU plurals', () => {

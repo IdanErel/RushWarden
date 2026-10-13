@@ -261,12 +261,19 @@ describe('buses and trucks in real District 1 rounds', () => {
   // The plus-map test above moves one vehicle one step at a time. Real rounds also move a long
   // vehicle 2 cells in a tick out of a box into the exit lane, and between those snapshots a
   // straight blend of its tail cut across the box corner (up to 0.2 tiles past the asphalt).
+  // Two runs of five rounds cover every round kind (closures, rush, Market Day) and thousands of
+  // poses with a bus or truck bent through a turn, which the test counts so that a smaller sample
+  // cannot pass without exercising turns. Sampling 4 times a tick is the cost (about 2 s alone,
+  // several times that under coverage on a loaded runner), hence the explicit timeout.
   it('keep every body cell on asphalt and joined, at every quarter tick, through every turn', () => {
     const offRoad: string[] = [];
     const onBlock: string[] = [];
     const apart: string[] = [];
+    const wrongCells: string[] = [];
+    /** Poses whose head and tail cells differ in heading by more than 0.5 rad, per type. */
+    const turning = { [VehicleType.Bus]: 0, [VehicleType.Truck]: 0 };
     let longPoses = 0;
-    for (let run = 1; run <= 6; run++) {
+    for (let run = 1; run <= 2; run++) {
       for (let round = 1; round <= 5; round++) {
         const rush = round === 5;
         const seed = run * 7919 + round;
@@ -299,7 +306,11 @@ describe('buses and trucks in real District 1 rounds', () => {
               const len = VEHICLE_LENGTH[p.type as VehicleType] ?? 1;
               if (len < 2) continue;
               longPoses++;
-              expect(p.cells).toBe(len);
+              // Collected rather than asserted per pose: `expect` in this loop is most of the cost.
+              if (p.cells !== len) wrongCells.push(`${p.id} type ${p.type} cells ${p.cells}`);
+              const bend = p.parts[0]!.heading - p.parts[len - 1]!.heading;
+              if (Math.abs(Math.atan2(Math.sin(bend), Math.cos(bend))) > 0.5)
+                turning[p.type === VehicleType.Bus ? VehicleType.Bus : VehicleType.Truck]++;
               for (let j = 0; j < len; j++) {
                 const c = p.parts[j]!;
                 const where = `${s.map.id} tick ${i} q${q} id ${p.id} type ${p.type} body ${j}`;
@@ -328,10 +339,13 @@ describe('buses and trucks in real District 1 rounds', () => {
         });
       }
     }
-    expect(longPoses).toBeGreaterThan(10_000);
+    expect(longPoses).toBeGreaterThan(30_000);
+    expect(turning[VehicleType.Truck]).toBeGreaterThan(1_000);
+    expect(turning[VehicleType.Bus]).toBeGreaterThan(100);
+    expect(wrongCells.slice(0, 5)).toEqual([]);
     expect(offRoad.slice(0, 5)).toEqual([]);
     expect(onBlock.slice(0, 5)).toEqual([]);
     expect(apart.slice(0, 5)).toEqual([]);
-    // 30 simulated rounds: about 1 s alone, more on a loaded runner.
-  }, 30_000);
+    // 10 rounds: about 1 s alone and 3 s under coverage; a loaded CI runner has taken 10× that.
+  }, 120_000);
 });

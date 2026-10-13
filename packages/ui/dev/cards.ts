@@ -202,6 +202,27 @@ const SPECS: readonly Spec[] = [
   ],
 ];
 
+/**
+ * The dev page's own starting deck: the Phase 1 toy deck as it stood when the dev page's e2e seeds
+ * were chosen (2026-10-13, 12 cards). Pinned here, not taken from `PHASE1_STARTING_DECK`, so the
+ * run PRNG, and with it each round's seed and fake traffic, does not move when content changes the
+ * toy deck (E1 drops Overtime and Pilot Program): `?seed=1&jam=1` must keep gridlocking.
+ */
+export const DEV_STARTING_DECK: readonly string[] = [
+  'smart-signal',
+  'smart-signal',
+  'one-way',
+  'one-way',
+  'roundabout',
+  'bus-priority',
+  'detour',
+  'overtime',
+  'pilot-program',
+  'turn-lane',
+  'speed-limit-up',
+  'recount',
+];
+
 export const DEV_CARDS: readonly RunCard[] = SPECS.map(
   ([id, , cost, target, rarity, tag, , effects]) => ({
     id,
