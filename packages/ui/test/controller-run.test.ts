@@ -109,6 +109,16 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const placement = (run: ReturnType<typeof devRun>, id: string) =>
       run.roundInput().placements.find((p) => p.cardId === id)?.target;
 
+    it('says why a tap placed nothing: building, junction, road (U5)', () => {
+      const [run, i] = withOneWay();
+      // The test-plus map: a junction at (3,4), roads along row 4 and column 3.
+      expect(run.missReason(i, { x: 0, y: 0 })).toBe('block');
+      expect(run.missReason(i, { x: 3, y: 4 })).toBe('junction');
+      expect(run.missReason(i, { x: 1, y: 4 })).toBeNull();
+      const j = run.state().hand.findIndex((c) => c.target === 'intersection');
+      if (j >= 0) expect(run.missReason(j, { x: 1, y: 4 })).toBe('road');
+    });
+
     it('marks One-Way directional and no other card', () => {
       const [run, i] = withOneWay();
       const s = run.state();
@@ -273,6 +283,11 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     expect(s.offer).toHaveLength(3);
     expect(s.history).toEqual(['pass']);
     expect(tracked).toEqual(['run_start', 'round_end']);
+    // The information layer: the round's vehicle counts, every round's outcome, plays per round.
+    expect(s.last).toMatchObject({ spawned: quota * 2, exited: quota * 2 });
+    expect(s.results).toEqual([s.last]);
+    expect(s.maxPlays).toBe(2);
+    expect(s).toMatchObject({ rush: true, event: 'market-day' }); // the toy's round 1
     run.pickOffer(1);
     expect(run.state()).toMatchObject({ phase: 'place', round: 2 });
   });
