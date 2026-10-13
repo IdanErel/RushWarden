@@ -53,14 +53,22 @@ export async function openToy(page: Page, seed: number, extra = ''): Promise<voi
   await expect(page.locator('canvas').first()).toBeVisible();
 }
 
-/** Selects the first card with valid targets by keyboard (1–5, H5); returns its index. */
-export async function selectPlayable(page: Page): Promise<number> {
+/**
+ * Selects the first card with valid targets by keyboard (1–5, H5), passing over cards `skip`
+ * names (by id); returns its index.
+ */
+export async function selectPlayable(
+  page: Page,
+  skip: (cardId: string) => boolean = () => false,
+): Promise<number> {
   // H5 target rects come from the Pixi scene, which starts async after the place phase renders:
   // until it is up every card reads `[]` and looks unplayable. Go is enabled only once the scene
   // is set (#50), so wait for it as packages/ui's run.spec.ts does (#85).
   await expect(page.locator('canvas').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Go: start the rush hour' })).toBeEnabled();
+  const hand = (await attr(page, 'hand')).split(',');
   for (let i = 0; i < 5; i++) {
+    if (skip(hand[i] ?? '')) continue;
     await page.keyboard.press(String(i + 1));
     await expect(state(page)).toHaveAttribute('data-selected', String(i));
     if ((await attr(page, 'target-rects')) !== '[]') return i;
