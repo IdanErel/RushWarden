@@ -98,27 +98,33 @@ export const SUPPORTED_BOSSES: readonly BossCondition[] = ['market-day', 'parade
 export const SEED_SALTS = { map: 0x6d617073, demand: 0x64656d64, parade: 0x70617264 } as const;
 
 /**
- * ADR-032: each District 1 template's demand factor, in per-mille, for the itch toy only. In a
- * round set up with `templateDemand`, it scales both the round's vehicles and its quota, so every
- * template sits near its jam point: a map that carries more before it jams gets more traffic and
- * a higher quota, a map that jams early gets less of both. Full runs don't use it (§11 gates read
- * the full run). Calibrated by CON-06 from each template's no-card 50% pass point at rounds 4, 7,
- * 8 and 12 (geometric mean, normalised over the bank), times 0.905 for the toy's level.
+ * ADR-032 (amended for playtest B1/B2): each District 1 template's demand factor, in per-mille, for
+ * each D1 round the itch toy plays (`TOY_ROUNDS`). In a round set up with `templateDemand`, it
+ * scales the round's vehicles, and the quota follows as `TOY_QUOTA_SHARE_PERMILLE` of the score
+ * they make. So the factor sets how busy a map is, not how much of its traffic must arrive. Full
+ * runs don't use it (§11 gates read the full run).
+ *
+ * One factor per template and round, not per template: each round's boss loads a map in its own
+ * way (a Parade closes a road, a Festival floods it), so one number averaged over rounds left
+ * some boss rounds a wall. Calibrated against the balance bots so that the card bots pass each
+ * cell about 60% of the time (ADR-032 item 2). Parade has entries only for maps with at least
+ * `TOY_PARADE_MIN_EDGES` edges, the only ones a toy Parade picks.
  */
-export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, number>> = {
-  'd1-01': 760,
-  'd1-02': 530,
-  'd1-03': 1640,
-  'd1-04': 1190,
-  'd1-05': 690,
-  'd1-06': 1710,
-  'd1-07': 580,
-  'd1-08': 1420,
-  'd1-09': 640,
-  'd1-10': 620,
-  'd1-11': 540,
-  'd1-12': 1810,
-};
+export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, Readonly<Record<number, number>>>> =
+  {
+    'd1-01': { 4: 1070, 8: 670, 10: 1370, 11: 1280, 12: 460 },
+    'd1-02': { 4: 610, 10: 840, 11: 810, 12: 290 },
+    'd1-03': { 4: 1790, 10: 2230, 11: 2120, 12: 800 },
+    'd1-04': { 4: 1930, 8: 940, 10: 2370, 11: 2140, 12: 820 },
+    'd1-05': { 4: 840, 10: 1140, 11: 1080, 12: 390 },
+    'd1-06': { 4: 1810, 10: 2290, 11: 2180, 12: 820 },
+    'd1-07': { 4: 680, 8: 670, 10: 930, 11: 890, 12: 330 },
+    'd1-08': { 4: 1680, 10: 2130, 11: 2030, 12: 750 },
+    'd1-09': { 4: 790, 10: 1080, 11: 1020, 12: 370 },
+    'd1-10': { 4: 730, 10: 1000, 11: 940, 12: 350 },
+    'd1-11': { 4: 600, 8: 590, 10: 830, 11: 790, 12: 290 },
+    'd1-12': { 4: 1920, 10: 2370, 11: 2260, 12: 850 },
+  };
 
 /**
  * ADR-032 (E1): cards left out of the toy's deck and offers. Under the GDD's 2-play cap 18 of
@@ -127,24 +133,27 @@ export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, number>> = {
  */
 export const TOY_EXCLUDED_CARDS: readonly string[] = ['overtime', 'pilot-program'];
 
-/** ADR-032 (B2): a toy Parade picks only maps with at least this many edges. */
+/**
+ * ADR-032 (B2): a toy Parade picks only maps with at least this many edges. On the four 4-edge
+ * templates a closed road left card bots passing 0–9% of Parades (playtest validation, 3a9a765).
+ */
 export const TOY_PARADE_MIN_EDGES = 5;
 
 /**
  * ADR-032 (amended, B1): a toy round's quota is this share of the score the round spawns, boss
  * traffic included (Market Day trucks, Festival volume and emergency vehicles). Every toy round
- * then has the same slack, 1000/850 - 1 = 17.6%, whatever its map and boss.
+ * then has the same slack: 15% of what spawns may stay on the road, whatever its map and boss.
  */
 export const TOY_QUOTA_SHARE_PERMILLE = 850;
 
 /**
- * The demand factor of a map (ADR-032), by its template: a variant id (`d1-03-mx`) uses its
- * template's (`d1-03`). 1000 for a map with no factor, and when no map is given.
+ * The demand factor of a map in a D1 round (ADR-032), by its template: a variant id (`d1-03-mx`)
+ * uses its template's (`d1-03`). 1000 for a map or round with no factor, and when no map is given.
  */
-export function templateDemandPermille(mapId?: string): number {
+export function templateDemandPermille(mapId: string | undefined, round: number): number {
   if (mapId === undefined) return 1000;
   const template = /^d\d+-\d+/.exec(mapId)?.[0] ?? mapId;
-  return TEMPLATE_DEMAND_PERMILLE[template] ?? 1000;
+  return TEMPLATE_DEMAND_PERMILLE[template]?.[round] ?? 1000;
 }
 
 /**
@@ -214,10 +223,11 @@ export function roundScore(
 /**
  * ADR-030: the itch toy's 5 rounds sample District 1's 12-round curve instead of replaying rounds
  * 1–5. Toy round `i` plays D1 round `TOY_ROUNDS[i - 1]`: that round's quota, demand, rush and
- * boss. Tuned by P1-CON-05 against the toy targets in ADR-030, and by CON-06 (ADR-032) to play
- * round 11 third instead of a second Festival.
+ * boss. Tuned by P1-CON-05 against the toy targets in ADR-030; CON-06 (ADR-032) played round 11
+ * third instead of a second Festival, and playtest B2 (ADR-032) plays round 10 fourth instead of
+ * a second Parade, so each event comes once: Market Day, Parade, Festival.
  */
-export const TOY_ROUNDS: readonly number[] = [4, 8, 11, 8, 12];
+export const TOY_ROUNDS: readonly number[] = [4, 8, 11, 10, 12];
 
 /**
  * The toy's rush rounds as run-controller data (`RunConfig.rushRounds`): each toy round whose D1
@@ -253,7 +263,7 @@ export function roundVehicles(
     (1000 + ROUND_GROWTH_PERMILLE * (round - 1)) *
     (rush ? RUSH_PERMILLE : 1000) *
     (boss === 'festival' ? d.festival.demandPermille : 1000) *
-    templateDemandPermille(mapId);
+    templateDemandPermille(mapId, round);
   const den = 1_000_000_000_000;
   return idiv(num + idiv(den, 2), den);
 }
