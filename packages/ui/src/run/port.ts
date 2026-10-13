@@ -11,6 +11,8 @@ export type TargetKind = 'intersection' | 'segment' | 'edge' | 'district';
 /** A card as the UI shows it. `text` is generated from effects by content (CON-01). */
 export interface UiCard {
   readonly id: string;
+  /** Tells copies of a card apart; stable while the card stays in the run's deck. */
+  readonly uid: number;
   readonly name: string;
   readonly cost: number;
   readonly target: TargetKind;

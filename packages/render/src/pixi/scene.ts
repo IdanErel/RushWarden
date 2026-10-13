@@ -21,6 +21,7 @@ import {
 } from '@rushwarden/sim';
 import {
   LANE_WIDTH,
+  badgeCentre,
   SIDE_VEC,
   connections,
   fitGrid,
@@ -652,13 +653,14 @@ export class TrafficScene {
         g.roundRect(x, y, w, h, T * 0.14).stroke({ color: outline, width: width + 3, alpha: 0.8 });
         g.roundRect(x, y, w, h, T * 0.14).stroke({ color: m.color, width });
       }
-      // A badge at the target's top-left corner; badges on the same target stack side by side.
+      // A badge just outside the target, on the kerb or block beside it, so it never covers a
+      // queued car (playtest U8; the mark layer is above traffic). Badges on the same target
+      // stack side by side.
       const k = targetKey(m.target);
       const n = seen.get(k) ?? 0;
       seen.set(k, n + 1);
       const rad = Math.max(7, T * 0.15);
-      const cx = r.x * T + rad + 2 + n * (rad * 2 + 2);
-      const cy = r.y * T + rad + 2;
+      const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx);
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
       g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
