@@ -191,6 +191,56 @@ export function vehicleShapes(type: number, frame: 0 | 1 = 0): Shape[] {
 }
 
 /**
+ * Shapes for cell `cell` of a vehicle (0 = head), centred on that cell, for drawing a long vehicle
+ * one cell at a time along its path so it bends with the lane through a turn. A one-cell vehicle's
+ * cell 0 is `vehicleShapes`. A bus is two cells with a window each; a truck is its cab (with the
+ * front of the box behind it) and two box cells. Neighbouring cells keep the bumper gap between
+ * them, so the joints read as articulation rather than overlap on a bend.
+ */
+export function vehicleCellShapes(type: number, cell: number, frame: 0 | 1 = 0): Shape[] {
+  const len = VEHICLE_LENGTH[type as VehicleType] ?? 1;
+  if (len === 1) return vehicleShapes(type, frame);
+  const x0 = -0.5 + GAP / 2;
+  const x1 = 0.5 - GAP / 2;
+  if (type === VehicleType.Bus) {
+    const w = 0.62;
+    const h = BODY_WIDTH * 0.5;
+    return [
+      body(1, 'busBody'),
+      { kind: 'rect', x: -w / 2 - 0.02, y: -h / 2, w, h, r: 0.06, fill: 'busWindow' },
+    ];
+  }
+  // Truck.
+  const box = (from: number, to: number): Shape => ({
+    kind: 'rect',
+    x: from,
+    y: -BODY_WIDTH / 2,
+    w: to - from,
+    h: BODY_WIDTH,
+    r: 0.08,
+    fill: 'truckBox',
+    stroke: 'outline',
+    strokeWidth: OUTLINE,
+  });
+  if (cell > 0) return [box(x0, x1)];
+  const cabX = 0.05;
+  return [
+    box(x0, cabX - 0.1),
+    {
+      kind: 'rect',
+      x: cabX,
+      y: -BODY_WIDTH * 0.42,
+      w: x1 - cabX,
+      h: BODY_WIDTH * 0.84,
+      r: 0.1,
+      fill: 'truckCab',
+      stroke: 'outline',
+      strokeWidth: OUTLINE,
+    },
+  ];
+}
+
+/**
  * Outline drawn around a vehicle for the queue pulse (GDD §7): the body's bounding box grown by
  * a small margin, stroke only, so it never hides the vehicle's own shape.
  */
