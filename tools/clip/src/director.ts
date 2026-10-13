@@ -30,7 +30,7 @@ import { Sim, roundWorld, type BossCondition, type RoundInput, type Target } fro
  * that (ADR-028), so the tests pin both outcomes: when they fail after a content change, scan for
  * a new seed, change it here and in `clips/*.json`, and update docs/store.
  */
-export const MARKET_DAY_SEED = 4;
+export const MARKET_DAY_SEED = 20;
 
 /** How the target round is played when the spec has no actions for it. */
 export type PlayPolicy = 'greedy' | 'none';

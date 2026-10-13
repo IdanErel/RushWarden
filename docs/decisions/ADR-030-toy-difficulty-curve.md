@@ -1,7 +1,8 @@
 # ADR-030: Toy difficulty curve
 
 Status: Accepted · 2026-10-10 · Lead (proposed by Content Designer, P1-CON-05) · items 2 and 5
-amended by ADR-032 (CON-06), 2026-10-11
+amended by ADR-032 (CON-06), 2026-10-11; item 2 again by ADR-032 Amendment 1 (playtest B2),
+2026-10-13
 
 ADR-007 item 1 makes the itch toy a 5-round District 1 run whose round 5 is Market Day. With the
 tuned District 1 values (ADR-021), rounds 1–4 are the full run's on-ramp: every bot, including one
@@ -23,6 +24,10 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    **Amended by ADR-032:** `TOY_ROUNDS = [4, 8, 11, 8, 12]`. Round 11 replaces the first
    Festival. Once the per-template factor evens out the maps, Parade and Festival are the hardest
    rounds for every bot, and two Festivals made the toy almost unwinnable.
+
+   **Amended by ADR-032 Amendment 1 (playtest B2):** `TOY_ROUNDS = [4, 8, 11, 10, 12]`. Round 10
+   replaces the second Parade, so the toy plays each event once. Its item 3 targets for
+   `greedy-throughput` and the archetypes are no longer met; see that amendment's consequences.
 
 3. **Targets on the toy itself** (Lead): `no-cards` wins at most 20%, `random` 10–30%, each of the
    five `archetype(tag)` bots 35–65%, `greedy-throughput` at most 75%. The P1-CON-05 PR (#55)
