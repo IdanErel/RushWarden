@@ -337,7 +337,7 @@ applied locally. `no-cards` is local to the measurement, as before.
 | Bot                 | Toy win | Target (ADR-030 item 3, amended) |
 | ------------------- | ------- | -------------------------------- |
 | `no-cards`          | 7.1%    | at most 20%                      |
-| `random`            | 6.5%    | 10–30%, ±2: **missed**           |
+| `random`            | 6.5%    | 5–30% (Lead, #108)               |
 | `greedy-throughput` | 80.7%   | at most 80%, ±2                  |
 | `archetype(FLOW)`   | 56.5%   | 55–75%                           |
 | `archetype(MASS)`   | 73.3%   | 55–75%                           |
@@ -352,12 +352,12 @@ applied locally. `no-cards` is local to the measurement, as before.
 
 ### Consequences
 
-- **`random` misses its band.** After ADR-035, `random` and `greedy-throughput` can no longer both
+- **`random` band moved to 5–30%.** After ADR-035, `random` and `greedy-throughput` can no longer both
   be met. Every table tried moves them together: the tables with greedy at most 82% put `random`
   at 5.5–6.5% (2,000 seeds each), and the one table near `random` 8% (8.4%) had greedy at 82.9%
   on 800 seeds. Raising the share instead is worse (0.90: greedy 85.8%, `random` 7.3%). The
-  release candidate gate is greedy back inside tolerance (Lead); `random` is left for the Lead
-  to accept.
+  release candidate gate is greedy back inside tolerance. The Lead accepted this table on #108
+  and set the toy `random` band to 5–30% (ADR-030 item 3).
 - **Quotas.** Toy quotas rise with the busier maps: a toy Parade now asks 149–236 (d1-11 to
   d1-04), up from 133–212.
 - **Clip seed.** Unchanged (20); its Market Day keeps both outcomes, with and without ADR-033.

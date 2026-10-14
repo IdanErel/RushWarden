@@ -40,8 +40,10 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    The bot bands carry a ±2-point tolerance (Lead, #100): a 1-point miss on a 5-round demo isn't
    worth a harder toy. At the chosen quota share (0.86, ADR-032 A1) the toy measures `random`
    9.4% and `greedy-throughput` 81.2%, both inside the tolerance and accepted.
-   After ADR-035 (ADR-032 Amendment 2) the toy measures `greedy-throughput` 80.7%, inside the
-   tolerance, and `random` 6.5%, outside it: the two can no longer both be met.
+   **Random band 5–30% (Lead, #108).** After ADR-035 (ADR-032 Amendment 2) the toy measures
+   `greedy-throughput` 80.7% and `random` 6.5%, and the two can no longer both meet the old bands.
+   The Lead set the toy `random` band to 5–30%: a random player still loses most toys, and
+   greedy's ceiling matters more than random's floor. The ±2 tolerance still applies.
 
 4. **Run controller.** The toy preset reads both from content: `curveRounds: TOY_ROUNDS` and
    `rushRounds: toyRushRounds()`. The controller passes `curveRounds[round - 1]` (default `round`)
