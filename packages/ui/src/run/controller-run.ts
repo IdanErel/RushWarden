@@ -196,6 +196,7 @@ export class ControllerRun implements RunPort {
       rush: s.rush,
       event: s.rush ? s.boss : null,
       quota: s.quota,
+      quotaRef: s.quotaRef,
       approval: s.approval,
       maxApproval: cfg.approval,
       energy: s.energy,
