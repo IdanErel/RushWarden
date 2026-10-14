@@ -32,6 +32,8 @@ function fakeResult(s: FakeTrafficState): RoundResult {
     ticks: s.tick,
     gridlocked: s.gridlocked,
     fundsDelta: 0,
+    diverted: 0,
+    waiting: [],
     // Not a sim hash: the fake is not part of the determinism contract.
     finalHash: '0000000000000000',
   };

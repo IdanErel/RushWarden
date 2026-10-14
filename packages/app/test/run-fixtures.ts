@@ -181,6 +181,8 @@ export function fakeEnv(
         ticks: 300,
         gridlocked: false,
         fundsDelta: 0,
+        diverted: 0,
+        waiting: [],
         finalHash: '0000000000000000',
       };
     },

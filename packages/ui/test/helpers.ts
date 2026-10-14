@@ -30,6 +30,8 @@ export function result(throughput: number, gridlocked = false): RoundResult {
     ticks: gridlocked ? 120 : 300,
     gridlocked,
     fundsDelta: 0,
+    diverted: 0,
+    waiting: [],
     finalHash: '0123456789abcdef',
   };
 }

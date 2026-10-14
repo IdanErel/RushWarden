@@ -1,4 +1,4 @@
-import { controllerSnapshot, init, result, snapshot, step } from './sim.js';
+import { controllerSnapshot, init, result, snapshot, step, waitingSnapshot } from './sim.js';
 import type { RoundInput, RoundResult, SimState } from './types.js';
 
 /**
@@ -7,6 +7,12 @@ import type { RoundInput, RoundResult, SimState } from './types.js';
  * sim and answers with one snapshot per tick, sent as transferable buffers. The worker never
  * reads a clock, so the frames are identical to a headless run of the same input.
  */
+
+/**
+ * Protocol version. 1: `frames` and `controllers`. 2 (ADR-035): `frames` messages also carry
+ * `waiting`. Readers must treat fields a producer omits as absent, not as zero.
+ */
+export const SIM_PROTOCOL_VERSION = 2;
 
 /** Messages the main thread sends to the worker. */
 export type ToSimWorker =
@@ -27,12 +33,16 @@ export type FromSimWorker =
    * `[kind, greenMask, boxCount]` per intersection (ADR-020). The sim worker always sends it;
    * it is optional so other producers (the renderer's fake traffic) may omit it. Until P1-SIM-05
    * wires the cards, every intersection is uncontrolled: kind 0, mask 0, only boxCount moves.
+   * `waiting[k]` (protocol 2, ADR-035) is `waitingSnapshot` after the same tick: per map edge, in
+   * `GridMap.edges` order, the trips due but not yet spawned. Optional like `controllers`; it is
+   * display data and not part of the state hash.
    */
   | {
       readonly type: 'frames';
       readonly roundId: number;
       readonly frames: readonly Uint16Array[];
       readonly controllers?: readonly Uint8Array[];
+      readonly waiting?: readonly Uint16Array[];
     }
   /** Sent once, after the last frames of the round. `frames` is never included here. */
   | { readonly type: 'done'; readonly roundId: number; readonly result: RoundResult }
@@ -56,17 +66,20 @@ export function createSimWorkerHandler(post: PostFromWorker): (msg: ToSimWorker)
     if (!state) return;
     const frames: Uint16Array[] = [];
     const controllers: Uint8Array[] = [];
+    const waiting: Uint16Array[] = [];
     let n = 0;
     while (!state.done && n < ticks) {
       state = step(state);
       frames.push(snapshot(state));
       controllers.push(controllerSnapshot(state));
+      waiting.push(waitingSnapshot(state));
       n++;
     }
     if (frames.length > 0) {
-      post({ type: 'frames', roundId, frames, controllers }, [
+      post({ type: 'frames', roundId, frames, controllers, waiting }, [
         ...frames.map((f) => f.buffer as ArrayBuffer),
         ...controllers.map((c) => c.buffer as ArrayBuffer),
+        ...waiting.map((w) => w.buffer as ArrayBuffer),
       ]);
     }
     if (state.done) {

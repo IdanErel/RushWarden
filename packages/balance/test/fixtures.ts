@@ -30,6 +30,8 @@ export function scoringSim(input: RoundInput): RoundResult {
     ticks: gridlocked ? 120 : 300,
     gridlocked,
     fundsDelta: 0,
+    diverted: 0,
+    waiting: [],
     finalHash: input.seed.toString(16).padStart(16, '0'),
   };
 }
