@@ -72,6 +72,11 @@ export interface RunState {
   /** The rush round's event, if any. */
   readonly event: BossCondition | null;
   readonly quota: number;
+  /**
+   * The usual quota for this round of the run: the median over the maps the round can pick, for
+   * the "busy map" note (QA re-check R3). Null when quotas don't depend on the map (full runs).
+   */
+  readonly quotaRef: number | null;
   readonly approval: number;
   readonly maxApproval: number;
   readonly energy: number;
