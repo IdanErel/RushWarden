@@ -127,9 +127,10 @@ export const TEMPLATE_DEMAND_PERMILLE: Readonly<Record<string, Readonly<Record<n
   };
 
 /**
- * ADR-032 (E1): cards left out of the toy's deck and offers. Under the GDD's 2-play cap 18 of
- * the toy's 20 cards cost 1, so energy never binds: Overtime's +1 energy and Pilot Program's free
- * card buy nothing and cost a play. Toy-only, like ADR-007's Grant swap; full runs keep them.
+ * ADR-032 (E1): cards left out of the toy's deck and offers. Under the GDD's 2-play cap 16 of
+ * the toy's 20 cards cost 1 and 4 cost 2, so energy 3 rarely binds: Overtime's +1 energy and
+ * Pilot Program's free card rarely buy anything and cost a play. Toy-only, like ADR-007's Grant
+ * swap; full runs keep them.
  */
 export const TOY_EXCLUDED_CARDS: readonly string[] = ['overtime', 'pilot-program'];
 

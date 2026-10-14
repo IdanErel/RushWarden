@@ -2,7 +2,8 @@
 
 Status: Accepted (Lead, on the toy-only scope) · 2026-10-11 · Content Designer (CON-06). Number
 assigned by the Lead. Items 1, 2, 3, 5 and 6 amended by Amendment 1 (playtest B1, B2, E1),
-2026-10-13: Proposed. Amendment 1 item 3's factors re-tuned by Amendment 2 (ADR-035), 2026-10-14.
+2026-10-13: Proposed. Amendment 1 item 3's factors re-tuned by Amendment 2 (ADR-035), 2026-10-14:
+Accepted (Lead, #108).
 
 ## Context
 
@@ -166,8 +167,9 @@ caused or left:
 - **B2, the Parade wall.** One factor per template, averaged over rounds, left Parade on the four
   4-edge maps at quotas of 354–451. Card bots passed 0–9% of those Parades, and the toy played
   Parade twice (rounds 2 and 4).
-- **E1, dead cards.** Under the GDD's 2-play cap, 18 of the toy's 20 cards cost 1, so energy never
-  binds. Overtime (+1 energy) and Pilot Program (next card free) buy nothing and cost a play.
+- **E1, dead cards.** Under the GDD's 2-play cap, 16 of the 20 toy cards cost 1 and 4
+  cost 2, so energy 3 rarely binds (only for two cost-2 plays). Overtime (+1 energy) and Pilot
+  Program (next card free) rarely buy anything and cost a play.
 
 The triage asked for about 85% of the spawned score, card bots passing every toy round at least
 50% of the time on every map, and no toy round below 10% slack. At 85% the card bots won 64–84%
@@ -290,7 +292,7 @@ pass rate counts only runs that reached it.
 
 ## Amendment 2: re-tune after ADR-035 (2026-10-14)
 
-Status: Proposed · Content Designer · from the Lead's #106 heads-up and the toy-only release
+Status: Accepted (Lead, #108) · Content Designer · from the Lead's #106 heads-up and the toy-only release
 candidate gate.
 
 ### Context

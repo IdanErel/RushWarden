@@ -41,3 +41,4 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 032 | District 1 per-template demand factor                   | Accepted (Lead) |
 | 034 | Space pauses and resumes during the Go phase            | Accepted (Lead) |
 | 035 | Trips without a route divert or wait                    | Accepted (Lead) |
+| 036 | Full-run quota as a share of the spawned score          | Proposed        |
