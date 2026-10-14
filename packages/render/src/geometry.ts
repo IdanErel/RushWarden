@@ -230,48 +230,58 @@ function overlaps(a: Box, b: Box): boolean {
 }
 
 /**
- * Where an edge's backlog marker goes (ADR-035: trips waiting to enter), in px: just inside the
- * map on a block beside the edge's road tile, against the map's border, so it never covers the
- * entry cell or the heat-strip. It tries the block after the road (right, or below), then the one
- * before it, then the same two a step further in from the border, and takes the first that clears
- * everything in `avoid`: the card badges on the board and markers already placed. Two edge roads
- * two tiles apart share the block between them with the far road's badge (#107 review), so the
- * marker moves round it. With no clear spot it keeps the first.
+ * Where an edge's backlog marker goes (ADR-035: trips waiting to enter), in px. Only ever on a
+ * block tile, never on a road, so it can't cover the entry cell, the queue or any other road;
+ * the pill must fit inside one tile (the scene shrinks the label until it does). Block tiles are
+ * tried nearest first: along the border beside the road (after it, then before it), then one
+ * and two rows in. In each tile, the end nearer the border comes first, then the far end. The
+ * first spot clear of everything in `avoid` (card badges, markers already placed) wins; with
+ * none clear it takes the first spot clear of the markers alone, and then the first block spot
+ * (a badge can touch it, a road never does). #107 review: all shipped map variants, see the
+ * geometry tests.
  */
 export function backlogCentre(
   edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
   T: number,
   halfW: number,
   halfH: number,
-  width: number,
-  height: number,
+  map: GridMap,
   avoid: readonly Box[] = [],
+  markers: readonly Box[] = [],
 ): [number, number] {
   const { x, y } = edge.tile;
-  const horizontal = edge.side === 'n' || edge.side === 's';
-  const clampX = (v: number) => Math.min(Math.max(v, halfW + 1), width - halfW - 1);
-  const clampY = (v: number) => Math.min(Math.max(v, halfH + 1), height - halfH - 1);
-  const candidates: [number, number][] = [];
-  // Along the border: after the road, then before it. Inward: one marker size per step.
-  const steps = 4;
-  for (let k = 0; k < steps; k++) {
-    if (horizontal) {
-      const inward = k * (2 * halfH + 2 * GAP);
-      const cy = edge.side === 'n' ? halfH + GAP + inward : height - halfH - GAP - inward;
-      candidates.push([(x + 1) * T + halfW + GAP, cy], [x * T - halfW - GAP, cy]);
-    } else {
-      const inward = k * (2 * halfW + 2 * GAP);
-      const cx = edge.side === 'w' ? halfW + GAP + inward : width - halfW - GAP - inward;
-      candidates.push([cx, (y + 1) * T + halfH + GAP], [cx, y * T - halfH - GAP]);
+  const along = edge.side === 'n' || edge.side === 's';
+  const spots: [number, number][] = [];
+  for (let depth = 0; depth < 3; depth++) {
+    for (const d of [1, -1, 2, -2, 3, -3]) {
+      let tx: number;
+      let ty: number;
+      if (along) {
+        tx = x + d;
+        ty = edge.side === 'n' ? depth : GRID_HEIGHT - 1 - depth;
+      } else {
+        ty = y + d;
+        tx = edge.side === 'w' ? depth : GRID_WIDTH - 1 - depth;
+      }
+      if (tx < 0 || ty < 0 || tx >= GRID_WIDTH || ty >= GRID_HEIGHT || isRoad(map, tx, ty))
+        continue;
+      // Near end (toward the border), then far end, centred across.
+      const lo: [number, number] = along
+        ? [(tx + 0.5) * T, ty * T + halfH + GAP]
+        : [tx * T + halfW + GAP, (ty + 0.5) * T];
+      const hi: [number, number] = along
+        ? [(tx + 0.5) * T, (ty + 1) * T - halfH - GAP]
+        : [(tx + 1) * T - halfW - GAP, (ty + 0.5) * T];
+      const nearFirst = edge.side === 'n' || edge.side === 'w';
+      spots.push(...(nearFirst ? [lo, hi] : [hi, lo]));
     }
   }
-  // Off the canvas (the road is the first or last on its border): not a candidate.
-  const fits = ([cx, cy]: [number, number]) =>
-    cx - halfW >= 0 && cx + halfW <= width && cy - halfH >= 0 && cy + halfH <= height;
-  const onCanvas = candidates.filter(fits);
-  const clear = onCanvas.find(([cx, cy]) =>
-    avoid.every((b) => !overlaps({ cx, cy, hw: halfW, hh: halfH }, b)),
+  const box = ([cx, cy]: [number, number]): Box => ({ cx, cy, hw: halfW, hh: halfH });
+  const clearOf = (list: readonly Box[]) => (p: [number, number]) =>
+    list.every((b) => !overlaps(box(p), b));
+  return (
+    spots.find(clearOf([...avoid, ...markers])) ??
+    spots.find(clearOf(markers)) ??
+    spots[0] ?? [(x + 0.5) * T, (y + 0.5) * T]
   );
-  const [cx, cy] = clear ?? onCanvas[0] ?? candidates[0] ?? [halfW, halfH];
-  return [clampX(cx), clampY(cy)];
 }

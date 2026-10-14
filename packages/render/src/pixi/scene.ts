@@ -764,7 +764,7 @@ export class TrafficScene {
     const edges = this.map.edges;
     let used = 0;
     // Clear of every card badge and of the markers already placed (#107 review).
-    const avoid: Box[] = [...this.badgeBoxes];
+    const markers: Box[] = [];
     if (counts) {
       for (let k = 0; k < edges.length; k++) {
         const n = counts[k] ?? 0;
@@ -772,22 +772,22 @@ export class TrafficScene {
         if (n <= 0 || !edge) continue;
         const view = this.waitingView(used++);
         const text = n > 99 ? '99+' : String(n);
-        const size = Math.max(11, Math.round(T * 0.3));
         view.label.text = text;
-        view.label.style.fontSize = size;
         view.label.style.fill = p.glyph;
-        const halfH = Math.max(9, Math.round(size * 0.8));
-        const halfW = Math.max(halfH, Math.round(view.label.width / 2) + Math.round(size * 0.45));
-        const [cx, cy] = backlogCentre(
-          edge,
-          T,
-          halfW,
-          halfH,
-          this.fit.widthPx,
-          this.fit.heightPx,
-          avoid,
-        );
-        avoid.push({ cx, cy, hw: halfW, hh: halfH });
+        // The pill must fit inside one block tile (backlogCentre only uses blocks): shrink the
+        // label until it does.
+        let size = Math.max(11, Math.round(T * 0.3));
+        let halfW = 0;
+        let halfH = 0;
+        for (;;) {
+          view.label.style.fontSize = size;
+          halfH = Math.max(Math.min(9, T / 2 - 3), Math.round(size * 0.8));
+          halfW = Math.max(halfH, Math.round(view.label.width / 2) + Math.round(size * 0.45));
+          if ((halfW * 2 <= T - 6 && halfH * 2 <= T - 6) || size <= 7) break;
+          size--;
+        }
+        const [cx, cy] = backlogCentre(edge, T, halfW, halfH, this.map, this.badgeBoxes, markers);
+        markers.push({ cx, cy, hw: halfW, hh: halfH });
         view.pill
           .clear()
           .roundRect(-halfW, -halfH, halfW * 2, halfH * 2, halfH)

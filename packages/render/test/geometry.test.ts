@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { GRID_HEIGHT, GRID_WIDTH, emptyMap, type GridMap, type MapTile } from '@rushwarden/sim';
+import { loadMapTemplates, templateVariants } from '@rushwarden/content';
 import {
   backlogCentre,
   badgeCentre,
   connections,
+  isRoad,
   fitGrid,
   intersections,
   isIntersection,
@@ -137,86 +139,110 @@ describe('badgeCentre (playtest U8: badges off the road)', () => {
   });
 });
 
-describe('backlogCentre (ADR-035: waiting markers off the entry)', () => {
+describe('backlogCentre (ADR-035: waiting markers on blocks only)', () => {
   const T = 60;
-  const [W, H] = [T * 10, T * 8];
-  it('sits on the block beside the edge road, against the border', () => {
-    expect(backlogCentre({ tile: { x: 4, y: 0 }, side: 'n' }, T, 15, 10, W, H)).toEqual([
-      5 * T + 17,
-      12,
-    ]);
-    expect(backlogCentre({ tile: { x: 4, y: 7 }, side: 's' }, T, 15, 10, W, H)).toEqual([
-      5 * T + 17,
-      H - 12,
-    ]);
-    expect(backlogCentre({ tile: { x: 0, y: 3 }, side: 'w' }, T, 15, 10, W, H)).toEqual([
-      17,
-      4 * T + 12,
-    ]);
-    expect(backlogCentre({ tile: { x: 9, y: 3 }, side: 'e' }, T, 15, 10, W, H)).toEqual([
-      W - 17,
-      4 * T + 12,
-    ]);
-  });
-  it('goes on the tile before when the road is the last on its border', () => {
-    expect(backlogCentre({ tile: { x: 9, y: 0 }, side: 'n' }, T, 15, 10, W, H)).toEqual([
-      9 * T - 17,
-      12,
-    ]);
-    expect(backlogCentre({ tile: { x: 0, y: 7 }, side: 'w' }, T, 15, 10, W, H)).toEqual([
-      17,
-      7 * T - 12,
-    ]);
+  const map = emptyMap();
+  const onBlock = ([cx, cy]: [number, number]) =>
+    !isRoad(map, Math.floor(cx / T), Math.floor(cy / T));
+  it('sits on the block beside each entry of the cross, against the border', () => {
+    for (const edge of map.edges) {
+      const [cx, cy] = backlogCentre(edge, T, 15, 10, map);
+      expect(onBlock([cx, cy]), `${edge.side} marker on a block`).toBe(true);
+      const [tx, ty] = [Math.floor(cx / T), Math.floor(cy / T)];
+      // Next to the entry tile, in the border row or column.
+      expect(Math.abs(tx - edge.tile.x) + Math.abs(ty - edge.tile.y)).toBe(1);
+      if (edge.side === 'n') expect(cy).toBe(12);
+      if (edge.side === 's') expect(cy).toBe(GRID_HEIGHT * T - 12);
+      if (edge.side === 'w') expect(cx).toBe(17);
+      if (edge.side === 'e') expect(cx).toBe(GRID_WIDTH * T - 17);
+    }
   });
 });
 
-describe('backlog markers keep clear of card badges (#107 review: d1-05, d1-07, d1-10, d1-11)', () => {
-  // Two edge roads on the north side two tiles apart, n2 and n4, each with two road cards whose
-  // badges sit at the top of the run on its west kerb. The block between them, x = 3, holds n4's
-  // badges, which is exactly where n2's marker would go first.
-  for (const T of [44, 76]) {
-    it(`places "99+" markers for n2 and n4 clear of both roads' badges at T=${T}`, () => {
-      const [W, H] = [GRID_WIDTH * T, GRID_HEIGHT * T];
-      // "99+" at the scene's sizes: font max(11, 0.3T); generous widths for the label.
-      const size = Math.max(11, Math.round(T * 0.3));
-      const halfH = Math.max(9, Math.round(size * 0.8));
-      const halfW = Math.round(size * 1.1) + Math.round(size * 0.45);
-      const rad = Math.max(7, T * 0.15);
-      const badges = [2, 4].flatMap((x) =>
-        [0, 1].map((n) => {
-          const [cx, cy] = badgeCentre({ x, y: 0, w: 1, h: 4 }, T, rad, n, W, H);
-          return { cx, cy, hw: rad + 1, hh: rad + 1 };
-        }),
-      );
-      const avoid = [...badges];
-      const pills = [2, 4].map((x) => {
-        const [cx, cy] = backlogCentre(
-          { tile: { x, y: 0 }, side: 'n' },
-          T,
-          halfW,
-          halfH,
-          W,
-          H,
-          avoid,
-        );
-        const pill = { cx, cy, hw: halfW, hh: halfH };
-        avoid.push(pill);
-        return { x, ...pill };
-      });
-      const apart = (a: { cx: number; cy: number; hw: number; hh: number }, b: typeof a) =>
-        Math.abs(a.cx - b.cx) >= a.hw + b.hw || Math.abs(a.cy - b.cy) >= a.hh + b.hh;
-      for (const p of pills) {
-        for (const b of badges) expect(apart(p, b), `n${p.x} pill vs a badge`).toBe(true);
-        // On the canvas, and never over either road's column (the entry cells).
-        expect(p.cx - p.hw).toBeGreaterThanOrEqual(0);
-        expect(p.cx + p.hw).toBeLessThanOrEqual(W);
-        expect(p.cy - p.hh).toBeGreaterThanOrEqual(0);
-        for (const x of [2, 4]) {
-          const overRoad = p.cx + p.hw > x * T && p.cx - p.hw < (x + 1) * T;
-          expect(overRoad, `n${p.x} pill over road ${x}`).toBe(false);
+/**
+ * #107 review: every shipped map variant at the phone's and the desktop's tile size, with "99+"
+ * waiting at every edge and a card badge on every road run and junction (one badge, then two).
+ * The reviewer's scan, as a test.
+ */
+describe('backlog markers on every shipped map variant (#107 review)', () => {
+  const maps = loadMapTemplates().flatMap(templateVariants);
+  type B = { cx: number; cy: number; hw: number; hh: number };
+  const hit = (a: B, b: B) =>
+    Math.abs(a.cx - b.cx) < a.hw + b.hw && Math.abs(a.cy - b.cy) < a.hh + b.hh;
+  /** Every road run (both axes) and junction, as badgeCentre's target rects. */
+  function runs(m: GridMap): { x: number; y: number; w: number; h: number }[] {
+    const out = new Map<string, { x: number; y: number; w: number; h: number }>();
+    for (let y = 0; y < GRID_HEIGHT; y++)
+      for (let x = 0; x < GRID_WIDTH; x++) {
+        if (!isRoad(m, x, y)) continue;
+        if (isIntersection(m, x, y)) {
+          out.set(`j${x},${y}`, { x, y, w: 1, h: 1 });
+          continue;
+        }
+        for (const [dx, dy] of [
+          [1, 0],
+          [0, 1],
+        ] as const) {
+          const ok = (i: number) =>
+            isRoad(m, x + dx * i, y + dy * i) && !isIntersection(m, x + dx * i, y + dy * i);
+          let a = 0;
+          let b = 0;
+          while (ok(a - 1)) a--;
+          while (ok(b + 1)) b++;
+          if (a === b && !(isRoad(m, x + dx, y + dy) || isRoad(m, x - dx, y - dy))) continue;
+          const [x0, y0] = [x + dx * a, y + dy * a];
+          out.set(`s${dx}${x0},${y0}-${b - a}`, {
+            x: x0,
+            y: y0,
+            w: dx ? b - a + 1 : 1,
+            h: dy ? b - a + 1 : 1,
+          });
         }
       }
-      expect(apart(pills[0]!, pills[1]!), 'the two pills').toBe(true);
-    });
+    return [...out.values()];
   }
+
+  it('covers the bank', () => expect(maps.length).toBeGreaterThanOrEqual(38));
+
+  for (const T of [44, 76])
+    for (const badgesPer of [1, 2])
+      it(`T=${T}, ${badgesPer} badge(s) per run: no marker on a road or a marker${
+        badgesPer === 1 ? ', or on a badge' : ''
+      }`, () => {
+        const [W, H] = [GRID_WIDTH * T, GRID_HEIGHT * T];
+        const rad = Math.max(7, T * 0.15);
+        // "99+" as the scene sizes it (font 0.3T), within one tile.
+        const size = Math.max(11, Math.round(T * 0.3));
+        const halfH = Math.max(9, Math.round(size * 0.8));
+        const halfW = Math.max(halfH, Math.round((3 * size * 0.6) / 2) + Math.round(size * 0.45));
+        expect(halfW * 2).toBeLessThanOrEqual(T - 6);
+        const problems: string[] = [];
+        for (const m of maps) {
+          const badges: B[] = runs(m).flatMap((r) =>
+            Array.from({ length: badgesPer }, (_, n) => {
+              const [cx, cy] = badgeCentre(r, T, rad, n, W, H);
+              return { cx, cy, hw: rad + 1, hh: rad + 1 };
+            }),
+          );
+          const markers: B[] = [];
+          for (const e of m.edges) {
+            const [cx, cy] = backlogCentre(e, T, halfW, halfH, m, badges, markers);
+            const p = { cx, cy, hw: halfW, hh: halfH };
+            const at = `${m.id} ${e.side}${e.tile.x},${e.tile.y}`;
+            if (markers.some((q) => hit(p, q))) problems.push(`${at} on a marker`);
+            if (badgesPer === 1 && badges.some((b) => hit(p, b))) problems.push(`${at} on a badge`);
+            if (cx - halfW < 0 || cy - halfH < 0 || cx + halfW > W || cy + halfH > H)
+              problems.push(`${at} off the canvas`);
+            for (let y = 0; y < GRID_HEIGHT; y++)
+              for (let x = 0; x < GRID_WIDTH; x++)
+                if (
+                  isRoad(m, x, y) &&
+                  hit(p, { cx: (x + 0.5) * T, cy: (y + 0.5) * T, hw: T / 2 - 1, hh: T / 2 - 1 })
+                )
+                  problems.push(`${at} on road ${x},${y}`);
+            markers.push(p);
+          }
+        }
+        expect(problems).toEqual([]);
+      });
 });
