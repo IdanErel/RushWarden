@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
+  GRID_WIDTH,
   GRIDLOCK_TICKS,
   ROUND_TICKS,
   Sim,
@@ -97,7 +98,7 @@ describe('rule 3: p_slow from the round PRNG', () => {
 });
 
 describe('gridlock detector', () => {
-  it(`ends the round when the sum of v is 0 for ${GRIDLOCK_TICKS} consecutive ticks`, () => {
+  it(`ends the round after ${GRIDLOCK_TICKS} ticks with no exit and no junction entry`, () => {
     const r = Sim.simulate(round([car(0)], 1000));
     expect(r.gridlocked).toBe(true);
     expect(r.ticks).toBe(GRIDLOCK_TICKS);
@@ -116,13 +117,67 @@ describe('gridlock detector', () => {
 
   it('a vehicle spawning during a stall does not reset the window; free traffic never stalls', () => {
     // p_slow 1000 holds every vehicle at 0. A second car spawned before the window closes is held
-    // too, so the sum of v stays 0 and the window is counted per tick, not per vehicle.
+    // too and makes no progress, so the window is counted per tick, not per vehicle.
     const r = Sim.simulate(round([car(0), car(30, 1, 3)], 1000));
     expect(r.ticks).toBe(GRIDLOCK_TICKS);
     // Free-flowing traffic never stalls.
     const free = Sim.simulate(round([car(0), car(30, 1, 3)], 0));
     expect(free.gridlocked).toBe(false);
     expect(free.exited).toBe(2);
+  });
+
+  /**
+   * The plus map with a bus stop on the north arm, before the junction, and a bus that dwells
+   * `dwellTicks` there; cars follow from the same edge every 20 ticks and queue behind it.
+   */
+  function busStopQueue(dwellTicks: number): RoundInput {
+    const base = emptyMap();
+    const tiles = base.tiles.slice();
+    tiles[1 * GRID_WIDTH + 3] = { kind: 'road', lanes: 1, busStop: true };
+    const demand: DemandEvent[] = [{ tick: 0, edge: 0, destinationEdge: 2, vehicleType: 2 }];
+    for (let k = 1; k <= 8; k++) demand.push(car(k * 20));
+    return {
+      ...round(demand, 0),
+      map: { ...base, tiles },
+      placements: [
+        {
+          cardId: 'test-dwell',
+          tier: 1,
+          order: 0,
+          target: { kind: 'segment', from: { x: 3, y: 0 }, to: { x: 3, y: 3 } },
+          effects: [{ kind: 'setBusStopDwell', dwellTicks }],
+        },
+      ],
+    };
+  }
+
+  it('movement on a spawn road does not reset the window (ADR-033)', () => {
+    // The bus blocks the arm for 255 ticks. Each new car drives up the spawn road to the queue, so
+    // the sum of v is above 0 on some ticks, but nothing exits or enters the junction.
+    let s = Sim.init(busStopQueue(255));
+    const moving: number[] = [];
+    while (!s.done) {
+      s = Sim.step(s);
+      const f = Sim.snapshot(s);
+      let sum = 0;
+      for (let o = 2 + 3; o < f.length; o += 5) sum += f[o]!;
+      if (sum > 0) moving.push(f[0]!);
+    }
+    const r = Sim.result(s);
+    expect(r.gridlocked).toBe(true);
+    expect(r.ticks).toBe(GRIDLOCK_TICKS);
+    expect(r.exited).toBe(0);
+    // Under the pre-ADR-033 rule (sum of v is 0) these ticks reset the window.
+    expect(moving.filter((k) => k > 20).length).toBeGreaterThan(0);
+  });
+
+  it('a junction entry resets the window', () => {
+    // The same queue with a 40-tick dwell: the bus enters the junction before the window closes,
+    // the cars follow it, and the round runs to the end with every vehicle out.
+    const r = Sim.simulate(busStopQueue(40));
+    expect(r.gridlocked).toBe(false);
+    expect(r.ticks).toBe(ROUND_TICKS);
+    expect(r.exited).toBe(9);
   });
 
   it('stepping stops at gridlock, the result reports it, and simulate gives the same hash', () => {

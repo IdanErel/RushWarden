@@ -41,8 +41,10 @@ interface State extends SimState {
   readonly traffic: Traffic;
   fundsDelta: number;
   gridlocked: boolean;
-  /** Consecutive ticks with zero total speed while vehicles are present. */
+  /** Consecutive ticks with vehicles present and no exit or junction entry (ADR-033). */
   stalledTicks: number;
+  /** `traffic.exited + traffic.boxEntries` after the previous tick; a change is progress. */
+  lastProgress: number;
   /** Rolling per-tick mix so the final hash depends on the whole trajectory, not just the end. */
   trail: number;
   readonly frames: Uint16Array[] | null;
@@ -179,6 +181,7 @@ export function init(input: RoundInput): SimState {
     fundsDelta: 0,
     gridlocked: false,
     stalledTicks: 0,
+    lastProgress: 0,
     trail: 0,
     frames: input.recordFrames ? [] : null,
     tolls: [],
@@ -214,10 +217,14 @@ export function step(s: SimState): SimState {
     0;
   st.tick += 1;
   if (st.frames) st.frames.push(snapshot(st));
-  // Gridlock detector: "if the sum of v across all vehicles is 0 for 60 consecutive ticks, the
-  // round ends". A tick with no vehicle on the map does not count and resets the run.
-  if (t.orderLen > 0 && t.speedSum === 0) st.stalledTicks++;
+  // Gridlock detector (ADR-033): the round ends after GRIDLOCK_TICKS consecutive ticks with at
+  // least one vehicle on the map and no progress, where progress is a vehicle exiting or a vehicle
+  // entering a junction box. Movement elsewhere (creeping along spawn roads) does not reset it. A
+  // tick with no vehicle on the map does not count and resets the run.
+  const progress = t.exited + t.boxEntries;
+  if (t.orderLen > 0 && progress === st.lastProgress) st.stalledTicks++;
   else st.stalledTicks = 0;
+  st.lastProgress = progress;
   if (st.stalledTicks >= GRIDLOCK_TICKS) {
     st.gridlocked = true;
     st.done = true;

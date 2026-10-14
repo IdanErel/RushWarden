@@ -39,6 +39,7 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 030 | Toy difficulty curve                                    | Accepted (Lead) |
 | 031 | One-Way targets and direction                           | Accepted (Lead) |
 | 032 | District 1 per-template demand factor                   | Accepted (Lead) |
+| 033 | Gridlock is no progress, not zero speed                 | Accepted (Idan) |
 | 034 | Space pauses and resumes during the Go phase            | Accepted (Lead) |
 | 035 | Trips without a route divert or wait                    | Accepted (Lead) |
 | 036 | Full-run quota as a share of the spawned score          | Proposed        |
