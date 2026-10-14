@@ -29,7 +29,13 @@ import {
   type TargetMark,
   type WorkerLike,
 } from '@rushwarden/render';
-import type { GridMap, RoundInput, RoundResult } from '@rushwarden/sim';
+import {
+  ROUND_TICKS,
+  TICKS_PER_SECOND,
+  type GridMap,
+  type RoundInput,
+  type RoundResult,
+} from '@rushwarden/sim';
 import {
   DEFAULT_CONFIG,
   portalRules,
@@ -40,16 +46,26 @@ import {
 import { GLYPH_SIZE, cardGlyph } from './glyph.js';
 import { stateAttributes } from './hooks.js';
 import { t } from './i18n.js';
-import { cardAtJunction, type JamPoint } from './jam.js';
+import { jamLine, type JamPoint } from './jam.js';
 import { keyAction } from './keys.js';
 import { ExitCounter } from './live.js';
 import { EXIT_SOUND_GAP_MS, Throttle, createGameSound } from './sound.js';
 import { fitNames } from './fit-text.js';
 import { displayName } from './names.js';
+import { nextSlots, sameSlots, slotViews, type Slots } from './slots.js';
 import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js';
 import type { PlacedCard, RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
-import { copyText, shareLine, shareText } from './share.js';
+import { MARK_GLYPH, copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
+import {
+  busyFactor,
+  cutNote,
+  heldLine,
+  markLabel,
+  missNote,
+  readTipSeen,
+  writeTipSeen,
+} from './info.js';
 
 export interface GameEvents {
   /** Go pressed; portal `gameplayStart` (GDD §9). */
@@ -92,6 +108,9 @@ export interface GameOptions {
   readonly events?: GameEvents;
 }
 
+/** Keys that answer a result or run-end sheet are ignored this long after it opens (U2). */
+export const SHEET_KEY_DELAY_MS = 800;
+
 export function Game(props: GameOptions): preact.JSX.Element {
   const { run, events } = props;
   const config = props.config ?? DEFAULT_CONFIG;
@@ -115,23 +134,55 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const client = useRef<SimClient | null>(null);
   const counter = useRef(new ExitCounter());
   const [live, setLive] = useState(0);
+  /** Whole seconds left in the Go phase's 15 (the round timer on the throughput bar). */
+  const ROUND_SECONDS = ROUND_TICKS / TICKS_PER_SECOND;
+  const [left, setLeft] = useState(ROUND_SECONDS);
+  /** Per-edge waiting counts from the last frame (ADR-035), for the hooks; '' until any. */
+  const [waitingKey, setWaitingKey] = useState('');
   /** Where the last round's gridlock started (the scene's red ring), or null. */
   const [jam, setJam] = useState<JamPoint | null>(null);
   /** The cards placed when Go was pressed: their marks stay up through Go and the result. */
   const goPlaced = useRef<readonly PlacedCard[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
+  /** A directional card (One-Way) turned round before it is placed (playtest U11). */
+  const [previewReverse, setPreviewReverse] = useState(false);
   const [offerCursor, setOfferCursor] = useState(0);
   const [speed, setSpeed] = useState<1 | 2>(1);
   const [paused, setPaused] = useState(false);
-  const [menu, setMenu] = useState<'none' | 'pause' | 'privacy'>('none');
+  const [menu, setMenu] = useState<'none' | 'pause' | 'privacy' | 'rules'>('none');
+  // The one-time first-round tip (2 plays, 3 approvals, 5 rounds, the map's marks).
+  const [tipSeen, setTipSeen] = useState(readTipSeen);
+  /** The tip goes once the player acts (picks a card or presses Go), and does not come back. */
+  const dismissTip = (): void => {
+    if (tipSeen) return;
+    writeTipSeen();
+    setTipSeen(true);
+  };
+  // Where Rules' Close goes: the pause menu, or the run screen (the tip's link).
+  const rulesBack = useRef<'none' | 'pause'>('pause');
+  const openRules = (from: 'none' | 'pause'): void => {
+    rulesBack.current = from;
+    setMenu('rules');
+  };
   // Where Privacy's Close goes: back to the pause menu, or to the run screen (consent panel link).
   const privacyBack = useRef<'none' | 'pause'>('none');
   const openPrivacy = (from: 'none' | 'pause'): void => {
     privacyBack.current = from;
     setMenu('privacy');
   };
-  const [toast, setToast] = useState('');
+  const [toast, setToastText] = useState('');
+  // A new key per note, so the same note twice runs its fade again.
+  const [toastN, setToastN] = useState(0);
+  const setToast = useCallback((m: string) => {
+    setToastText(m);
+    if (m) setToastN((n) => n + 1);
+  }, []);
+  /**
+   * The run-ending round's own result sheet (U2): shown before the run end, so a gridlock still
+   * gets its ring and line. Cleared by its Next button or by Retry.
+   */
+  const [finalResult, setFinalResult] = useState(false);
   // ADR-025: asked once, before the first Go; no answer means no (nothing stored, asked next time).
   const rules = portalRules(config.portal);
   const privacy = rules.analytics ? props.privacy : undefined;
@@ -234,16 +285,25 @@ export function Game(props: GameOptions): preact.JSX.Element {
       made = sc;
       sc.canvas.setAttribute('aria-hidden', 'true');
       const c = new SimClient(props.spawnWorker(), {
-        onFrame: (f, now, controllers) => {
+        onFrame: (f, now, controllers, waiting) => {
           sc.pushSnapshot(f, now);
           // Live signal phases, box occupancy and controller glyphs (ADR-020 point 10).
           if (controllers) sc.pushControllers(controllers);
+          // Trips waiting to enter at each edge: a backlog marker on the map (ADR-035).
+          if (waiting) {
+            sc.pushWaiting(waiting);
+            const k = waiting.join(',');
+            setWaitingKey((prev) => (prev === k ? prev : k));
+          }
           const n = counter.current.push(f);
           // One pluck per burst of exits, pitched by the best vehicle's score value (GDD §7).
           const exits = counter.current.exits;
           if (exits.length > 0 && exitSound.current.pass(performance.now()))
             sound?.play?.('vehicleExit', { pitch: exitPitch(Math.max(...exits)) });
           setLive((prev) => (prev === n ? prev : n));
+          // Word 0 of a snapshot is its tick (SNAPSHOT_HEADER).
+          const sec = Math.max(0, Math.ceil((ROUND_TICKS - (f[0] ?? 0)) / TICKS_PER_SECOND));
+          setLeft((prev) => (prev === sec ? prev : sec));
         },
         onDone: (r: RoundResult) => {
           run.finishRound(r);
@@ -257,7 +317,10 @@ export function Game(props: GameOptions): preact.JSX.Element {
           if (r.gridlocked) sound?.play?.('gridlock');
           else if (st.last) sound?.play?.(st.last.pass ? 'quotaPass' : 'quotaFail');
           if (st.last) events?.roundEnd?.(st.last);
-          if (st.phase === 'end') events?.runEnd?.(st);
+          if (st.phase === 'end') {
+            events?.runEnd?.(st);
+            if (st.last) setFinalResult(true);
+          }
           setSpeed(1);
           setPaused(false);
           setOfferCursor(0);
@@ -286,6 +349,47 @@ export function Game(props: GameOptions): preact.JSX.Element {
   );
   const selCard = selected !== null ? s.hand[selected] : undefined;
 
+  // Fixed hand slots (U4): each card keeps its place and number key for the round; played cards
+  // stay where they were, dimmed. A turn with nothing placed starts from the hand's own order.
+  const slotsRef = useRef<Slots>([]);
+  const handUids = s.hand.map((c) => c.uid);
+  const playedUids = s.placed.map((p) => p.card.uid);
+  if (s.phase === 'place') {
+    const want =
+      s.placed.length === 0 ? handUids : nextSlots(slotsRef.current, handUids, playedUids);
+    if (!sameSlots(want, slotsRef.current)) slotsRef.current = want;
+  }
+  const slots = slotViews(slotsRef.current, handUids, playedUids);
+
+  // A controller card on a junction that already has one this round replaces it: say so (U11).
+  const cursorAt = cursor !== null ? targets[cursor] : undefined;
+  const replaced =
+    selCard?.controller && cursorAt?.kind === 'intersection'
+      ? (s.placed.find(
+          (p) =>
+            p.card.controller &&
+            p.target.kind === 'intersection' &&
+            p.target.x === cursorAt.x &&
+            p.target.y === cursorAt.y,
+        )?.card.name ?? null)
+      : null;
+  // What the cursor's placement would cut off (ADR-035): crossed-out exits and a note (U11's
+  // ghost, for One-Way, Bus Lane and No Heavy; any road card that cuts a route gets it).
+  const cut = useMemo(
+    () =>
+      s.phase === 'place' && selected !== null && cursorAt
+        ? run.cutsAt(
+            selected,
+            selCard?.directional ? withReverse(cursorAt, previewReverse) : cursorAt,
+          )
+        : null,
+    [run, s, selected, cursorAt, selCard, previewReverse],
+  );
+  const cutText = cutNote(cut);
+
+  // A quota well above the usual for this round: say so before Go (a busier map, not harder rules).
+  const busy = s.phase === 'place' ? busyFactor(s.quota, s.quotaRef) : null;
+
   const roundInput = useMemo(() => run.roundInput(), [run, s.round, s.phase === 'place']);
 
   // Each round: its map (content's templates), closures (Parade), demand heat-strips, and a lane
@@ -308,7 +412,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
     const ghost = selCard?.controller
       ? { kind: selCard.controller, direction: 'n' as const }
       : null;
-    scene.setTargets(targets, cursor, ghost);
+    // One-Way before placing: the arrow on the cursor's road, the way it would run (U11).
+    const at = cursor !== null ? targets[cursor] : undefined;
+    const seg = selCard?.directional && at ? run.segmentOf(withReverse(at, previewReverse)) : null;
+    const arrow = seg
+      ? { from: seg.from, to: seg.to, color: TAG_COLOR[selCard?.tags[0] ?? 'FLOW'] }
+      : null;
+    scene.setTargets(targets, cursor, ghost, arrow, cut?.edges ?? []);
     scene.setMarks(
       (s.phase === 'place' ? s.placed : goPlaced.current).map((p) => ({
         target: p.target,
@@ -341,6 +451,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
       }
       setSelected(i);
       setCursor(run.targets(i).length > 0 ? 0 : null);
+      setPreviewReverse(false);
+      // A 6th or 7th card may sit off the side of a phone's scrolling hand row (U10).
+      const slot = slots.findIndex((v) => v.kind === 'hand' && v.handIndex === i);
+      rootEl.current
+        ?.querySelectorAll<HTMLElement>('.rw-hand .rw-card')
+        [slot]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      dismissTip();
     },
     [s, selected, run],
   );
@@ -348,16 +465,18 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const placeAt = useCallback(
     (idx: number) => {
       if (selected === null) return;
-      const target = targets[idx];
-      if (!target) return;
+      const at = targets[idx];
+      if (!at) return;
+      const target = selCard?.directional ? withReverse(at, previewReverse) : at;
       const tag = s.hand[selected]?.tags[0];
       run.place(selected, target);
       sound?.play?.('cardPlace', { pitch: tag ? TAG_PITCH[tag] : 0 });
       setSelected(null);
       setCursor(null);
+      setPreviewReverse(false);
       bump(0);
     },
-    [selected, targets, run, s],
+    [selected, targets, run, s, selCard, previewReverse],
   );
 
   const undo = useCallback(
@@ -393,6 +512,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
       return;
     }
     goPending.current = false;
+    dismissTip();
     const input = run.roundInput();
     goPlaced.current = s.placed;
     run.go();
@@ -402,6 +522,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
     setCursor(null);
     counter.current.reset();
     setLive(0);
+    setLeft(ROUND_SECONDS);
+    setWaitingKey('');
     setSpeed(1);
     scene?.setSpeed(1);
     client.current.setSpeed(1);
@@ -455,6 +577,21 @@ export function Game(props: GameOptions): preact.JSX.Element {
     setMenu('pause');
   }, [s.phase]);
 
+  /** Space in Go (U3): pause or resume the board without the menu. */
+  const togglePause = useCallback(() => {
+    if (s.phase !== 'go') return;
+    if (paused) {
+      client.current?.resume();
+      setPaused(false);
+    } else {
+      client.current?.pause();
+      setPaused(true);
+      setSpeed(1);
+      client.current?.setSpeed(1);
+      scene?.setSpeed(1);
+    }
+  }, [s.phase, paused, scene]);
+
   const resume = useCallback(() => {
     setMenu('none');
     if (paused) {
@@ -477,6 +614,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
   }, [run]);
 
   const retry = useCallback(() => {
+    setFinalResult(false);
     run.retry();
     events?.runStart?.();
     setSelected(null);
@@ -487,7 +625,6 @@ export function Game(props: GameOptions): preact.JSX.Element {
 
   // --- Map pointer: place, undo, hold for 2× --------------------------------------------------
   const onMapDown = (e: PointerEvent): void => {
-    if (s.phase === 'go') return setFast(true);
     if (s.phase !== 'place' || !scene) return;
     // The canvas, not the map strip: a fitted map is narrower than the column and centred in it.
     const r = scene.canvas.getBoundingClientRect();
@@ -501,25 +638,87 @@ export function Game(props: GameOptions): preact.JSX.Element {
     if (tile) {
       const placedTargets = s.placed.map((p) => p.target);
       const hit = hitTarget(placedTargets, tile, scene.currentMap);
-      if (hit >= 0 && placedTargets[hit]?.kind !== 'district') undo(hit);
+      if (hit >= 0 && placedTargets[hit]?.kind !== 'district') return undo(hit);
+      // A tap that does nothing says why (U5).
+      setToast(
+        missNote(
+          selCard,
+          targets.length > 0,
+          selected !== null ? run.missReason(selected, tile) : null,
+        ),
+      );
     }
   };
-  const onMapUp = (): void => setFast(false);
+  // A pointer over a highlighted target moves the cursor there, so the ghost (a controller's
+  // glyph, One-Way's arrow) follows the pointer, not just the arrow keys (U11).
+  const onMapMove = (e: PointerEvent): void => {
+    if (s.phase !== 'place' || !scene || targets.length === 0 || e.pointerType === 'touch') return;
+    const r = scene.canvas.getBoundingClientRect();
+    const tile = scene.tileAtPoint(e.clientX - r.left, e.clientY - r.top);
+    const idx = hitTarget(targets, tile, scene.currentMap);
+    if (idx >= 0 && idx !== cursor) setCursor(idx);
+  };
+
+  // Hold anywhere for 2× (U6): any press outside a button, link or sheet, not just the map.
+  const onRootDown = (e: PointerEvent): void => {
+    if (s.phase !== 'go' || menu !== 'none') return;
+    const el = e.target as Element | null;
+    if (el?.closest('button, a, input, [role="dialog"]')) return;
+    setFast(true);
+  };
+  const setFastRef = useRef(setFast);
+  setFastRef.current = setFast;
+  useEffect(() => {
+    const up = (): void => setFastRef.current(false);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    window.addEventListener('blur', up);
+    return () => {
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('blur', up);
+    };
+  }, []);
 
   // --- Keyboard -------------------------------------------------------------------------------
+  // When the current result or run-end sheet appeared (U2's key delay).
+  const sheetKey =
+    s.phase === 'result' || s.phase === 'end'
+      ? `${s.phase}:${s.round}:${s.history.length}:${finalResult}`
+      : '';
+  const sheetSeen = useRef('');
+  const sheetAt = useRef(0);
+  if (sheetKey !== sheetSeen.current) {
+    sheetSeen.current = sheetKey;
+    sheetAt.current = performance.now();
+  }
   // The listener is added once and calls this render's handler. Re-adding it in a useEffect left a
   // gap after each render (effects run after paint) where a key reached the previous render's
   // handler: a second "1" right after the first re-selected card 1 instead of deselecting it.
   const onKey = useRef<(e: KeyboardEvent) => void>(() => undefined);
   onKey.current = (e: KeyboardEvent): void => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-    const a = keyAction(s.phase, e.key, menu !== 'none');
+    // The run-ending round's result sheet reads keys like any result sheet.
+    const phase = s.phase === 'end' && finalResult ? 'result' : s.phase;
+    const a = keyAction(phase, e.key, menu !== 'none');
     if (!a) return;
     e.preventDefault();
+    // A key already on its way when a sheet opens must not answer it (U2): Next, a card or Retry
+    // need a press made after the sheet was up.
+    if (
+      (a.type === 'confirm' || a.type === 'skip' || a.type === 'select') &&
+      (phase === 'result' || phase === 'end') &&
+      performance.now() - sheetAt.current < SHEET_KEY_DELAY_MS
+    )
+      return;
     switch (a.type) {
       case 'select':
         if (s.phase === 'result') setOfferCursor(a.index);
-        else select(a.index);
+        else {
+          // Number keys name slots (U4), not hand positions; a played card's key does nothing.
+          const v = slots[a.index];
+          if (v?.kind === 'hand') select(v.handIndex);
+        }
         break;
       case 'cursor':
         if (s.phase === 'result') {
@@ -530,6 +729,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
         break;
       case 'confirm':
         if (s.phase === 'place' && cursor !== null) placeAt(cursor);
+        else if (phase === 'result' && s.phase === 'end') setFinalResult(false);
         else if (s.phase === 'result') {
           if (s.offer) pick(offerCursor);
           else next();
@@ -539,7 +739,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
         go();
         break;
       case 'flip':
-        flip();
+        // A selected One-Way turns round before it is placed; otherwise the last one placed does.
+        if (selCard?.directional && targets.length) setPreviewReverse((v) => !v);
+        else flip();
         break;
       case 'undo':
         if (selected !== null) {
@@ -552,8 +754,12 @@ export function Game(props: GameOptions): preact.JSX.Element {
         else pause();
         break;
       case 'skip':
-        if (s.offer) pick(null);
+        if (s.phase === 'end') setFinalResult(false);
+        else if (s.offer) pick(null);
         else next();
+        break;
+      case 'togglePause':
+        togglePause();
         break;
       case 'mute':
         toggleSound();
@@ -581,6 +787,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
         selected,
         cursor,
         gridlockOrigin: jam,
+        waiting: waitingKey ? waitingKey.split(',').map(Number) : [],
+        cut: cut?.edges ?? [],
         audio: sound ? (sound.started ? 'started' : 'idle') : 'none',
         muted: sound ? sound.muted : true,
         live: scene?.liveControllers ?? [],
@@ -598,12 +806,19 @@ export function Game(props: GameOptions): preact.JSX.Element {
       class={`rw-game${wide ? ' rw-wide' : ''}${wide && roomy ? ' rw-roomy' : ''}`}
       style={wide ? { '--side': `${side}px` } : undefined}
       ref={rootEl}
+      onPointerDown={onRootDown}
+      onContextMenu={(e) => {
+        // A long press for 2× on a phone must not open the context menu.
+        if (s.phase === 'go') e.preventDefault();
+      }}
     >
       {hookAttrs && <div id="game-state" hidden {...hookAttrs} />}
       <header class="rw-hud">
-        <span class="rw-round">
-          {t('hud.round', { round: s.round, rounds: s.rounds })}
-          {s.rush && <b class="rw-rush"> · {t('hud.rush')}</b>}
+        {/* On a phone an event name takes the word "Round"'s room. */}
+        <span class={`rw-round${s.event ? ' rw-has-event' : ''}`}>
+          <span class="rw-round-word">{t('hud.roundWord')} </span>
+          {t('hud.roundNum', { round: s.round, rounds: s.rounds })}
+          {s.rush && <b class="rw-rush"> · {s.event ? t(`event.${s.event}`) : t('hud.rush')}</b>}
         </span>
         <span>{t('hud.quota', { quota: s.quota })}</span>
         <Pips
@@ -626,14 +841,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
           ☰
         </button>
       </header>
-      <div
-        class="rw-map"
-        ref={mapEl}
-        onPointerDown={onMapDown}
-        onPointerUp={onMapUp}
-        onPointerLeave={onMapUp}
-        onPointerCancel={onMapUp}
-      />
+      <div class="rw-map" ref={mapEl} onPointerDown={onMapDown} onPointerMove={onMapMove}>
+        {s.phase === 'go' && paused && menu === 'none' && (
+          <span class="rw-paused" role="status">
+            {t('paused.board')}
+          </span>
+        )}
+      </div>
       {s.phase === 'place' && (
         <section class="rw-place">
           <div class="rw-row">
@@ -645,6 +859,17 @@ export function Game(props: GameOptions): preact.JSX.Element {
             />
             <span class="rw-muted">{t('place.plays', { n: s.playsLeft })}</span>
             <span class="rw-grow" />
+            {selCard?.directional && targets.length > 0 && (
+              <button
+                class="rw-chip rw-flip"
+                style={{ borderColor: css(TAG_COLOR[selCard.tags[0] ?? 'FLOW']) }}
+                aria-label={t('place.flip', { name: selCard.name })}
+                aria-pressed={previewReverse}
+                onClick={() => setPreviewReverse((v) => !v)}
+              >
+                ⇄
+              </button>
+            )}
             <button class="rw-go" aria-label={t('go.label')} onClick={go} disabled={!scene}>
               {t('go')}
             </button>
@@ -652,49 +877,77 @@ export function Game(props: GameOptions): preact.JSX.Element {
           <p class="rw-detail" aria-live="polite">
             {selCard
               ? targets.length
-                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}`
+                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}${replaced ? ` ${t('place.replaces', { name: replaced })}` : ''}${cutText ? ` ${cutText}` : ''}`
                 : `${selCard.text} ${t('place.noTargets')}`
-              : t('place.hint')}
+              : busy
+                ? `${t('place.busy', { x: busy, round: s.round })} ${t('place.hint')}`
+                : t('place.hint')}
           </p>
-          {s.placed.length > 0 && (
-            <div class="rw-placed">
-              {s.placed.map((p, i) => (
-                <span key={`${p.card.id}-${targetKey(p.target)}`} class="rw-chip-group">
+          {/* Always there, one row high, so placing or undoing never moves the hand (U1). */}
+          <div class="rw-placed">
+            {s.placed.map((p, i) => (
+              <span key={`${p.card.id}-${targetKey(p.target)}`} class="rw-chip-group">
+                <button
+                  class="rw-chip"
+                  style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
+                  aria-label={t('place.undo', { name: p.card.name })}
+                  disabled={!run.canUndo(i)}
+                  onClick={() => undo(i)}
+                >
+                  ↶ {p.card.name}
+                </button>
+                {p.card.directional && (
                   <button
-                    class="rw-chip"
+                    class="rw-chip rw-flip"
                     style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
-                    aria-label={t('place.undo', { name: p.card.name })}
-                    disabled={!run.canUndo(i)}
-                    onClick={() => undo(i)}
+                    aria-label={t('place.flip', { name: p.card.name })}
+                    disabled={!run.canFlip(i)}
+                    onClick={() => flip(i)}
                   >
-                    ↶ {p.card.name}
+                    ⇄
                   </button>
-                  {p.card.directional && (
-                    <button
-                      class="rw-chip rw-flip"
-                      style={{ borderColor: css(TAG_COLOR[p.card.tags[0] ?? 'FLOW']) }}
-                      aria-label={t('place.flip', { name: p.card.name })}
-                      disabled={!run.canFlip(i)}
-                      onClick={() => flip(i)}
-                    >
-                      ⇄
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
-          <div class="rw-hand" role="group" aria-label="Hand">
-            {s.hand.map((c, i) => {
-              const placed = s.placed.some((p) => p.card === c);
+                )}
+              </span>
+            ))}
+          </div>
+          {/* A hand of 6 or 7 (Second Shift) stays one row on a phone and two in a tall landscape
+              column, with smaller cards, so it never pushes the board or Go around (U10). */}
+          <div
+            class={`rw-hand${slots.length > 5 ? ' rw-hand-big' : ''}`}
+            role="group"
+            aria-label="Hand"
+            style={{
+              '--hand-n': String(Math.max(5, slots.length)),
+              '--hand-rows-n': String(Math.max(3, Math.ceil(slots.length / 2))),
+            }}
+          >
+            {slots.map((v, i) => {
+              if (v.kind === 'played') {
+                const p = s.placed.find((q) => q.card.uid === v.uid);
+                if (!p) return null;
+                return (
+                  <Card
+                    key={`${s.round}-${i}`}
+                    card={p.card}
+                    index={i}
+                    selected={false}
+                    dim
+                    played
+                    label={t('card.played', { name: p.card.name })}
+                    onClick={() => undefined}
+                  />
+                );
+              }
+              const c = s.hand[v.handIndex];
+              if (!c) return null;
               return (
                 <Card
                   key={`${s.round}-${i}`}
                   card={c}
                   index={i}
-                  selected={selected === i}
-                  dim={placed || c.cost > s.energy || s.playsLeft === 0}
-                  onClick={() => select(i)}
+                  selected={selected === v.handIndex}
+                  dim={c.cost > s.energy || s.playsLeft === 0}
+                  onClick={() => select(v.handIndex)}
                 />
               );
             })}
@@ -712,29 +965,60 @@ export function Game(props: GameOptions): preact.JSX.Element {
             aria-label={t('go.through', { n: live, quota: s.quota })}
           >
             <div class="rw-fill" style={{ width: `${pct}%` }} />
-            <span>{t('go.through', { n: live, quota: s.quota })}</span>
+            {/* The round timer: a strip along the bar's foot that runs down over the 15 s. */}
+            <div
+              class="rw-clock"
+              style={{ width: `${Math.round((left / ROUND_SECONDS) * 100)}%` }}
+              aria-hidden="true"
+            />
+            <span>
+              {t('go.through', { n: live, quota: s.quota })}
+              <small class="rw-left" role="timer">
+                {' · '}
+                {t('go.left', { n: left })}
+              </small>
+            </span>
           </div>
           <div class="rw-row">
             <span class="rw-muted">{speed === 2 ? t('go.speed2') : t('go.hold')}</span>
             <span class="rw-grow" />
-            <button class="rw-btn" aria-label={t('pause')} onClick={pause}>
-              ❚❚ {t('pause')}
-            </button>
+            {/* Pauses the board in place; ☰ and Esc open the menu. Hidden under the menu, whose
+                own Resume answers then. */}
+            {menu === 'none' && (
+              <button class="rw-btn" onClick={togglePause} aria-pressed={paused}>
+                {paused ? `▶ ${t('resume')}` : `❚❚ ${t('pause')}`}
+              </button>
+            )}
           </div>
         </section>
       )}
-      {s.phase === 'result' && s.last && (
+      {(s.phase === 'result' || (s.phase === 'end' && finalResult)) && s.last && (
         <Result
           outcome={s.last}
-          jam={jam}
-          jamCard={jam ? (cardAtJunction(goPlaced.current, jam)?.card.name ?? null) : null}
+          jamText={jam ? jamLine(goPlaced.current, jam) : null}
           approval={s.approval}
-          offer={s.offer}
+          offer={s.phase === 'result' ? s.offer : null}
+          showFunds={config.showFunds ?? false}
+          nextLabel={s.phase === 'end' ? t('result.toRunEnd') : t('result.next')}
           cursor={offerCursor}
           onPick={pick}
-          onNext={next}
+          onNext={s.phase === 'end' ? () => setFinalResult(false) : next}
         />
       )}
+      {!tipSeen &&
+        !(askConsent && privacy) &&
+        menu === 'none' &&
+        s.phase === 'place' &&
+        s.round === 1 && (
+          <Tip
+            state={s}
+            onClose={dismissTip}
+            onRules={() => {
+              dismissTip();
+              openRules('none');
+            }}
+          />
+        )}
       {askConsent && privacy && s.phase === 'place' && (
         <Consent
           onAnswer={(yes) => {
@@ -744,7 +1028,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
           onPrivacy={() => openPrivacy('none')}
         />
       )}
-      {s.phase === 'end' && (
+      {s.phase === 'end' && !finalResult && (
         <End
           state={s}
           shareUrl={config.shareUrl}
@@ -758,10 +1042,12 @@ export function Game(props: GameOptions): preact.JSX.Element {
           inGo={s.phase === 'go'}
           sound={sound}
           onResume={resume}
+          onRules={() => openRules('pause')}
           onPrivacy={() => openPrivacy('pause')}
           onChange={() => bump(0)}
         />
       )}
+      {menu === 'rules' && <Rules state={s} onClose={() => setMenu(rulesBack.current)} />}
       {menu === 'privacy' && (
         <Privacy
           privacyUrl={config.privacyUrl}
@@ -776,7 +1062,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
         />
       )}
       {toast && (
-        <div class="rw-toast" role="status" onAnimationEnd={() => setToast('')}>
+        <div key={toastN} class="rw-toast" role="status" onAnimationEnd={() => setToast('')}>
           {toast}
         </div>
       )}
@@ -804,6 +1090,8 @@ function Card(p: {
   index: number;
   selected: boolean;
   dim: boolean;
+  /** Played this round: stays in its slot, dimmed, and does nothing (U4). */
+  played?: boolean;
   onClick: () => void;
   label?: string;
 }): preact.JSX.Element {
@@ -811,9 +1099,10 @@ function Card(p: {
   const color = css(TAG_COLOR[c.tags[0] ?? 'FLOW']);
   return (
     <button
-      class={`rw-card${p.selected ? ' sel' : ''}${p.dim ? ' dim' : ''}`}
+      class={`rw-card${p.selected ? ' sel' : ''}${p.dim ? ' dim' : ''}${p.played ? ' played' : ''}`}
       style={{ borderColor: color }}
-      aria-pressed={p.selected}
+      aria-pressed={p.played ? undefined : p.selected}
+      aria-disabled={p.played ? true : undefined}
       aria-label={
         p.label ??
         t('card.label', { name: c.name, cost: c.cost, tags: c.tags.join(' '), text: c.text })
@@ -831,6 +1120,11 @@ function Card(p: {
       <span class="rw-tag" style={{ color }}>
         {c.tags.join(' ')}
       </span>
+      {p.played && (
+        <span class="rw-played" aria-hidden="true">
+          {t('card.playedTag')}
+        </span>
+      )}
     </button>
   );
 }
@@ -856,11 +1150,13 @@ function Glyph(p: { card: UiCard }): preact.JSX.Element {
 
 function Result(p: {
   outcome: RoundOutcome;
-  /** The junction the scene ringed after a gridlock, and the card placed there. */
-  jam: JamPoint | null;
-  jamCard: string | null;
+  /** After a gridlock: where it started (the scene's ring) and the card there, if any. */
+  jamText: string | null;
   approval: number;
   offer: readonly UiCard[] | null;
+  /** Funds earned and the skip's funds (hidden in Phase 1: no shop, E4). */
+  showFunds: boolean;
+  nextLabel: string;
   cursor: number;
   onPick: (i: number | null) => void;
   onNext: () => void;
@@ -872,15 +1168,22 @@ function Result(p: {
       <h2 id="rw-result-title" class={o.pass ? 'pass' : 'fail'}>
         {title}
       </h2>
-      {o.gridlocked && p.jam && (
-        <p class="rw-jam">
-          {p.jamCard ? t('result.jamCard', { name: p.jamCard }) : t('result.jam')}
+      {o.gridlocked && p.jamText && <p class="rw-jam">{p.jamText}</p>}
+      <p>{t('result.score', { n: o.throughput, quota: o.quota })}</p>
+      {o.spawned !== undefined && o.exited !== undefined && (
+        <p class="rw-muted">
+          {t(o.gridlocked ? 'result.trafficJam' : 'result.traffic', {
+            arrived: o.exited,
+            left: Math.max(0, o.spawned - o.exited),
+          })}
         </p>
       )}
-      <p>{t('result.score', { n: o.throughput, quota: o.quota })}</p>
-      <p>
-        {o.pass ? t('result.funds', { n: o.fundsEarned }) : t('result.approval', { n: p.approval })}
-      </p>
+      {heldLine(o) && <p class="rw-muted rw-held">{heldLine(o)}</p>}
+      {o.pass ? (
+        p.showFunds && <p>{t('result.funds', { n: o.fundsEarned })}</p>
+      ) : (
+        <p>{t('result.approval', { n: p.approval })}</p>
+      )}
       {p.offer ? (
         <>
           <h3>{t('result.pick')}</h3>
@@ -900,12 +1203,12 @@ function Result(p: {
             ))}
           </div>
           <button class="rw-btn" onClick={() => p.onPick(null)}>
-            {t('result.skip')}
+            {p.showFunds ? t('result.skip') : t('result.skipPlain')}
           </button>
         </>
       ) : (
         <button class="rw-go" onClick={p.onNext}>
-          {t('result.next')}
+          {p.nextLabel}
         </button>
       )}
     </section>
@@ -927,9 +1230,35 @@ function End(p: {
         {s.won ? t('end.won') : t('end.lost')}
       </h2>
       <p>{t('end.summary', { rounds: s.history.length, n: s.totalThroughput })}</p>
+      <table class="rw-rounds">
+        <caption class="rw-sr">{t('end.table')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('end.col.round')}</th>
+            <th scope="col">{t('end.col.through')}</th>
+            <th scope="col">{t('end.col.result')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {s.results.map((o, i) => {
+            const mark = s.history[i] ?? 'fail';
+            return (
+              <tr key={o.round}>
+                <td>{o.round}</td>
+                <td>{t('end.cell.through', { n: o.throughput, quota: o.quota })}</td>
+                <td>
+                  <span aria-hidden="true">{MARK_GLYPH[mark]} </span>
+                  {markLabel(mark)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
       <pre class="rw-share" aria-label="Share text">
         {line}
       </pre>
+      <p class="rw-legend">{t('end.legend')}</p>
       <div class="rw-row">
         <button
           class="rw-btn"
@@ -957,6 +1286,7 @@ function PauseMenu(p: {
   inGo: boolean;
   sound: SoundControl | undefined;
   onResume: () => void;
+  onRules: () => void;
   onPrivacy: () => void;
   onChange: () => void;
 }): preact.JSX.Element {
@@ -979,6 +1309,9 @@ function PauseMenu(p: {
           {p.sound.muted ? t('sound.off') : t('sound.on')}
         </button>
       )}
+      <button class="rw-btn" onClick={p.onRules}>
+        {t('rules.open')}
+      </button>
       <button class="rw-btn" onClick={p.onPrivacy}>
         {t('privacy.open')}
       </button>
@@ -1147,4 +1480,67 @@ function SpeakerIcon(p: { on: boolean }): preact.JSX.Element {
 export function mountGame(el: HTMLElement, opts: GameOptions): () => void {
   render(<Game {...opts} />, el);
   return () => render(null, el);
+}
+
+/** A segment target turned round when `reverse` is set (One-Way placed against its default). */
+function withReverse(t: TargetMark, reverse: boolean): TargetMark {
+  return reverse && t.kind === 'segment' ? { ...t, reverse: true } : t;
+}
+
+/**
+ * The rules on screen (playtest "goals and rules 3/10"): what a round is, what wins and loses,
+ * and what the map's marks mean. Numbers come from the run's own settings.
+ */
+function RulesText(p: { state: RunState }): preact.JSX.Element {
+  const s = p.state;
+  return (
+    <ul class="rw-rules">
+      <li>{t('rules.round', { plays: s.maxPlays, energy: s.maxEnergy })}</li>
+      <li>{t('rules.go', { seconds: ROUND_TICKS / TICKS_PER_SECOND })}</li>
+      <li>{t('rules.lose', { approval: s.maxApproval })}</li>
+      <li>{t('rules.win', { rounds: s.rounds })}</li>
+      <li>
+        <i class="rw-key-stripe" aria-hidden="true" /> {t('rules.stripes')}
+      </li>
+      <li>
+        <i class="rw-key-closed" aria-hidden="true" /> {t('rules.closed')}
+      </li>
+    </ul>
+  );
+}
+
+function Rules(p: { state: RunState; onClose: () => void }): preact.JSX.Element {
+  return (
+    <section class="rw-sheet rw-menu" role="dialog" aria-labelledby="rw-rules-title">
+      <h2 id="rw-rules-title">{t('rules.title')}</h2>
+      <RulesText state={p.state} />
+      <button class="rw-go" onClick={p.onClose} autoFocus>
+        {t('rules.close')}
+      </button>
+    </section>
+  );
+}
+
+/** Shown once, at the first round of the first run on this device. */
+function Tip(p: { state: RunState; onClose: () => void; onRules: () => void }): preact.JSX.Element {
+  const s = p.state;
+  return (
+    <section class="rw-consent rw-tip" role="region" aria-labelledby="rw-tip-title">
+      <p>
+        <b id="rw-tip-title">{t('tip.title')}</b>{' '}
+        {t('tip.body', { plays: s.maxPlays, approval: s.maxApproval, rounds: s.rounds })}
+      </p>
+      <p class="rw-muted">
+        <i class="rw-key-stripe" aria-hidden="true" /> {t('tip.stripes')}
+      </p>
+      <div class="rw-row">
+        <button class="rw-btn rw-answer" onClick={p.onClose}>
+          {t('tip.ok')}
+        </button>
+        <button class="rw-link" onClick={p.onRules}>
+          {t('rules.open')}
+        </button>
+      </div>
+    </section>
+  );
 }

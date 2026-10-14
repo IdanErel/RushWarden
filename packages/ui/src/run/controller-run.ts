@@ -11,6 +11,7 @@ import {
   RunController,
   costOf,
   reverseSegment,
+  roundInput as runRoundInput,
   segmentAt,
   step,
   type DeckCard,
@@ -21,10 +22,19 @@ import {
   type RunEnv,
   type RunState as CtlState,
 } from '@rushwarden/app';
-import type { RoundInput, RoundResult, Target } from '@rushwarden/sim';
+import {
+  VehicleType,
+  cutRoutes,
+  type RoundInput,
+  type RoundResult,
+  type Side,
+  type Target,
+} from '@rushwarden/sim';
 import { intersections, isIntersection, isRoad, type TargetMark } from '@rushwarden/render/core';
 import { GRID_HEIGHT, GRID_WIDTH, type GridMap } from '@rushwarden/sim';
 import type {
+  CutSummary,
+  MissReason,
   PlacedCard,
   RoundMark,
   RoundOutcome,
@@ -132,6 +142,8 @@ export class ControllerRun implements RunPort {
   /** The map mark each play was made on, by deck uid (the sim target loses the tapped tile). */
   private readonly marks = new Map<number, TargetMark>();
   private cache: { from: CtlState; going: boolean; ui: RunState } | null = null;
+  /** Vehicle counts from each round's sim result, by round (the controller keeps the score only). */
+  private readonly counts = new Map<number, RoundCounts>();
 
   constructor(private readonly opts: ControllerRunOptions) {
     this.seed = opts.config.seed >>> 0;
@@ -159,6 +171,7 @@ export class ControllerRun implements RunPort {
     const controller = controllerOf(def);
     return {
       id: d.id,
+      uid: d.uid,
       name: info.name,
       text: info.text,
       cost: costOf(s, d),
@@ -190,24 +203,32 @@ export class ControllerRun implements RunPort {
       round: s.round,
       rounds: cfg.rounds,
       rush: s.rush,
+      event: s.rush ? s.boss : null,
       quota: s.quota,
+      quotaRef: s.quotaRef,
       approval: s.approval,
       maxApproval: cfg.approval,
       energy: s.energy,
       maxEnergy: Math.max(cfg.energy, s.energy + paid),
       playsLeft: Math.max(0, cfg.maxPlays - s.plays.length),
+      maxPlays: cfg.maxPlays,
       funds: s.funds,
       district: DISTRICT_NAME[cfg.district],
       hand: s.hand.map((d) => this.card(d, s)),
       placed,
       offer: s.offer ? s.offer.map((d) => this.card(d, s)) : null,
-      last: last ? outcomeOf(last) : null,
+      last: last ? this.outcome(last) : null,
       history: s.history.map(markOf),
+      results: s.history.map((o) => this.outcome(o)),
       won: s.outcome === null ? null : s.outcome === 'win',
       totalThroughput: s.history.reduce((n, o) => n + o.throughput, 0),
     };
     this.cache = { from: s, going: this.going, ui };
     return ui;
+  }
+
+  private outcome(o: RunRoundOutcome): RoundOutcome {
+    return outcomeOf(o, this.counts.get(o.round));
   }
 
   targets(handIndex: number): readonly TargetMark[] {
@@ -233,6 +254,58 @@ export class ControllerRun implements RunPort {
     const r = this.ctl.dispatch({ type: 'play', handIndex, target: toSimTarget(target, s.map) });
     if (!r.ok) throw new Error(r.error);
     this.marks.set(d.uid, target);
+  }
+
+  segmentOf(
+    target: TargetMark,
+  ): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+    if (target.kind !== 'segment') return null;
+    const t = toSimTarget(target, this.ctl.state.map);
+    return t.kind === 'segment' ? { from: t.from, to: t.to } : null;
+  }
+
+  cutsAt(handIndex: number, target: TargetMark): CutSummary | null {
+    const s = this.ctl.state;
+    if (this.going || s.phase !== 'place' || target.kind !== 'segment') return null;
+    // The controller builds the placement exactly as a real play would (effects, tier, order).
+    const r = step(
+      s,
+      { type: 'play', handIndex, target: toSimTarget(target, s.map) },
+      this.opts.env,
+    );
+    if (!r.ok) return null;
+    const candidate = r.state.plays[r.state.plays.length - 1]?.placement;
+    if (!candidate) return null;
+    const report = cutRoutes(runRoundInput(s), candidate);
+    if (!report || report.cuts.length === 0) return null;
+    return {
+      exits: sidesOf(s.map, report.exits),
+      exitCount: report.exits.length,
+      entries: sidesOf(s.map, report.entries),
+      edges: report.exits,
+      trucksOnly: report.cuts.every((c) => c.vehicleType === VehicleType.Truck),
+    };
+  }
+
+  missReason(handIndex: number, tile: { x: number; y: number }): MissReason | null {
+    const s = this.ctl.state;
+    const d = s.hand[handIndex];
+    const def = d && this.cards.get(d.id);
+    if (!def) return null;
+    const { x, y } = tile;
+    if (!isRoad(s.map, x, y)) return 'block';
+    const junction = isIntersection(s.map, x, y);
+    if (def.target === 'segment' && junction) return 'junction';
+    if (def.target === 'intersection' && !junction) return 'road';
+    const inside = (seg: { from: { x: number; y: number }; to: { x: number; y: number } }) =>
+      x >= Math.min(seg.from.x, seg.to.x) &&
+      x <= Math.max(seg.from.x, seg.to.x) &&
+      y >= Math.min(seg.from.y, seg.to.y) &&
+      y <= Math.max(seg.from.y, seg.to.y);
+    if (s.closedSegments.some(inside)) return 'closed';
+    if (def.target === 'segment' && isDirectional(def) && !hasDirection(segmentAt(s.map, x, y)))
+      return 'short';
+    return null;
   }
 
   canUndo(placedIndex: number): boolean {
@@ -310,8 +383,16 @@ export class ControllerRun implements RunPort {
   finishRound(result: RoundResult): void {
     if (!this.going) return;
     this.going = false;
+    const round = this.ctl.state.round;
     const r = this.ctl.resolve(result);
     if (!r.ok) throw new Error(r.error);
+    this.counts.set(round, {
+      spawned: result.spawned,
+      exited: result.exited,
+      // ADR-035; absent from older producers, so read defensively.
+      waiting: (result.waiting ?? []).reduce((a, b) => a + b, 0),
+      diverted: result.diverted ?? 0,
+    });
     this.marks.clear();
   }
 
@@ -330,6 +411,7 @@ export class ControllerRun implements RunPort {
     this.seed = (this.seed + 1) >>> 0;
     this.going = false;
     this.marks.clear();
+    this.counts.clear();
     this.cache = null;
     this.ctl = this.make();
   }
@@ -340,8 +422,24 @@ export class ControllerRun implements RunPort {
   }
 }
 
-function outcomeOf(o: RunRoundOutcome): RoundOutcome {
+interface RoundCounts {
+  readonly spawned: number;
+  readonly exited: number;
+  readonly waiting: number;
+  readonly diverted: number;
+}
+
+const SIDE_ORDER: readonly Side[] = ['n', 'e', 's', 'w'];
+
+/** The map sides of these edge ids, once each, in n-e-s-w order. */
+function sidesOf(map: GridMap, ids: readonly number[]): Side[] {
+  const sides = new Set(ids.map((id) => map.edges.find((e) => e.id === id)?.side));
+  return SIDE_ORDER.filter((s) => sides.has(s));
+}
+
+function outcomeOf(o: RunRoundOutcome, counts?: RoundCounts): RoundOutcome {
   return {
+    ...(counts ?? {}),
     round: o.round,
     pass: o.pass,
     throughput: o.throughput,

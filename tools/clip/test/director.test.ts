@@ -114,7 +114,7 @@ describe('clip director', () => {
   });
 
   it('plays One-Way when it helps (it needs a segment with from != to)', () => {
-    const plays = [1, 2, 3].flatMap((seed) => planRun({ seed }).cardsPlayed);
+    const plays = [20, 21, 22].flatMap((seed) => planRun({ seed }).cardsPlayed);
     expect(plays).toContain('one-way');
   });
 

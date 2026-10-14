@@ -42,6 +42,7 @@ refunded." ADR-014 fixed the `Effect` union. This ADR records how the sim applie
    cached per map and override set). Snapshot lane ids refer to that world, so the renderer must
    build its lane layout from **`roundWorld(input)`**, not `buildWorld(map)`. This is an interface
    change for Render. Trips that a one-way leaves without a route never start (as in ADR-022).
+   _Superseded by ADR-035, here and in points 19 and 20: they divert or wait._
 
 ## Demand (before the first tick)
 

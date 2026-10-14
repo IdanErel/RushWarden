@@ -1,7 +1,7 @@
 /**
  * Run screen dev page: the real run controller (P1-BAL-01) with dev stand-in cards, fake traffic
  * in the worker (or `source=sim`), test hooks on. Query: `seed` (H1-style run seed), `privacy`
- * (policy URL), `share` (share URL), `rounds`, `reduced=1`, `jam=1`, `source=sim`, `portal` (`poki`,
+ * (policy URL), `share` (share URL), `rounds`, `hand`, `reduced=1`, `jam=1`, `source=sim`, `portal` (`poki`,
  * `crazygames`, ...), `analytics=1` (a stand-in consent surface; `consent=yes|no` presets the
  * answer, `deleteFail=1` fails the delete). Sound is the real engine; e2e reads `playCalls`. Not shipped; Platform mounts the game in platform-web.
  */
@@ -18,7 +18,7 @@ import {
 } from '../src/index.js';
 import { fitNames } from '../src/fit-text.js';
 import { displayName } from '../src/names.js';
-import { DEV_CARDS, devCatalog, devEnv } from './cards.js';
+import { DEV_CARDS, DEV_STARTING_DECK, devCatalog, devEnv } from './cards.js';
 
 const q = new URLSearchParams(location.search);
 const seed = Number(q.get('seed') ?? '1') >>> 0;
@@ -44,8 +44,11 @@ const sound: SoundControl = {
     return real.setSoundOnFromGesture(on);
   },
   play(id, options) {
+    // The time the screen asked for the sound, taken before the engine builds it: synthesising a
+    // pluck can take a few ms on a loaded runner, and timing after it skewed the e2e's gaps.
+    const t = performance.now();
     const played = real.play?.(id, options) ?? false;
-    playCalls.push({ id, played, t: performance.now() });
+    playCalls.push({ id, played, t });
     return played;
   },
 };
@@ -89,15 +92,25 @@ const privacy: PrivacyControls = {
 const unlockCalls: number[] = [];
 /** `rounds=N`: a shorter run with no rush round, so e2e reaches the run end quickly. */
 const rounds = Number(q.get('rounds') ?? '0');
-const toy = toyRunConfig({ seed, cards: DEV_CARDS });
+// The dev page pins its own deck and card pool on top of the toy preset, past the toy's card
+// exclusions (ADR-032 E1), so content's toy deck never moves the dev page's round seeds.
+const toy = {
+  ...toyRunConfig({ seed, cards: DEV_CARDS }),
+  cards: DEV_CARDS,
+  startingDeck: DEV_STARTING_DECK,
+};
 // The toy's rounds sample District 1's curve (ADR-030): keep one curve round per round played.
 const shortRun =
   rounds > 0
     ? { rounds, rushRounds: [], curveRounds: (toy.curveRounds ?? []).slice(0, rounds) }
     : {};
 
+/** `hand=N`: deal N cards a round (a Second Shift hand of 7 from round 1, for U10's e2e). */
+const handSize = Number(q.get('hand') ?? '0');
+const bigHand = handSize > 0 ? { handSize } : {};
+
 const run = new ControllerRun({
-  config: { ...toy, ...shortRun },
+  config: { ...toy, ...shortRun, ...bigHand },
   env: devEnv,
   catalog: devCatalog,
   analytics,

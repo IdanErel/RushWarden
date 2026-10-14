@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
 import {
   RUSH_ROUNDS,
+  TOY_EXCLUDED_CARDS,
   TOY_ROUNDS,
   roundQuota,
   setupRound,
@@ -14,6 +15,7 @@ import {
   costOf,
   deckOf,
   fullRunConfig,
+  isNextRoundOnly,
   replay,
   roundInput,
   runEffectError,
@@ -31,13 +33,20 @@ import { CARDS, CENTER, DISTRICT, EDGE, SEGMENT, fakeEnv } from './run-fixtures.
 
 /**
  * The mechanics fixture: a 5-round District 1 run on the plain curve (round r plays curve round
- * r; Market Day on round 5; no template factor), so these tests do not move when content retunes the toy's curve.
- * The toy preset itself (ADR-030: content's TOY_ROUNDS) is tested in "the itch toy preset".
+ * r; Market Day on round 5; no template factor; the full Phase 1 deck and card pool), so these tests
+ * do not move when content retunes the toy's curve or its cards. The toy preset itself (ADR-030:
+ * content's TOY_ROUNDS; ADR-032: its card exclusions) is tested in "the itch toy preset".
  */
 const toy = (seed = 1, over: Partial<RunConfig> = {}): RunConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { curveRounds, templateDemand, ...preset } = toyRunConfig({ seed, cards: CARDS });
-  return { ...preset, rushRounds: [{ round: 5, boss: 'market-day' }], ...over };
+  return {
+    ...preset,
+    startingDeck: PHASE1_STARTING_DECK,
+    cards: CARDS,
+    rushRounds: [{ round: 5, boss: 'market-day' }],
+    ...over,
+  };
 };
 
 function must(state: RunState, action: RunAction, env: RunEnv = fakeEnv()): RunState {
@@ -434,6 +443,48 @@ describe('run-level effects', () => {
     expect(t.hand).toHaveLength(4);
   });
 
+  it('Recount discards the returned cards, so it no longer hands back the same cards (playtest E3)', () => {
+    // The identical hand happened when the draw pile was empty: the returned cards went to the
+    // bottom and were drawn straight back in the same order. Seed 11, pile run out.
+    const ids = ['recount', 'detour', 'turn-lane', 'overtime', 'bus-priority'];
+    const emptyPile = (seed: number): RunState => {
+      const base = startRun(toy(seed), fakeEnv()).state;
+      return { ...withHand(base, ids), drawPile: [], spent: [...base.spent, ...base.drawPile] };
+    };
+    const set = (cards: readonly { uid: number }[]) =>
+      cards
+        .map((c) => c.uid)
+        .sort((a, b) => a - b)
+        .join();
+    const s = emptyPile(11);
+    const back = s.hand.slice(1);
+    const after = (playId(s, 'recount') as { state: RunState }).state;
+    expect(after.hand).toHaveLength(4);
+    expect(set(after.hand)).not.toEqual(set(back));
+    expect(deckOf(after).length).toBe(deckOf(s).length);
+    // Deterministic from the run seed.
+    const again = (playId(emptyPile(11), 'recount') as { state: RunState }).state;
+    expect(again.hand).toEqual(after.hand);
+    // Across seeds, the same set of cards comes back at most by rare chance (4 of 11: 1 in 330).
+    let same = 0;
+    for (let seed = 1; seed <= 240; seed++) {
+      const t = emptyPile(seed);
+      const r = (playId(t, 'recount') as { state: RunState }).state;
+      if (set(r.hand) === set(t.hand.slice(1))) same++;
+    }
+    expect(same).toBeLessThanOrEqual(2);
+  });
+
+  it('Recount draws new cards from the pile before any returned card', () => {
+    const base = startRun(toy(11), fakeEnv()).state;
+    const s = withHand(base, ['recount', 'detour', 'turn-lane', 'overtime', 'bus-priority']);
+    const back = new Set(s.hand.slice(1).map((c) => c.uid));
+    expect(s.drawPile.length).toBeGreaterThanOrEqual(4);
+    const after = (playId(s, 'recount') as { state: RunState }).state;
+    expect(after.hand.some((c) => back.has(c.uid))).toBe(false);
+    expect(after.hand.map((c) => c.uid)).toEqual(s.drawPile.slice(0, 4).map((c) => c.uid));
+  });
+
   it('run-duration cards persist as run effects and per-round energy', () => {
     let s = withHand({ ...startRun(toy(), fakeEnv()).state, energy: 3 }, ['ring-bond']);
     s = (playId(s, 'ring-bond') as { state: RunState }).state;
@@ -588,7 +639,7 @@ describe('round end, offers and run end', () => {
   });
 
   it('the itch toy preset samples D1 rounds TOY_ROUNDS (ADR-030): quota, demand, rush and boss', () => {
-    expect(TOY_ROUNDS).toEqual([4, 8, 11, 8, 12]);
+    expect(TOY_ROUNDS).toEqual([4, 8, 11, 10, 12]);
     const config = toyRunConfig({ seed: 9, cards: CARDS });
     expect(config.rounds).toBe(5);
     expect(config.curveRounds).toEqual(TOY_ROUNDS);
@@ -603,13 +654,28 @@ describe('round end, offers and run end', () => {
       [4, true, 'market-day'],
       [8, true, 'parade'],
       [11, false, null],
-      [8, true, 'parade'],
+      [10, false, null],
       [12, true, 'festival'],
     ]);
     expect(r.state.history.map((h) => h.round)).toEqual([1, 2, 3, 4, 5]);
     expect(r.state.history.map((h) => h.quota)).toEqual(
       TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1), 1000, emptyMap().id)),
     );
+  });
+
+  it('the toy drops Overtime and Pilot Program from its deck and offers; the full run keeps them (ADR-032)', () => {
+    expect([...TOY_EXCLUDED_CARDS].sort()).toEqual(['overtime', 'pilot-program']);
+    const config = toyRunConfig({ seed: 9, cards: CARDS });
+    expect(config.startingDeck).toEqual(
+      PHASE1_STARTING_DECK.filter((id) => id !== 'overtime' && id !== 'pilot-program'),
+    );
+    expect(config.startingDeck).toHaveLength(10);
+    expect(config.cards.map((c) => c.id)).toEqual(
+      CARDS.map((c) => c.id).filter((id) => id !== 'overtime' && id !== 'pilot-program'),
+    );
+    const full = fullRunConfig({ seed: 9, cards: CARDS });
+    expect(full.startingDeck).toEqual(PHASE1_STARTING_DECK);
+    expect(full.cards).toEqual(CARDS);
   });
 
   it("the sim's district rules carry the sampled curve round; the run keeps its own count", () => {
@@ -652,6 +718,8 @@ describe('round end, offers and run end', () => {
           ticks: 300,
           gridlocked: false,
           fundsDelta: 0,
+          diverted: 0,
+          waiting: [],
           finalHash: '0000000000000000',
         }),
       };
@@ -709,6 +777,90 @@ describe('round end, offers and run end', () => {
       expect(s.hand.length).toBeGreaterThanOrEqual(5);
       expect(deckOf(s)).toHaveLength(12);
     }
+  });
+});
+
+describe('next-round cards in the last round (playtest E2)', () => {
+  const card = (id: string) => CARDS.find((c) => c.id === id)!;
+
+  it('knows which cards only pay off next round', () => {
+    expect(isNextRoundOnly(card('overtime'), 1)).toBe(true);
+    expect(isNextRoundOnly(card('second-shift'), 1)).toBe(true);
+    expect(isNextRoundOnly(card('second-shift'), 2)).toBe(true);
+    for (const id of ['recount', 'detour', 'bus-priority', 'remove-signal'])
+      expect(isNextRoundOnly(card(id), 1), id).toBe(false);
+  });
+
+  it('never deals them in the last round, also when the draw pile is all next-round cards', () => {
+    const env = fakeEnv();
+    let s = startRun(toy(3), env).state;
+    for (let i = 0; i < 3; i++)
+      s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+    s = must(s, { type: 'go' }, env);
+    // Before round 5: stack the top of the pile with next-round cards.
+    const nextRound = (id: string, uid: number) => ({ uid, id, tier: 1 as const });
+    s = {
+      ...s,
+      drawPile: [nextRound('overtime', 900), nextRound('second-shift', 901), ...s.drawPile],
+    };
+    s = must(s, { type: 'choose', pick: 'skip' }, env);
+    expect(s.round).toBe(5);
+    expect(s.hand).toHaveLength(5);
+    expect(s.hand.some((c) => isNextRoundOnly(card(c.id), c.tier))).toBe(false);
+    // They stay in the deck, on top of the pile.
+    expect(s.drawPile.slice(0, 2).map((c) => c.uid)).toEqual([900, 901]);
+    expect(deckOf(s)).toHaveLength(14);
+  });
+
+  it('still deals them before the last round', () => {
+    const s = startRun(toy(3), fakeEnv()).state;
+    const stacked = {
+      ...s,
+      hand: [],
+      drawPile: [{ uid: 900, id: 'overtime', tier: 1 as const }, ...s.drawPile],
+    };
+    const r = must(must(stacked, { type: 'go' }), { type: 'choose', pick: 'skip' });
+    expect(r.round).toBe(2);
+    expect(r.hand.map((c) => c.uid)).toContain(900);
+  });
+
+  it('a Recount in the last round does not draw them either', () => {
+    const env = fakeEnv();
+    let s = startRun(toy(5), env).state;
+    for (let i = 0; i < 4; i++)
+      s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+    expect(s.round).toBe(5);
+    s = {
+      ...withHand(s, ['recount', 'detour', 'turn-lane']),
+      drawPile: [
+        { uid: 900, id: 'overtime', tier: 1 },
+        { uid: 901, id: 'second-shift', tier: 1 },
+        ...s.drawPile,
+      ],
+    };
+    const r = (playId(s, 'recount') as { state: RunState }).state;
+    expect(r.hand).toHaveLength(2);
+    expect(r.hand.some((c) => c.uid === 900 || c.uid === 901)).toBe(false);
+  });
+
+  it('are not offered after the second-to-last round, and are before it', () => {
+    const env = fakeEnv((i) => i.districtRules.quota * 2);
+    const offered = (rounds: number): Set<string> => {
+      const ids = new Set<string>();
+      for (let seed = 1; seed <= 150; seed++) {
+        let s = startRun(toy(seed), env).state;
+        for (let r = 1; r < rounds; r++)
+          s = must(must(s, { type: 'go' }, env), { type: 'choose', pick: 'skip' }, env);
+        s = must(s, { type: 'go' }, env);
+        for (const c of s.offer ?? []) ids.add(c.id);
+      }
+      return ids;
+    };
+    const last = offered(4); // the offer after round 4 feeds only round 5
+    expect(last.size).toBeGreaterThan(5);
+    for (const id of last) expect(isNextRoundOnly(card(id), 1), id).toBe(false);
+    const earlier = offered(3);
+    expect([...earlier].some((id) => isNextRoundOnly(card(id), 1))).toBe(true);
   });
 });
 
@@ -818,6 +970,8 @@ describe('RunController (analytics wiring)', () => {
       ticks: 300,
       gridlocked: false,
       fundsDelta: 0,
+      diverted: 0,
+      waiting: [],
       finalHash: 'x',
     });
     expect(r.ok).toBe(true);

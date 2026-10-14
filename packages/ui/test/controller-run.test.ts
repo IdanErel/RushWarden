@@ -109,6 +109,16 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     const placement = (run: ReturnType<typeof devRun>, id: string) =>
       run.roundInput().placements.find((p) => p.cardId === id)?.target;
 
+    it('says why a tap placed nothing: building, junction, road (U5)', () => {
+      const [run, i] = withOneWay();
+      // The test-plus map: a junction at (3,4), roads along row 4 and column 3.
+      expect(run.missReason(i, { x: 0, y: 0 })).toBe('block');
+      expect(run.missReason(i, { x: 3, y: 4 })).toBe('junction');
+      expect(run.missReason(i, { x: 1, y: 4 })).toBeNull();
+      const j = run.state().hand.findIndex((c) => c.target === 'intersection');
+      if (j >= 0) expect(run.missReason(j, { x: 1, y: 4 })).toBe('road');
+    });
+
     it('marks One-Way directional and no other card', () => {
       const [run, i] = withOneWay();
       const s = run.state();
@@ -143,6 +153,49 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
       run.undo(0);
       expect(run.state().placed).toEqual([]);
       expect(run.state().energy).toBe(3);
+    });
+
+    it('previews the run a One-Way would take, either way round, before it is placed (U11)', () => {
+      const [run, i] = withOneWay();
+      const mark = run.targets(i)[0]!;
+      const seg = segmentAt(
+        run.roundInput().map,
+        (mark as { x: number }).x,
+        (mark as { y: number }).y,
+      );
+      if (seg.kind !== 'segment') throw new Error('not a segment');
+      expect(run.segmentOf(mark)).toEqual({ from: seg.from, to: seg.to });
+      expect(run.segmentOf({ ...mark, reverse: true } as typeof mark)).toEqual({
+        from: seg.to,
+        to: seg.from,
+      });
+      expect(run.segmentOf({ kind: 'district' })).toBeNull();
+      // Placed reversed, as previewed.
+      run.place(i, { ...mark, reverse: true } as typeof mark);
+      expect(placement(run, 'one-way')).toEqual({ kind: 'segment', from: seg.to, to: seg.from });
+    });
+
+    it('says what a One-Way would cut off before it is placed (ADR-035)', () => {
+      const [run, i] = withOneWay();
+      const map = run.roundInput().map;
+      const ids = new Set(map.edges.map((e) => e.id));
+      const cuts = run
+        .targets(i)
+        .flatMap((m) => [m, { ...m, reverse: true } as typeof m])
+        .map((m) => run.cutsAt(i, m));
+      // On the dev cross, a One-Way on an arm leaves that arm's road one way: either its exit
+      // loses every route in, or its entry has no way out.
+      const some = cuts.filter((c) => c !== null);
+      expect(some.length).toBeGreaterThan(0);
+      for (const c of some) {
+        expect(c.exits.length + c.entries.length).toBeGreaterThan(0);
+        expect(c.exitCount).toBe(c.edges.length);
+        for (const id of c.edges) expect(ids.has(id)).toBe(true);
+        expect(c.trucksOnly).toBe(false);
+      }
+      expect(run.cutsAt(i, { kind: 'district' })).toBeNull();
+      // Nothing is placed by asking.
+      expect(run.state().placed).toEqual([]);
     });
 
     it('flipping keeps play order and the later plays on their targets', () => {
@@ -266,13 +319,20 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
     expect(run.state().phase).toBe('go');
     expect(run.targets(0)).toEqual([]);
     const quota = run.state().quota;
-    run.finishRound(result(quota * 2));
+    run.finishRound({ ...result(quota * 2), waiting: [3, 0, 2, 0], diverted: 4 });
     const s = run.state();
     expect(s.phase).toBe('result');
     expect(s.last).toMatchObject({ round: 1, pass: true, hash: '0123456789abcdef' });
     expect(s.offer).toHaveLength(3);
     expect(s.history).toEqual(['pass']);
     expect(tracked).toEqual(['run_start', 'round_end']);
+    // The information layer: the round's vehicle counts, every round's outcome, plays per round.
+    expect(s.last).toMatchObject({ spawned: quota * 2, exited: quota * 2 });
+    // ADR-035: trips held at the edges (summed) and trips sent to another exit.
+    expect(s.last).toMatchObject({ waiting: 5, diverted: 4 });
+    expect(s.results).toEqual([s.last]);
+    expect(s.maxPlays).toBe(2);
+    expect(s).toMatchObject({ rush: true, event: 'market-day' }); // the toy's round 1
     run.pickOffer(1);
     expect(run.state()).toMatchObject({ phase: 'place', round: 2 });
   });

@@ -2,12 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { SNAPSHOT_HEADER } from '@rushwarden/sim';
 import { stateAttributes } from '../src/hooks.js';
 import { format, setLanguage, t } from '../src/i18n.js';
-import { cardAtJunction } from '../src/jam.js';
+import { cardAtJunction, jamLine } from '../src/jam.js';
 import { keyAction } from '../src/keys.js';
+import { missNote } from '../src/info.js';
 import { ExitCounter } from '../src/live.js';
 import { devRun } from './helpers.js';
 import { copyText, shareLine, shareText } from '../src/share.js';
 import { TAG_COLOR, css } from '../src/tags.js';
+
+describe('miss notes (U5)', () => {
+  it('gives the reason a tap placed nothing', () => {
+    const card = { name: 'One-Way' } as never;
+    expect(missNote(undefined, true, null)).toBe(
+      'Pick a card first, then tap a highlighted target.',
+    );
+    expect(missNote(card, false, null)).toBe('One-Way can’t be played now.');
+    expect(missNote(card, true, 'closed')).toBe(
+      'This road is closed this round, so One-Way can’t go there. Tap a highlighted spot.',
+    );
+    expect(missNote(card, true, 'short')).toMatch(/one tile long/);
+    expect(missNote(card, true, null)).toBe('Not a target for One-Way. Tap a highlighted spot.');
+  });
+});
 
 describe('i18n', () => {
   it('fills placeholders and ICU plurals', () => {
@@ -59,6 +75,9 @@ describe('share line (GDD §5)', () => {
 describe('keyboard map (GDD §8)', () => {
   it('place: 1–5, arrows, Enter, Space, Esc', () => {
     expect(keyAction('place', '3')).toEqual({ type: 'select', index: 2 });
+    // U10: a 7-card hand (Second Shift) has keys 6 and 7.
+    expect(keyAction('place', '7')).toEqual({ type: 'select', index: 6 });
+    expect(keyAction('place', '8')).toBeNull();
     expect(keyAction('place', 'ArrowLeft')).toEqual({ type: 'cursor', dir: 'w' });
     expect(keyAction('place', 'Enter')).toEqual({ type: 'confirm' });
     expect(keyAction('place', ' ')).toEqual({ type: 'go' });
@@ -82,6 +101,10 @@ describe('keyboard map (GDD §8)', () => {
     expect(keyAction('result', 'Escape')).toEqual({ type: 'skip' });
     expect(keyAction('end', 'Enter')).toEqual({ type: 'confirm' });
     expect(keyAction('end', 'Escape')).toBeNull();
+    // U2: Space never retries; U3: Space pauses and resumes the board in Go.
+    expect(keyAction('end', ' ')).toBeNull();
+    expect(keyAction('go', ' ')).toEqual({ type: 'togglePause' });
+    expect(keyAction('go', ' ', true)).toBeNull();
     expect(keyAction('place', 'Escape', true)).toEqual({ type: 'pause' });
     expect(keyAction('place', '1', true)).toBeNull();
   });
@@ -228,6 +251,14 @@ describe('gridlock origin on the result card', () => {
     expect(cardAtJunction([road, junction], at)).toBe(road);
     // A segment without its run falls back to its own tile.
     expect(cardAtJunction([{ card, target: { kind: 'segment', x: 4, y: 4 } }], at)).not.toBeNull();
+    // U7: "at your X" when the ring is on the card, "next to" when beside it.
+    expect(jamLine([road, junction], at)).toBe(
+      `It started at your ${junction.card.name}, ringed in red.`,
+    );
+    expect(jamLine([road], at)).toBe(
+      `It started at the junction ringed in red, next to your ${road.card.name}.`,
+    );
+    expect(jamLine([elsewhere], at)).toBe('It started at the junction ringed in red.');
   });
 
   it('has the result lines in English', () => {

@@ -68,6 +68,9 @@ jobs:
       - run: pnpm golden:browsers
 
   web:
+    # Name kept as is, so a required check of this name still applies. The run screen e2e moved
+    # to the ui-e2e job (it took ~7 of this job's ~14.5 min against a 15 min timeout).
+    # Without it this job takes ~7.5 min; the timeout is ~2× that.
     name: Web build, size budget, e2e
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -87,8 +90,6 @@ jobs:
         run: pnpm --filter @rushwarden/platform-web run e2e --grep-invert @full
       - name: Renderer dev-page check (scene, worker playback, readability effects)
         run: pnpm --filter @rushwarden/render run e2e
-      - name: Run screen e2e (hooks H2, H3, H5; phone and desktop)
-        run: pnpm --filter @rushwarden/ui run e2e
       # P1-PLT-01: itch HTML5 zip (itch flavour, size-, map- and hook-checked). Builds to its own dir.
       - name: Package itch zip
         run: pnpm --filter @rushwarden/platform-web run package:itch
@@ -115,6 +116,24 @@ jobs:
           path: packages/platform-web/portals/*.zip
           if-no-files-found: error
           retention-days: 14
+
+  ui-e2e:
+    # The run screen's own e2e on packages/ui's dev page (hooks H2, H3, H5), split out of the web
+    # job. It takes ~7 min; the timeout is ~2× that.
+    name: Run screen e2e (UI, phone and desktop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @rushwarden/ui exec playwright install --with-deps chromium
+      - name: Run screen e2e (hooks H2, H3, H5; phone and desktop)
+        run: pnpm --filter @rushwarden/ui run e2e
 
   toy-e2e:
     # ADR-029: the toy specs that play whole rounds or runs (tagged @full), on the 390x844

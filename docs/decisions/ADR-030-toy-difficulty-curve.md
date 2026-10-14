@@ -1,7 +1,8 @@
 # ADR-030: Toy difficulty curve
 
 Status: Accepted · 2026-10-10 · Lead (proposed by Content Designer, P1-CON-05) · items 2 and 5
-amended by ADR-032 (CON-06), 2026-10-11
+amended by ADR-032 (CON-06), 2026-10-11; items 2 and 3 again by ADR-032 Amendment 1 (playtest
+B1, B2; Lead ruling on #100), 2026-10-13
 
 ADR-007 item 1 makes the itch toy a 5-round District 1 run whose round 5 is Market Day. With the
 tuned District 1 values (ADR-021), rounds 1–4 are the full run's on-ramp: every bot, including one
@@ -24,9 +25,26 @@ GDD §11 and the toy cannot both be met by one curve that the toy replays from r
    Festival. Once the per-template factor evens out the maps, Parade and Festival are the hardest
    rounds for every bot, and two Festivals made the toy almost unwinnable.
 
+   **Amended by ADR-032 Amendment 1 (playtest B2):** `TOY_ROUNDS = [4, 8, 11, 10, 12]`. Round 10
+   replaces the second Parade, so the toy plays each event once.
+
 3. **Targets on the toy itself** (Lead): `no-cards` wins at most 20%, `random` 10–30%, each of the
    five `archetype(tag)` bots 35–65%, `greedy-throughput` at most 75%. The P1-CON-05 PR (#55)
    attaches the report that checks them.
+
+   **Amended by ADR-032 Amendment 1 (Lead ruling on #100, toy only):** each `archetype(tag)` bot
+   55–75%, `greedy-throughput` at most 80%, `random` 10–30%, `no-cards` at most 20%, and no toy
+   round on any map below 35% for any archetype bot. This replaces the playtest triage's "card
+   bots pass every toy round at least 50% on every map". The full-run §11 targets are unchanged.
+
+   The bot bands carry a ±2-point tolerance (Lead, #100): a 1-point miss on a 5-round demo isn't
+   worth a harder toy. At the chosen quota share (0.86, ADR-032 A1) the toy measures `random`
+   9.4% and `greedy-throughput` 81.2%, both inside the tolerance and accepted.
+   **Random band 5–30% (Lead, #108).** After ADR-035 (ADR-032 Amendment 2) the toy measures
+   `greedy-throughput` 80.7% and `random` 6.5%, and the two can no longer both meet the old bands.
+   The Lead set the toy `random` band to 5–30%: a random player still loses most toys, and
+   greedy's ceiling matters more than random's floor. The ±2 tolerance still applies.
+
 4. **Run controller.** The toy preset reads both from content: `curveRounds: TOY_ROUNDS` and
    `rushRounds: toyRushRounds()`. The controller passes `curveRounds[round - 1]` (default `round`)
    to `setupRound` and `roundQuota`. The player still sees "round 1 of 5" to "round 5 of 5"; the

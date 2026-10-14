@@ -43,6 +43,8 @@ and 8).
    - **Cut-off trips never start.** If a trip's origin or destination edge is cut off, or no open
      route exists, the trip never starts and does not count as spawned, like an unreachable trip
      on a one-way. Holding such trips at the edge would only block the edge forever.
+     _Superseded by ADR-035: such trips divert to the nearest reachable exit, or wait at their
+     edge without blocking the queue._
    - **Hash.** The input digest includes `closedSegments` only when it is non-empty, so an empty
      list hashes the same as no field.
    - **Renderer.** It can draw closures from the round input it already has (`closedLinkMask`).

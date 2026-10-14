@@ -15,6 +15,7 @@ import { draw, shuffle } from './deck.js';
 import { buildOffer } from './offers.js';
 import { roundQuota } from '@rushwarden/content';
 import { fundsFor } from './quota.js';
+import { quotaReference } from './quota-ref.js';
 import type {
   CostRule,
   DeckCard,
@@ -167,6 +168,32 @@ function curveRoundOf(config: RunConfig, round: number): number {
   return config.curveRounds?.[round - 1] ?? round;
 }
 
+/**
+ * True when every effect of the card at `tier` pays off only next round (Overtime, Second Shift):
+ * such a card does nothing in the run's last round, so it is neither dealt then nor offered for it
+ * (playtest E2).
+ */
+export function isNextRoundOnly(card: RunCard, tier: 1 | 2): boolean {
+  const { effects } = resolveTier(card, tier);
+  return (
+    effects.length > 0 &&
+    effects.every(
+      (e) =>
+        e.kind === 'drawModifier' ||
+        (e.kind === 'energyModifier' &&
+          e.when !== 'now' &&
+          e.perRound !== true &&
+          e.condition === undefined),
+    )
+  );
+}
+
+/** In the last round, the draw passes over next-round cards (playtest E2); otherwise none. */
+function lastRoundSkip(state: RunState, round: number): ((c: DeckCard) => boolean) | undefined {
+  if (round < state.config.rounds) return undefined;
+  return (c) => isNextRoundOnly(cardOf(state.config, c.id), c.tier);
+}
+
 function rushOf(config: RunConfig, round: number) {
   return config.rushRounds.find((r) => r.round === round) ?? null;
 }
@@ -186,7 +213,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
     ...(state.config.templateDemand === true ? { templateDemand: true } : {}),
   });
   const handCount = Math.max(0, state.config.handSize + state.nextDrawBonus);
-  const dealt = draw(state.drawPile, state.spent, handCount, prng);
+  const dealt = draw(state.drawPile, state.spent, handCount, prng, lastRoundSkip(state, round));
   return {
     ...state,
     phase: 'place',
@@ -207,6 +234,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
       state.config.quotaPermille,
       state.config.templateDemand === true ? setup.map.id : undefined,
     ),
+    quotaRef: quotaReference(state.config, round),
     hand: dealt.drawn,
     drawPile: dealt.drawPile,
     spent: dealt.spent,
@@ -259,6 +287,7 @@ export function startRun(config: RunConfig, env: RunEnv): { state: RunState; eve
     rush: false,
     boss: null,
     quota: 0,
+    quotaRef: null,
     runEffects: [],
     runCostRules: [],
     roundCostRules: [],
@@ -373,7 +402,16 @@ function play(state: RunState, action: Extract<RunAction, { type: 'play' }>): St
             ? hand[action.keepHandIndex]
             : undefined;
         const back = hand.filter((c) => c !== keep);
-        const dealt = draw([...drawPile, ...back], spent, back.length, prng);
+        // The returned cards are discarded, then the new hand is drawn: from the draw pile first,
+        // and when it runs out from the spent pile (returned cards included) reshuffled. So a
+        // Recount almost never hands back the same cards (playtest E3).
+        const dealt = draw(
+          drawPile,
+          [...spent, ...back],
+          back.length,
+          prng,
+          lastRoundSkip(state, state.round),
+        );
         hand = keep ? [keep, ...dealt.drawn] : dealt.drawn;
         drawPile = dealt.drawPile;
         spent = dealt.spent;
@@ -516,9 +554,17 @@ export function resolveRound(state: RunState, result: RoundResult): StepResult {
   if (!pass) return { ok: true, events, state: next };
   const prng = clonePrng(next.prng);
   let nextUid = next.nextUid;
-  const offer = buildOffer(state.config.cards, deckOf(next), state.round, prng).map(
-    (id): DeckCard => ({ uid: nextUid++, id, tier: 1 }),
-  );
+  // An offer after the second-to-last round feeds only the last round, where next-round cards do
+  // nothing (playtest E2).
+  const pool =
+    state.round + 1 >= state.config.rounds
+      ? state.config.cards.filter((c) => !isNextRoundOnly(c, 1))
+      : state.config.cards;
+  const offer = buildOffer(pool, deckOf(next), state.round, prng).map((id): DeckCard => ({
+    uid: nextUid++,
+    id,
+    tier: 1,
+  }));
   return { ok: true, events, state: { ...next, prng, nextUid, offer } };
 }
 

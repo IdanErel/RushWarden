@@ -7,6 +7,9 @@ import {
   controllerSnapshot,
   createSimWorkerHandler,
   denseInput,
+  emptyMap,
+  waitingSnapshot,
+  SIM_PROTOCOL_VERSION,
   sampleInput,
   type FromSimWorker,
 } from '../src/index.js';
@@ -32,13 +35,13 @@ describe('sim worker protocol', () => {
     expect(done[0]!.msg).toEqual({ type: 'done', roundId: 1, result: expected });
   });
 
-  it('transfers each frame and controller buffer', () => {
+  it('transfers each frame, controller and waiting buffer', () => {
     const { out, handle } = harness();
     handle({ type: 'start', roundId: 2, input: sampleInput(1) });
     handle({ type: 'step', roundId: 2, ticks: 3 });
     const first = out[0]!;
     expect(first.msg.type).toBe('frames');
-    expect(first.transfer).toHaveLength(6);
+    expect(first.transfer).toHaveLength(9);
   });
 
   it('sends controllerSnapshot per frame, equal to stepping headless (ADR-020)', () => {
@@ -61,6 +64,40 @@ describe('sim worker protocol', () => {
     expect(controllers[0]!.length).toBe(buildWorld(input.map).intersections.length * 3);
     expect(controllers.every((c) => c.every((v, k) => k % 3 === 2 || v === 0))).toBe(true);
     expect(controllers.some((c) => c.some((v, k) => k % 3 === 2 && v > 0))).toBe(true);
+  });
+
+  it('streams waitingSnapshot per frame in map edge order (protocol 2, ADR-035)', () => {
+    // Ten cars due at the west edge (index 3) while p_slow 1000 holds the first on the entry cell.
+    const base = sampleInput(1);
+    const map = emptyMap();
+    const input = {
+      ...base,
+      map,
+      mapId: map.id,
+      demandProfile: Array.from({ length: 10 }, (_, k) => ({
+        tick: 200 + k,
+        edge: 3,
+        destinationEdge: 1,
+        vehicleType: 0 as const,
+      })),
+      districtRules: { ...base.districtRules, pSlowPermille: 1000 },
+    };
+    const { out, handle } = harness();
+    handle({ type: 'start', roundId: 5, input });
+    handle({ type: 'finish', roundId: 5 });
+    const msgs = out.flatMap((o) => (o.msg.type === 'frames' ? [o.msg] : []));
+    expect(msgs.every((m) => m.waiting?.length === m.frames.length)).toBe(true);
+    const waiting = msgs.flatMap((m) => m.waiting ?? []);
+    let s = Sim.init(input);
+    const expected: Uint16Array[] = [];
+    while (!s.done) {
+      s = Sim.step(s);
+      expected.push(waitingSnapshot(s));
+    }
+    expect(waiting).toEqual(expected);
+    expect(Array.from(waiting[205]!)).toEqual([0, 0, 0, 5]);
+    expect(Array.from(waiting.at(-1)!)).toEqual([0, 0, 0, 9]);
+    expect(SIM_PROTOCOL_VERSION).toBe(2);
   });
 
   it('caps ticks per step, ignores stale rounds, supports finish and abort', () => {

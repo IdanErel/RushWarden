@@ -2,7 +2,7 @@ import { Hasher, hashValue } from './hash.js';
 import { validatePlacements } from './placements.js';
 import { createPrng, type PrngState } from './prng.js';
 import { controllerFrame } from './controllers.js';
-import { createTraffic, tickTraffic, type Traffic } from './traffic.js';
+import { createTraffic, tickTraffic, waitingPerEdge, type Traffic } from './traffic.js';
 import { MAX_VEHICLE_LENGTH, VEHICLE_TYPE_COUNT } from './vehicles.js';
 import {
   checkSupported,
@@ -256,6 +256,21 @@ export function snapshot(s: SimState): Uint16Array {
 }
 
 /**
+ * Per map edge, in `GridMap.edges` order: trips due but not yet spawned after the last tick,
+ * queued behind an occupied entry cell or unable to enter at all (ADR-035). The worker streams
+ * it with each frame; it is not part of the state hash.
+ */
+export function waitingSnapshot(s: SimState): Uint16Array {
+  const w = waitingPerEdge(asState(s).traffic);
+  return Uint16Array.from(w, (n) => Math.min(n, 0xffff));
+}
+
+/** The round's traffic (routes, masks), for sim-internal analyses such as `cutRoutes`. */
+export function trafficOf(s: SimState): Traffic {
+  return asState(s).traffic;
+}
+
+/**
  * Controller state for the renderer, per intersection `[kind, greenMask, boxCount]` (see
  * `controllerFrame`). Not part of the snapshot format yet; the Lead decides how the worker
  * protocol carries it.
@@ -287,6 +302,8 @@ export function stateHash(s: SimState): string {
   }
   h.ints(t.ctrlKind).ints(t.sigPhase).ints(t.sigTimer).ints(t.sigClearing);
   if (t.tollCount) h.ints(t.tollCount);
+  // ADR-035: only rounds that divert or strand a trip hash these, so other hashes are unchanged.
+  if (t.diverted > 0 || t.stuck.some((n) => n > 0)) h.int(t.diverted).ints(t.stuck);
   return h.digest();
 }
 
@@ -300,6 +317,8 @@ export function result(s: SimState): RoundResult {
     ticks: st.tick,
     gridlocked: st.gridlocked,
     fundsDelta: st.fundsDelta + tollFunds(st.traffic, st.tolls),
+    diverted: st.traffic.diverted,
+    waiting: waitingPerEdge(st.traffic),
     finalHash: stateHash(st),
   };
   return st.frames ? { ...base, frames: st.frames } : base;

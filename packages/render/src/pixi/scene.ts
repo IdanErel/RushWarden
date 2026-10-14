@@ -3,7 +3,7 @@
  * Graphics per vehicle that shares a per-type GraphicsContext, positioned every frame from the
  * interpolated snapshot pair. The scene only draws; it never steps the sim.
  */
-import { Application, Container, Graphics, GraphicsContext } from 'pixi.js';
+import { Application, Container, Graphics, GraphicsContext, Text } from 'pixi.js';
 import {
   CELLS_PER_TILE,
   GRID_HEIGHT,
@@ -21,6 +21,10 @@ import {
 } from '@rushwarden/sim';
 import {
   LANE_WIDTH,
+  backlogLabel,
+  badgeCentre,
+  entryTab,
+  entryTabZone,
   SIDE_VEC,
   connections,
   fitGrid,
@@ -36,7 +40,13 @@ import { boxAlpha, readControllers, stopBars, type LiveIntersection } from '../c
 import { SnapshotBuffer, TICK_MS, type VehiclePose } from '../interpolate.js';
 import { worldLaneLayout, type LaneLayout } from '../lanes.js';
 import { OLD_TOWN, type Palette } from '../palette.js';
-import { VEHICLE_LENGTH, controllerShapes, vehicleOutline, vehicleShapes } from '../shapes.js';
+import {
+  VEHICLE_LENGTH,
+  controllerShapes,
+  vehicleCellShapes,
+  vehicleOutline,
+  vehicleShapes,
+} from '../shapes.js';
 import {
   GRIDLOCK_TINT,
   HEAT_BINS,
@@ -62,6 +72,24 @@ import {
   type Rect,
   type TargetMark,
 } from '../targets.js';
+
+/** Centre of an edge's cut-off cross, in px: on its road tile, against the map's border. */
+function cutMarkCentre(
+  edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: Side },
+  T: number,
+): [number, number] {
+  const { x, y } = edge.tile;
+  switch (edge.side) {
+    case 'n':
+      return [(x + 0.5) * T, y * T + T * 0.25];
+    case 's':
+      return [(x + 0.5) * T, (y + 1) * T - T * 0.25];
+    case 'w':
+      return [x * T + T * 0.25, (y + 0.5) * T];
+    default:
+      return [(x + 1) * T - T * 0.25, (y + 0.5) * T];
+  }
+}
 
 export interface ControllerMark {
   readonly x: number;
@@ -107,11 +135,20 @@ export interface PlacedMark {
   };
 }
 
-/** One drawn vehicle: the shared-context body plus its queue-pulse outline. */
-interface VehicleView {
+/** One drawn cell of a vehicle: the shared-context body plus its queue-pulse outline. */
+interface VehicleCellView {
   readonly root: Container;
   readonly body: Graphics;
   readonly pulse: Graphics;
+}
+
+/**
+ * One drawn vehicle: a view per body cell (one for cars, two for a bus, three for a truck), each
+ * placed at its own pose along the path so long vehicles bend through turns.
+ */
+interface VehicleView {
+  readonly root: Container;
+  readonly cells: VehicleCellView[];
 }
 
 /** What the last frame drew; read by tests and the dev page's state node. */
@@ -151,10 +188,21 @@ export class TrafficScene {
   /** The ripple spreading off the ring (redrawn by transform each frame, not re-tessellated). */
   private readonly jamRippleLayer = new Graphics();
   private readonly jam: JamTracer;
+  /** Backlog markers at the map's edges (ADR-035), above the traffic and the card marks. */
+  private readonly waitingLayer = new Container();
+  private readonly waitingViews: {
+    readonly root: Container;
+    readonly pill: Graphics;
+    readonly label: Text;
+  }[] = [];
+  private waiting: Uint16Array | null = null;
   private jamOrigin: JamOrigin | null = null;
   private targets: readonly TargetMark[] = [];
   private cursor: number | null = null;
   private ghost: ControllerMark | null = null;
+  private ghostArrow: GhostArrow | null = null;
+  /** Map edge ids the ghost's placement would cut off (ADR-035 `cutRoutes`): crossed out. */
+  private cutEdges: readonly number[] = [];
   private marks: readonly PlacedMark[] = [];
   private readonly heatLayer = new Graphics();
   private readonly heatProgress = new Graphics();
@@ -170,7 +218,8 @@ export class TrafficScene {
   readonly stats: SceneStats = { vehicles: 0, queued: 0, trails: 0, gridlock: false };
   private readonly poses: VehiclePose[] = [];
   private readonly seen = new Set<number>();
-  private contexts: GraphicsContext[] = [];
+  /** Per vehicle type, one shared context per body cell (head first). */
+  private contexts: GraphicsContext[][] = [];
   /** Second beacon frame for emergency vehicles. */
   private beaconAlt: GraphicsContext | null = null;
   private controllers = new Map<number, ControllerMark>();
@@ -203,6 +252,7 @@ export class TrafficScene {
       this.trailLayer,
       this.vehicleLayer,
       this.markLayer,
+      this.waitingLayer,
       this.jamRippleLayer,
       this.jamLayer,
     );
@@ -261,6 +311,23 @@ export class TrafficScene {
     }
   }
 
+  /**
+   * Feeds the waiting counts released with a snapshot (`SimClient` `onFrame`'s fourth argument,
+   * ADR-035): per map edge in `GridMap.edges` order, the trips due but not yet on the map. Each
+   * edge with any shows a backlog marker with the count. Redraws only when a count changes.
+   */
+  pushWaiting(frame: Uint16Array): void {
+    const prev = this.waiting;
+    if (prev && prev.length === frame.length && prev.every((n, i) => n === frame[i])) return;
+    this.waiting = frame.slice();
+    this.drawWaiting();
+  }
+
+  /** Last waiting counts per map edge (empty before any came this round), for tests and hooks. */
+  get waitingCounts(): readonly number[] {
+    return this.waiting ? [...this.waiting] : [];
+  }
+
   /** Last decoded controller state, in intersection order (for tests and test hooks). */
   get liveControllers(): readonly LiveIntersection[] {
     return this.live;
@@ -289,6 +356,7 @@ export class TrafficScene {
     this.closed = NO_CLOSURES;
     this.demand = null;
     this.gridlockAt = null;
+    this.waiting = null;
     this.rebuild();
   }
 
@@ -323,6 +391,7 @@ export class TrafficScene {
     this.closed = closed;
     this.demand = input.demandProfile;
     this.gridlockAt = null;
+    this.waiting = null;
     this.rebuild();
   }
 
@@ -375,14 +444,20 @@ export class TrafficScene {
   /**
    * Highlights the valid targets for the selected card (GDD §8 "tap a card to see a ghost of its
    * effect on valid targets"), with `cursor` as the keyboard cursor. `ghost` previews a controller
-   * glyph at the cursor at half strength. An empty list clears it.
+   * glyph at the cursor at half strength. `arrow` previews a directional card (One-Way) on the
+   * cursor's road: the way traffic will run once it is placed (playtest U11). An empty list
+   * clears it.
    */
   setTargets(
     targets: readonly TargetMark[],
     cursor: number | null = null,
     ghost: Omit<ControllerMark, 'x' | 'y'> | null = null,
+    arrow: GhostArrow | null = null,
+    cut: readonly number[] = [],
   ): void {
     this.targets = targets;
+    this.ghostArrow = arrow;
+    this.cutEdges = cut;
     this.cursor = cursor !== null && cursor >= 0 && cursor < targets.length ? cursor : null;
     const at = this.cursor !== null ? targets[this.cursor] : undefined;
     this.ghost =
@@ -422,7 +497,7 @@ export class TrafficScene {
   }
 
   destroy(): void {
-    for (const c of this.contexts) c.destroy();
+    for (const c of this.contexts.flat()) c.destroy();
     for (const c of this.pulseContexts) c.destroy();
     this.beaconAlt?.destroy();
     this.app.destroy(true, { children: true });
@@ -440,6 +515,7 @@ export class TrafficScene {
     this.drawTargets();
     this.drawMarks();
     this.drawJam();
+    this.drawWaiting();
     this.buildVehicleContexts();
   }
 
@@ -488,7 +564,7 @@ export class TrafficScene {
   private buildVehicleContexts(): void {
     const cellPx = this.fit.tilePx / CELLS_PER_TILE;
     const old = [
-      ...this.contexts,
+      ...this.contexts.flat(),
       ...this.pulseContexts,
       ...(this.beaconAlt ? [this.beaconAlt] : []),
     ];
@@ -496,7 +572,9 @@ export class TrafficScene {
       drawShapes(new GraphicsContext(), vehicleOutline(t), this.palette, cellPx),
     );
     this.contexts = VEHICLE_TYPES.map((t) =>
-      drawShapes(new GraphicsContext(), vehicleShapes(t, 0), this.palette, cellPx),
+      Array.from({ length: VEHICLE_LENGTH[t] }, (_, cell) =>
+        drawShapes(new GraphicsContext(), vehicleCellShapes(t, cell, 0), this.palette, cellPx),
+      ),
     );
     this.beaconAlt = drawShapes(
       new GraphicsContext(),
@@ -610,6 +688,28 @@ export class TrafficScene {
       );
       this.ghostLayer.alpha = 0.55;
     }
+    if (this.ghostArrow) {
+      const a = this.ghostArrow;
+      this.drawArrow(this.ghostLayer, a.from, a.to, a.color);
+      this.ghostLayer.alpha = 0.8;
+    }
+    // Exits the placement would cut off: a red cross at the road's end, on the map's border.
+    for (const id of this.cutEdges) {
+      const edge = this.map.edges.find((e) => e.id === id);
+      if (!edge) continue;
+      const [cx, cy] = cutMarkCentre(edge, T);
+      const d = T * 0.16;
+      for (const [color, width] of [
+        [p.outline, Math.max(5, T * 0.11)],
+        [p.signalRed, Math.max(3, T * 0.07)],
+      ] as const) {
+        g.moveTo(cx - d, cy - d)
+          .lineTo(cx + d, cy + d)
+          .moveTo(cx + d, cy - d)
+          .lineTo(cx - d, cy + d)
+          .stroke({ color, width, cap: 'round' });
+      }
+    }
   }
 
   private drawMarks(): void {
@@ -617,6 +717,8 @@ export class TrafficScene {
     const T = this.fit.tilePx;
     const outline = this.palette.outline;
     const seen = new Map<string, number>();
+    // Where a backlog tab could sit (ADR-035): badges keep out, so a tab never hides one.
+    const tabZones = this.map.edges.map((e) => entryTabZone(e, T, GRID_WIDTH, GRID_HEIGHT));
     for (const m of this.marks) {
       const r = m.span ? spanRect(m.span) : targetTileRect(m.target, this.map);
       if (!r) continue;
@@ -634,17 +736,102 @@ export class TrafficScene {
         g.roundRect(x, y, w, h, T * 0.14).stroke({ color: outline, width: width + 3, alpha: 0.8 });
         g.roundRect(x, y, w, h, T * 0.14).stroke({ color: m.color, width });
       }
-      // A badge at the target's top-left corner; badges on the same target stack side by side.
+      // A badge just outside the target, on the kerb or block beside it, so it never covers a
+      // queued car (playtest U8; the mark layer is above traffic). Badges on the same target
+      // stack side by side.
       const k = targetKey(m.target);
       const n = seen.get(k) ?? 0;
       seen.set(k, n + 1);
       const rad = Math.max(7, T * 0.15);
-      const cx = r.x * T + rad + 2 + n * (rad * 2 + 2);
-      const cy = r.y * T + rad + 2;
+      const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx, tabZones);
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
       g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
     for (const m of this.marks) if (m.arrow) this.drawArrow(g, m.arrow.from, m.arrow.to, m.color);
+  }
+
+  /**
+   * One backlog tab per entry with trips waiting to enter (ADR-035): a dark pill with a red rim
+   * and "+N", attached to its own entry and aligned with that road (`entryTab`): just outside the
+   * heat-strip where the canvas has room, over the strip and the end of the entry tile where it
+   * has not. Pooled; hidden at zero.
+   */
+  private drawWaiting(): void {
+    const T = this.fit.tilePx;
+    const p = this.palette;
+    const counts = this.waiting;
+    const edges = this.map.edges;
+    let used = 0;
+    // Canvas px beyond the map on each side, heat-strip gutter included.
+    const f = this.fit;
+    const screen = this.app.screen;
+    const margin: Record<string, number> = {
+      n: f.originY,
+      s: screen.height - f.originY - f.heightPx,
+      w: f.originX,
+      e: screen.width - f.originX - f.widthPx,
+    };
+    if (counts) {
+      for (let k = 0; k < edges.length; k++) {
+        const n = counts[k] ?? 0;
+        const edge = edges[k];
+        if (n <= 0 || !edge) continue;
+        const view = this.waitingView(used++);
+        const text = backlogLabel(n);
+        view.label.text = text;
+        view.label.style.fill = p.glyph;
+        // The tab stays within its entry tile across the road: shrink the label until it does.
+        let size = Math.max(11, Math.round(T * 0.3));
+        let halfW = 0;
+        let halfH = 0;
+        for (;;) {
+          view.label.style.fontSize = size;
+          halfH = Math.max(Math.min(9, T / 2 - 3), Math.round(size * 0.8));
+          halfW = Math.max(halfH, Math.round(view.label.width / 2) + Math.round(size * 0.45));
+          if ((halfW * 2 <= T - 6 && halfH * 2 <= T - 6) || size <= 7) break;
+          size--;
+        }
+        const [cx, cy] = entryTab(
+          edge,
+          T,
+          halfW,
+          halfH,
+          GRID_WIDTH,
+          GRID_HEIGHT,
+          Math.max(0, margin[edge.side] ?? 0),
+          HEAT_GUTTER_PX,
+        );
+        view.pill
+          .clear()
+          .roundRect(-halfW, -halfH, halfW * 2, halfH * 2, halfH)
+          .fill(p.outline)
+          .stroke({ color: p.signalRed, width: Math.max(2, T * 0.05) });
+        view.root.position.set(cx, cy);
+        view.root.visible = true;
+      }
+    }
+    for (let k = used; k < this.waitingViews.length; k++) {
+      const v = this.waitingViews[k];
+      if (v) v.root.visible = false;
+    }
+  }
+
+  private waitingView(k: number): { root: Container; pill: Graphics; label: Text } {
+    let v = this.waitingViews[k];
+    if (!v) {
+      const root = new Container();
+      const pill = new Graphics();
+      const label = new Text({
+        text: '',
+        style: { fontFamily: 'system-ui, sans-serif', fontWeight: '700', fontSize: 12 },
+      });
+      label.anchor.set(0.5);
+      root.addChild(pill, label);
+      this.waitingLayer.addChild(root);
+      v = { root, pill, label };
+      this.waitingViews[k] = v;
+    }
+    return v;
   }
 
   /** A red ring round the junction where the gridlock started, over everything else. */
@@ -775,11 +962,22 @@ export class TrafficScene {
   private takeView(): VehicleView {
     const pooled = this.pool.pop();
     if (pooled) return pooled;
-    const root = new Container();
-    const body = new Graphics();
-    const pulse = new Graphics();
-    root.addChild(body, pulse);
-    return { root, body, pulse };
+    return { root: new Container(), cells: [] };
+  }
+
+  /** The view's cell `j`, created on first use. */
+  private cellView(v: VehicleView, j: number): VehicleCellView {
+    let c = v.cells[j];
+    if (!c) {
+      const root = new Container();
+      const body = new Graphics();
+      const pulse = new Graphics();
+      root.addChild(body, pulse);
+      v.root.addChild(root);
+      c = { root, body, pulse };
+      v.cells[j] = c;
+    }
+    return c;
   }
 
   private frame(now: number): void {
@@ -818,11 +1016,8 @@ export class TrafficScene {
     for (let i = 0; i < n; i++) {
       const pose = this.poses[i];
       if (!pose) continue;
-      const ctx =
-        pose.type === VehicleType.Emergency && beacon && this.beaconAlt
-          ? this.beaconAlt
-          : (this.contexts[pose.type] ?? this.contexts[0]);
-      if (!ctx) continue;
+      const ctxs = this.contexts[pose.type] ?? this.contexts[0];
+      if (!ctxs) continue;
       this.seen.add(pose.id);
       let v = this.vehicles.get(pose.id);
       if (!v) {
@@ -830,22 +1025,41 @@ export class TrafficScene {
         this.vehicles.set(pose.id, v);
         this.vehicleLayer.addChild(v.root);
       }
-      if (v.body.context !== ctx) v.body.context = ctx;
-      const pctx = this.pulseContexts[pose.type] ?? this.pulseContexts[0];
-      if (pctx && v.pulse.context !== pctx) v.pulse.context = pctx;
-      v.root.position.set(pose.x * T, pose.y * T);
-      v.root.rotation = pose.heading;
-
       const stopped = pose.speed === 0;
       if (stopped) queued++;
-      v.body.tint = gridlock && stopped ? GRIDLOCK_TINT : 0xffffff;
-      v.pulse.visible = stopped && !gridlock && pulse > 0;
-      v.pulse.alpha = pulse;
+      const tint = gridlock && stopped ? GRIDLOCK_TINT : 0xffffff;
+      const pulsing = stopped && !gridlock && pulse > 0;
+      // Long vehicles use the one-cell outline per cell; the rest their own.
+      const pctx =
+        pose.cells > 1
+          ? this.pulseContexts[VehicleType.Car]
+          : (this.pulseContexts[pose.type] ?? this.pulseContexts[0]);
+      const n = Math.min(pose.cells, ctxs.length);
+      for (let j = 0; j < n; j++) {
+        const part = pose.parts[j];
+        const ctx =
+          j === 0 && pose.type === VehicleType.Emergency && beacon && this.beaconAlt
+            ? this.beaconAlt
+            : ctxs[j];
+        if (!part || !ctx) continue;
+        const c = this.cellView(v, j);
+        c.root.visible = true;
+        if (c.body.context !== ctx) c.body.context = ctx;
+        if (pctx && c.pulse.context !== pctx) c.pulse.context = pctx;
+        c.root.position.set(part.x * T, part.y * T);
+        c.root.rotation = part.heading;
+        c.body.tint = tint;
+        c.pulse.visible = pulsing;
+        c.pulse.alpha = pulse;
+      }
+      for (const [j, c] of v.cells.entries()) if (j >= n) c.root.visible = false;
 
       const cells = trailCells(pose.speed, this.motion);
       if (cells > 0) {
         trailing++;
-        this.drawTrail(trails, pose, cells, cellPx, T);
+        // Behind the tail cell, along its own heading.
+        const tail = pose.parts[pose.cells - 1] ?? pose;
+        this.drawTrail(trails, tail, cells, cellPx, T);
       }
     }
     for (const [id, v] of this.vehicles) {
@@ -861,20 +1075,19 @@ export class TrafficScene {
     this.stats.gridlock = gridlock;
   }
 
-  /** 1–3 cell tapering streak behind the vehicle's tail, fading with distance (GDD §7). */
+  /** 1–3 cell tapering streak behind a vehicle's tail cell (`at`), fading with distance (GDD §7). */
   private drawTrail(
     g: Graphics,
-    pose: VehiclePose,
+    at: { readonly x: number; readonly y: number; readonly heading: number },
     cells: number,
     cellPx: number,
     T: number,
   ): void {
-    const len = VEHICLE_LENGTH[pose.type as VehicleType] ?? 1;
-    const c = Math.cos(pose.heading);
-    const s = Math.sin(pose.heading);
-    const cx = pose.x * T;
-    const cy = pose.y * T;
-    for (const p of trailPieces(cells, len)) {
+    const c = Math.cos(at.heading);
+    const s = Math.sin(at.heading);
+    const cx = at.x * T;
+    const cy = at.y * T;
+    for (const p of trailPieces(cells, 1)) {
       const pts = [p.a0, -p.h0, p.a0, p.h0, p.a1, p.h1, p.a1, -p.h1];
       const out: number[] = [];
       for (let k = 0; k < pts.length; k += 2) {
@@ -885,6 +1098,13 @@ export class TrafficScene {
       g.poly(out, true).fill({ color: this.palette.divider, alpha: p.alpha });
     }
   }
+}
+
+/** A previewed travel arrow (One-Way before it is placed): tile to tile, in a tag colour. */
+export interface GhostArrow {
+  readonly from: { readonly x: number; readonly y: number };
+  readonly to: { readonly x: number; readonly y: number };
+  readonly color: number;
 }
 
 function safeWorld(make: () => World): World | null {

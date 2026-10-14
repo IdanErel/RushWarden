@@ -35,8 +35,10 @@
 .rw-game button:focus-visible,
 .rw-game a:focus-visible,
 .rw-game input:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 2px;
+  /* Keyboard focus is a dashed accent ring set off from the button, so it never reads as the
+     selected card's solid ink ring (playtest U9). */
+  outline: 3px dashed var(--accent);
+  outline-offset: 3px;
 }
 .rw-hud {
   display: flex;
@@ -70,8 +72,28 @@
   justify-content: center;
 }
 .rw-map {
+  position: relative;
   display: flex;
   justify-content: center;
+  touch-action: none;
+}
+/* U3: a paused board says so, at the top of the map (clear of the junctions). */
+.rw-paused {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  border-radius: 10px;
+  pointer-events: none;
+}
+/* U6: hold anywhere for 2× — no scrolling or text selection under a held finger. */
+.rw-game:has(.rw-goph) {
   touch-action: none;
 }
 .rw-row {
@@ -90,7 +112,9 @@
   padding: 8px 16px 16px;
 }
 .rw-detail {
-  min-height: 40px;
+  /* Three lines held open, so a card's hint (One-Way's wraps to three on a phone) does not push
+     the hand down when the card is picked (U1). */
+  min-height: calc(3 * 1.35em);
   margin: 6px 0;
 }
 .rw-pips {
@@ -139,7 +163,7 @@
 }
 .rw-hand {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(var(--hand-n, 5), minmax(0, 1fr));
   gap: 6px;
   /* Room for a selected card's 8 px raise and 3 px ring, so it never meets the hint above. */
   padding-top: 6px;
@@ -163,6 +187,23 @@
 }
 .rw-card.dim {
   opacity: 0.55;
+}
+/* U4: a played card keeps its slot, dimmed further, with a "Played" label across it. */
+.rw-card.played {
+  opacity: 0.4;
+  cursor: default;
+}
+.rw-played {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-12deg);
+  padding: 2px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 14px;
+  font-weight: 700;
 }
 .rw-cost {
   position: absolute;
@@ -208,10 +249,18 @@
   margin-top: auto;
 }
 .rw-placed {
+  /* One row, always present (U1): a placed chip never pushes the hand down. */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  height: 44px;
   gap: 6px;
   margin-bottom: 8px;
+}
+.rw-chip-group {
+  display: flex;
+  flex: none;
+  gap: 6px;
 }
 .rw-flip {
   min-width: 44px;
@@ -252,6 +301,9 @@
   left: 8px;
   right: 8px;
   bottom: 8px;
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -416,6 +468,20 @@
   grid-row: 2;
   align-self: end;
 }
+/*
+ * U1: the place panel fills the column's row with Go pinned at its top and the hand at its
+ * bottom, so a longer hint or a placed chip never moves either (a centred or bottom-aligned panel
+ * moved Go by up to 100 px as the hand changed).
+ */
+.rw-wide .rw-place {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.rw-wide .rw-place .rw-hand {
+  margin-top: auto;
+}
 .rw-wide .rw-sheet {
   left: auto;
   right: 16px;
@@ -436,15 +502,14 @@
 }
 
 /*
- * Tall landscape (`rw-roomy`, GDD §8): the controls sit centred in the right column and the hand
- * is 3 + 2 larger cards that show their rules text, so the column has no empty band.
+ * Tall landscape (`rw-roomy`, GDD §8): the hand is 3 + 2 larger cards that show their rules text,
+ * so the column has no empty band; the Go-phase controls sit centred in the column.
  */
-.rw-roomy .rw-place,
 .rw-roomy .rw-goph {
   align-self: center;
 }
 .rw-roomy .rw-hand {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(var(--hand-rows-n, 3), minmax(0, 1fr));
   gap: 10px;
 }
 .rw-roomy .rw-hand .rw-card {
@@ -473,6 +538,9 @@
  * (fit-text.ts) then sizes them so no word breaks mid-word on whatever font the device has.
  */
 @media (max-width: 430px) {
+  .rw-has-event .rw-round-word {
+    display: none;
+  }
   .rw-hud {
     gap: 4px;
     padding: 4px 2px 4px 10px;
@@ -491,5 +559,144 @@
   /* "CHAOS" and "TEMPO" at 14 px reach the card border on wide fonts (DejaVu Sans) at 360 px. */
   .rw-hand .rw-tag {
     font-size: 12px;
+  }
+}
+
+/*
+ * U10, landscape: a 6- or 7-card hand (Second Shift) in one row: tighter cards, a smaller glyph and the
+ * rules text left to the accessible name, so the hand keeps the 5-card row's height. A tall
+ * landscape column shows it as two rows of 3 or 4 instead (`--hand-rows-n`), text included.
+ */
+.rw-wide .rw-hand-big {
+  gap: 4px;
+}
+.rw-wide .rw-hand-big .rw-card {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.rw-wide .rw-hand-big .rw-glyph {
+  width: 36px;
+  height: 36px;
+}
+.rw-wide .rw-hand-big .rw-name {
+  font-size: 13px;
+}
+.rw-wide .rw-hand-big .rw-tag {
+  font-size: 12px;
+}
+.rw-roomy .rw-hand-big .rw-glyph {
+  width: 56px;
+  height: 56px;
+}
+.rw-roomy .rw-hand-big .rw-name {
+  font-size: 15px;
+}
+
+/*
+ * U10, portrait: 7 cards across would break every name mid-word, so a hand of 6 or 7 keeps the
+ * 5-card size in a row that scrolls sideways, with part of the 6th card showing that there are
+ * more (keys 6 and 7, and selecting a card, scroll it into view). Short landscape does the same
+ * once its column is too narrow for 7 cards of 76 px.
+ */
+.rw-game:not(.rw-wide) .rw-hand.rw-hand-big {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 4 * 6px) / 5.25);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  /* A scrolling row clips: room for the selected card's 8 px raise and 3 px ring, and at each
+     end so the first or 7th card selected or focused never sits flush with the screen edge. */
+  padding-top: 12px;
+  padding-inline: 6px;
+  scroll-padding-inline: 6px;
+}
+.rw-game:not(.rw-wide) .rw-hand-big .rw-card {
+  scroll-snap-align: start;
+}
+.rw-wide:not(.rw-roomy) .rw-hand.rw-hand-big {
+  grid-template-columns: repeat(var(--hand-n), minmax(76px, 1fr));
+  overflow-x: auto;
+}
+
+/* Information layer (playtest 2026-10-13): round timer, rules, legends, run-end table. */
+.rw-clock {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--road);
+  transition: width 400ms linear;
+}
+.rw-left {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.rw-tip {
+  z-index: 2;
+}
+/* Landscape: the tip sits over the top of the board, never over Go or the hand. */
+.rw-wide .rw-tip {
+  left: 32px;
+  right: auto;
+  top: 32px;
+  width: min(420px, calc(100% - var(--side) - 88px));
+  box-sizing: border-box;
+}
+.rw-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rw-key-stripe,
+.rw-key-closed {
+  display: inline-block;
+  vertical-align: middle;
+  width: 22px;
+  height: 10px;
+  border-radius: 2px;
+}
+/* The heat-strip ramp (render palette heat1..heat3). */
+.rw-key-stripe {
+  background: linear-gradient(90deg, #e9b98f, #e08f5f, #c65a33);
+}
+/* A closed road: grey with red bars. */
+.rw-key-closed {
+  background: repeating-linear-gradient(90deg, #8f8a85 0 5px, #b83a24 5px 8px);
+}
+.rw-rounds {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+.rw-rounds th,
+.rw-rounds td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid #e0d6c8;
+}
+.rw-rounds th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.rw-legend {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.rw-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rw-clock {
+    transition: none;
   }
 }

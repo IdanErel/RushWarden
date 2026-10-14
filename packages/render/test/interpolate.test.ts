@@ -20,7 +20,7 @@ import {
 } from '../src/interpolate.js';
 import { tileLaneId, tileLaneLayout, worldLaneLayout } from '../src/lanes.js';
 import { connections, isIntersection, lanesAt, roadWidth } from '../src/geometry.js';
-import { VEHICLE_LENGTH } from '../src/shapes.js';
+import { BODY_WIDTH, VEHICLE_LENGTH } from '../src/shapes.js';
 import { snap } from './helpers.js';
 
 const N = tileLaneId(3, 2, 'n', 0);
@@ -153,7 +153,6 @@ describe('multi-cell vehicles through a turn (body follows the path)', () => {
   }
 
   it('keeps a truck and a bus on the road at every step of every turn', () => {
-    const cellLen = 1 / CELLS_PER_TILE;
     const out: VehiclePose[] = [];
     for (const lane of world.lanes.filter((l) => l.kind === 'box')) {
       const ix = world.intersections[lane.intersection]!;
@@ -173,15 +172,44 @@ describe('multi-cell vehicles through a turn (body follows the path)', () => {
           for (const at of [100, 100 + TICK_MS / 2, 100 + TICK_MS]) {
             b.sample(at, out);
             const p = out[0]!;
-            // Head cell centre, body middle and tail cell centre, as the scene draws them.
+            // Every body cell centre, as the scene draws them.
+            expect(p.cells).toBe(len);
             for (let i = 0; i < len; i++) {
-              const x = p.x - Math.cos(p.heading) * i * cellLen;
-              const y = p.y - Math.sin(p.heading) * i * cellLen;
+              const { x, y } = p.parts[i]!;
               expect(onRoad(x, y), `type ${type} lane ${cl}:${cc} t=${at} body ${i}`).toBe(true);
             }
           }
         }
       }
+    }
+  });
+
+  it('bends a truck through a turn: each cell takes the lane heading where it is', () => {
+    // A right turn (one box cell): the head is on the exit lane while the tail is still in the
+    // box, so the head and tail cells point in different directions.
+    const turn = world.lanes.find(
+      (l) => l.kind === 'box' && l.cells === 1 && l.entryDir !== l.exitDir,
+    )!;
+    const ix = world.intersections[turn.intersection]!;
+    const exit = world.links[ix.outLinks[turn.exitDir]!]!.lanes[0]!;
+    const b = new SnapshotBuffer(layout);
+    b.push(snap(1, [[1, turn.id, turn.cells - 1, 1, VehicleType.Truck]]), 0);
+    b.push(snap(2, [[1, exit, 0, 1, VehicleType.Truck]]), 50);
+    const out: VehiclePose[] = [];
+    b.sample(50 + TICK_MS, out);
+    const p = out[0]!;
+    const head = { x: 0, y: 0, heading: 0 };
+    layout.cellPoint(exit, 0, head);
+    expect(p.parts[0]!.x).toBeCloseTo(head.x);
+    expect(p.parts[0]!.y).toBeCloseTo(head.y);
+    expect(p.parts[0]!.heading).toBeCloseTo(head.heading);
+    const bend = Math.abs(lerpAngle(0, p.parts[0]!.heading - p.parts[2]!.heading, 1));
+    expect(bend).toBeGreaterThan(0.5);
+    // The cells stay joined: neighbours are at most one cell length apart.
+    for (let j = 1; j < 3; j++) {
+      const a = p.parts[j - 1]!;
+      const c = p.parts[j]!;
+      expect(Math.hypot(a.x - c.x, a.y - c.y)).toBeLessThanOrEqual(1 / CELLS_PER_TILE + 1e-9);
     }
   });
 
@@ -219,14 +247,33 @@ function onAsphalt(map: GridMap, x: number, y: number): boolean {
   return (horizontal && dy <= half) || (vertical && dx <= half);
 }
 
+/** Corners of one drawn body cell, in tiles from its centre (shapes.ts: bumper gap, body width). */
+const HALF_LEN = 0.45 / CELLS_PER_TILE;
+const HALF_W = BODY_WIDTH / 2 / CELLS_PER_TILE;
+const CORNERS = [
+  [HALF_LEN, HALF_W],
+  [HALF_LEN, -HALF_W],
+  [-HALF_LEN, HALF_W],
+  [-HALF_LEN, -HALF_W],
+] as const;
+
 describe('buses and trucks in real District 1 rounds', () => {
   // The plus-map test above moves one vehicle one step at a time. Real rounds also move a long
   // vehicle 2 cells in a tick out of a box into the exit lane, and between those snapshots a
   // straight blend of its tail cut across the box corner (up to 0.2 tiles past the asphalt).
-  it('keep every body cell on asphalt at every quarter tick, through every turn', () => {
+  // Two runs of five rounds cover every round kind (closures, rush, Market Day) and thousands of
+  // poses with a bus or truck bent through a turn, which the test counts so that a smaller sample
+  // cannot pass without exercising turns. Sampling 4 times a tick is the cost (about 2 s alone,
+  // several times that under coverage on a loaded runner), hence the explicit timeout.
+  it('keep every body cell on asphalt and joined, at every quarter tick, through every turn', () => {
     const offRoad: string[] = [];
+    const onBlock: string[] = [];
+    const apart: string[] = [];
+    const wrongCells: string[] = [];
+    /** Poses whose head and tail cells differ in heading by more than 0.5 rad, per type. */
+    const turning = { [VehicleType.Bus]: 0, [VehicleType.Truck]: 0 };
     let longPoses = 0;
-    for (let run = 1; run <= 6; run++) {
+    for (let run = 1; run <= 2; run++) {
       for (let round = 1; round <= 5; round++) {
         const rush = round === 5;
         const seed = run * 7919 + round;
@@ -259,21 +306,46 @@ describe('buses and trucks in real District 1 rounds', () => {
               const len = VEHICLE_LENGTH[p.type as VehicleType] ?? 1;
               if (len < 2) continue;
               longPoses++;
+              // Collected rather than asserted per pose: `expect` in this loop is most of the cost.
+              if (p.cells !== len) wrongCells.push(`${p.id} type ${p.type} cells ${p.cells}`);
+              const bend = p.parts[0]!.heading - p.parts[len - 1]!.heading;
+              if (Math.abs(Math.atan2(Math.sin(bend), Math.cos(bend))) > 0.5)
+                turning[p.type === VehicleType.Bus ? VehicleType.Bus : VehicleType.Truck]++;
               for (let j = 0; j < len; j++) {
-                const x = p.x - (Math.cos(p.heading) * j) / CELLS_PER_TILE;
-                const y = p.y - (Math.sin(p.heading) * j) / CELLS_PER_TILE;
+                const c = p.parts[j]!;
+                const where = `${s.map.id} tick ${i} q${q} id ${p.id} type ${p.type} body ${j}`;
+                if (j > 0) {
+                  const g = Math.hypot(c.x - p.parts[j - 1]!.x, c.y - p.parts[j - 1]!.y);
+                  if (g > 1 / CELLS_PER_TILE + 1e-9 || g < 0.5 / CELLS_PER_TILE)
+                    apart.push(`${where} gap ${g.toFixed(3)}`);
+                }
                 // A vehicle entering from an edge still has its tail beyond the map.
-                if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT) continue;
-                if (!onAsphalt(s.map, x, y))
-                  offRoad.push(`${s.map.id} tick ${i} q${q} id ${p.id} type ${p.type} body ${j}`);
+                if (c.x < 0 || c.y < 0 || c.x >= GRID_WIDTH || c.y >= GRID_HEIGHT) continue;
+                if (!onAsphalt(s.map, c.x, c.y)) offRoad.push(where);
+                // The drawn cell's corners never reach a block (the playtest's truck over the
+                // buildings on a turn).
+                const cos = Math.cos(c.heading);
+                const sin = Math.sin(c.heading);
+                for (const [u, w] of CORNERS) {
+                  const x = c.x + u * cos - w * sin;
+                  const y = c.y + u * sin + w * cos;
+                  if (x < 0 || y < 0 || x >= GRID_WIDTH || y >= GRID_HEIGHT) continue;
+                  if (lanesAt(s.map, Math.floor(x), Math.floor(y)) === 0)
+                    onBlock.push(`${where} corner`);
+                }
               }
             }
           }
         });
       }
     }
-    expect(longPoses).toBeGreaterThan(10_000);
+    expect(longPoses).toBeGreaterThan(30_000);
+    expect(turning[VehicleType.Truck]).toBeGreaterThan(1_000);
+    expect(turning[VehicleType.Bus]).toBeGreaterThan(100);
+    expect(wrongCells.slice(0, 5)).toEqual([]);
     expect(offRoad.slice(0, 5)).toEqual([]);
-    // 30 simulated rounds: about 1 s alone, more on a loaded runner.
-  }, 30_000);
+    expect(onBlock.slice(0, 5)).toEqual([]);
+    expect(apart.slice(0, 5)).toEqual([]);
+    // 10 rounds: about 1 s alone and 3 s under coverage; a loaded CI runner has taken 10× that.
+  }, 120_000);
 });

@@ -7,6 +7,7 @@
  * - Everything on `phone-webkit`: in the Nightly workflow.
  */
 import { expect, test } from '@playwright/test';
+import { loadCards } from '@rushwarden/content';
 import { SEED_RANGE, findSeed, noCardRun, seedTable, type HeadlessRun } from './headless.js';
 import {
   GLYPH,
@@ -40,6 +41,13 @@ function need(n: 'pass-round-1' | 'fail' | 'gridlock'): HeadlessRun {
 /** S1: the lowest seed whose first round passes with no cards. */
 const passSeed = (): number => need('pass-round-1').seed;
 
+/** Cards that redraw the hand, which ends undo for the round (ADR-018 point 8). */
+const REDRAWS: ReadonlySet<string> = new Set(
+  loadCards()
+    .filter((c) => c.effects.some((e) => e.kind === 'redraw'))
+    .map((c) => c.id),
+);
+
 test.describe('toy flow', () => {
   // A 15 s round takes 17–40 s of wall time in headless software WebGL (CI is the slow end).
   test.describe.configure({ timeout: 120_000 });
@@ -70,7 +78,9 @@ test.describe('toy flow', () => {
 
   test('E2E-02 place, preview, undo; at most 2 plays', async ({ page }) => {
     await openToy(page, passSeed());
-    await selectPlayable(page);
+    // A redraw card (Recount) can't be undone (ADR-018 point 8), so the undo step takes the first
+    // playable card that doesn't redraw, whatever the deck order.
+    await selectPlayable(page, (id) => REDRAWS.has(id));
     await page.keyboard.press('ArrowRight'); // move the ghost-preview cursor
     await expect(state(page)).not.toHaveAttribute('data-cursor', '');
     await page.keyboard.press('Enter');
@@ -215,7 +225,7 @@ test.describe('toy flow', () => {
     await expect(state(page)).toHaveAttribute('data-phase', 'result');
     const offers = page.getByRole('button', { name: /^Take / });
     await expect(offers).toHaveCount(3);
-    await expect(page.getByRole('button', { name: 'Skip, +2 funds' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Skip/ })).toBeVisible();
     await offers.nth(1).click();
     await expect(state(page)).toHaveAttribute('data-phase', 'place');
     await expect(state(page)).toHaveAttribute('data-round', '2');
@@ -228,7 +238,7 @@ test.describe('toy flow', () => {
     await pressGo(page);
     await holdRound(page);
     await expect(state(page)).toHaveAttribute('data-phase', 'result');
-    await page.getByRole('button', { name: 'Skip, +2 funds' }).click();
+    await page.getByRole('button', { name: /^Skip/ }).click();
     await expect(state(page)).toHaveAttribute('data-phase', 'place');
     await expect(state(page)).toHaveAttribute('data-round', '2');
     await expect(state(page)).toHaveAttribute('data-approval', '3');

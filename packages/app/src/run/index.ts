@@ -5,6 +5,7 @@
  */
 export * from './types.js';
 export { fundsFor } from './quota.js';
+export { quotaReference, median } from './quota-ref.js';
 export { shuffle, draw } from './deck.js';
 export { buildOffer, dominantTag, RARITY_WEIGHTS, OFFER_SIZE, PITY_AFTER_ROUND } from './offers.js';
 export {
@@ -16,6 +17,7 @@ export {
   costOf,
   deckOf,
   resolveTier,
+  isNextRoundOnly,
   runEffectError,
   sameTarget,
 } from './controller.js';
