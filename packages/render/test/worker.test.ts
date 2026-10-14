@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROUND_TICKS, Sim, emptyMap, sampleInput, type FromSimWorker } from '@rushwarden/sim';
 import { SimClient } from '../src/worker/client.js';
-import { createFakeWorkerHandler } from '../src/worker/fake-handler.js';
+import { createFakeWorkerHandler, fakeWaitingFrame } from '../src/worker/fake-handler.js';
 import {
   createSimWorkerHandler,
   type ToSimWorker,
@@ -257,5 +257,46 @@ describe('controllers frames through the client (ADR-020)', () => {
     play(client, w, 0, 300);
     expect(lens.length).toBeGreaterThan(0);
     expect(new Set(lens)).toEqual(new Set([3]));
+  });
+});
+
+describe('waiting frames through the client (ADR-035)', () => {
+  it('hands each frame its own tick’s per-edge waiting counts from the sim worker', () => {
+    const w = memoryWorker(createSimWorkerHandler);
+    const input = sampleInput(6);
+    const lens: number[] = [];
+    const client = new SimClient(w, {
+      onFrame: (_f, _now, _c, waiting) => lens.push(waiting?.length ?? -1),
+    });
+    client.start(input);
+    play(client, w, 0, 500);
+    expect(lens.length).toBeGreaterThan(5);
+    expect(new Set(lens)).toEqual(new Set([input.map.edges.length]));
+  });
+
+  it('sends the fake traffic’s held demand per edge, and the same at the end of the round', () => {
+    const out: FromSimWorker[] = [];
+    const h = createFakeWorkerHandler((m) => out.push(m));
+    const jam = {
+      ...sampleInput(3),
+      districtRules: { ...sampleInput(3).districtRules, boss: 'gridlock-drill' as const },
+    };
+    h({ type: 'start', roundId: 1, input: jam });
+    h({ type: 'finish', roundId: 1 });
+    const frames = out.filter((m) => m.type === 'frames');
+    const last = frames.at(-1);
+    if (!last || last.type !== 'frames') throw new Error('no frames');
+    expect(last.waiting).toHaveLength(last.frames.length);
+    const final = [...(last.waiting?.at(-1) ?? [])];
+    expect(final).toHaveLength(jam.map.edges.length);
+    const done = out.at(-1);
+    expect(done).toMatchObject({ type: 'done', result: { waiting: final, diverted: 0 } });
+  });
+
+  it('counts held demand events by edge, in map edge order', () => {
+    const edges = [{ id: 7 }, { id: 2 }, { id: 9 }];
+    const ev = (edge: number) => ({ tick: 0, edge, destinationEdge: 9, vehicleType: 0 });
+    const frame = fakeWaitingFrame({ waiting: [ev(2), ev(2), ev(9), ev(5)] } as never, edges);
+    expect([...frame]).toEqual([0, 2, 1]);
   });
 });

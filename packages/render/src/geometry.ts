@@ -214,3 +214,43 @@ export function badgeCentre(
     Math.min(Math.max(cy, rad + 1), height - rad - 1),
   ];
 }
+
+/** An axis-aligned box in px, centre and half sizes. */
+export interface Box {
+  readonly cx: number;
+  readonly cy: number;
+  readonly hw: number;
+  readonly hh: number;
+}
+
+/**
+ * Where an entry's backlog tab goes (ADR-035: trips waiting to enter), as its centre in map px:
+ * attached to its own entry and aligned with that road, so the count can only belong to it. It
+ * sits just outside the entry's heat-strip when the canvas has room there (`margin`: canvas px
+ * beyond the map on that side, the strip's `gutter` included); with less room it moves in until
+ * its outer edge meets the canvas edge, over the strip and the end of the entry tile. Across the
+ * road it is centred on the entry tile, so tabs of different entries never meet (the scene keeps
+ * each tab within its tile's width). #107: decided by the Lead over an on-board search.
+ */
+export function entryTab(
+  edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
+  T: number,
+  halfW: number,
+  halfH: number,
+  gridW: number,
+  gridH: number,
+  margin: number,
+  gutter: number,
+): [number, number] {
+  const { x, y } = edge.tile;
+  switch (edge.side) {
+    case 'n':
+      return [(x + 0.5) * T, -Math.min(margin, gutter + 2 * halfH) + halfH];
+    case 's':
+      return [(x + 0.5) * T, gridH * T + Math.min(margin, gutter + 2 * halfH) - halfH];
+    case 'w':
+      return [-Math.min(margin, gutter + 2 * halfW) + halfW, (y + 0.5) * T];
+    default:
+      return [gridW * T + Math.min(margin, gutter + 2 * halfW) - halfW, (y + 0.5) * T];
+  }
+}

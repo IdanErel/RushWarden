@@ -17,9 +17,16 @@ import { MAX_TICKS_PER_STEP, type WorkerLike } from './protocol.js';
 export interface SimClientHandlers {
   /**
    * One snapshot, released at its tick time. `now` is the `update` time that released it.
-   * `controllers` is the same tick's controller frame (ADR-020) when the worker sent one.
+   * `controllers` is the same tick's controller frame (ADR-020) when the worker sent one, and
+   * `waiting` the same tick's per-edge waiting counts (ADR-035, `GridMap.edges` order) when it
+   * sent those. Absent means no data, not zero.
    */
-  onFrame?: (snapshot: Uint16Array, now: number, controllers?: Uint8Array) => void;
+  onFrame?: (
+    snapshot: Uint16Array,
+    now: number,
+    controllers?: Uint8Array,
+    waiting?: Uint16Array,
+  ) => void;
   /** The round ended and every frame has been released. */
   onDone?: (result: RoundResult) => void;
   onError?: (message: string) => void;
@@ -45,6 +52,8 @@ export class SimClient {
   private queue: Uint16Array[] = [];
   /** Controller frames, aligned with `queue`; undefined where the producer sent none. */
   private ctrlQueue: (Uint8Array | undefined)[] = [];
+  /** Waiting-count frames (ADR-035), aligned with `queue`; undefined where none was sent. */
+  private waitQueue: (Uint16Array | undefined)[] = [];
   private inFlight = 0;
   private result: RoundResult | null = null;
   private running = false;
@@ -66,6 +75,7 @@ export class SimClient {
         case 'frames':
           this.queue.push(...m.frames);
           for (let k = 0; k < m.frames.length; k++) this.ctrlQueue.push(m.controllers?.[k]);
+          for (let k = 0; k < m.frames.length; k++) this.waitQueue.push(m.waiting?.[k]);
           this.inFlight = Math.max(0, this.inFlight - m.frames.length);
           break;
         case 'done':
@@ -89,6 +99,7 @@ export class SimClient {
     this.roundId++;
     this.queue = [];
     this.ctrlQueue = [];
+    this.waitQueue = [];
     this.inFlight = 0;
     this.result = null;
     this.running = true;
@@ -128,6 +139,7 @@ export class SimClient {
     this.running = false;
     this.queue = [];
     this.ctrlQueue = [];
+    this.waitQueue = [];
   }
 
   /** Call once per display frame with a monotonic time in ms. */
@@ -144,8 +156,9 @@ export class SimClient {
     while (this.acc >= TICK_MS && this.queue.length > 0) {
       const f = this.queue.shift();
       const c = this.ctrlQueue.shift();
+      const w = this.waitQueue.shift();
       this.acc -= TICK_MS;
-      if (f) this.handlers.onFrame?.(f, now, c);
+      if (f) this.handlers.onFrame?.(f, now, c, w);
     }
     // Starved (worker late): keep the time owed, up to one gap's worth, and catch up when the
     // frames arrive, so a late worker drops frames rather than stretching the round.

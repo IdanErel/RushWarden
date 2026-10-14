@@ -2,7 +2,7 @@
  * The UI's seam onto the run controller (GDD §2 core loop). Screens read `RunState` and call
  * `RunPort`; nothing else. `ControllerRun` implements it over P1-BAL-01's `RunController`.
  */
-import type { BossCondition, RoundInput, RoundResult } from '@rushwarden/sim';
+import type { BossCondition, RoundInput, RoundResult, Side } from '@rushwarden/sim';
 import type { TargetMark } from '@rushwarden/render/core';
 
 export type Tag = 'FLOW' | 'MASS' | 'TOLL' | 'CHAOS' | 'TEMPO';
@@ -59,6 +59,26 @@ export interface RoundOutcome {
   /** Vehicles that entered the map and that left it (reached an exit) this round. */
   readonly spawned?: number;
   readonly exited?: number;
+  /**
+   * ADR-035: trips that came due but never got on the map (all edges, at round end), and trips
+   * with no route to their destination that drove to another exit instead.
+   */
+  readonly waiting?: number;
+  readonly diverted?: number;
+}
+
+/**
+ * What a placement would cut off this round (ADR-035 `cutRoutes`), by map side: `exits` lose a
+ * route into them, `entries` can no longer reach any exit (their traffic waits at the edge).
+ * `edges` are the cut exits' map edge ids, for the cross on the map. `trucksOnly` when every cut
+ * route is a truck's (No Heavy).
+ */
+export interface CutSummary {
+  readonly exits: readonly Side[];
+  readonly exitCount: number;
+  readonly entries: readonly Side[];
+  readonly edges: readonly number[];
+  readonly trucksOnly: boolean;
 }
 
 export type Phase = 'place' | 'go' | 'result' | 'end';
@@ -114,6 +134,11 @@ export interface RunPort {
    * would run (its `reverse` included); null for any other target. For the One-Way preview.
    */
   segmentOf(target: TargetMark): { readonly from: TileXY; readonly to: TileXY } | null;
+  /**
+   * What playing hand card `handIndex` on `target` would cut off (ADR-035), or null when it cuts
+   * nothing or is not a legal play. Cheap enough for every cursor move.
+   */
+  cutsAt(handIndex: number, target: TargetMark): CutSummary | null;
 
   /**
    * Why hand card `i` cannot go on `tile`, for the note on a tap that places nothing (U5):

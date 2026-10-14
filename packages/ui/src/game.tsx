@@ -57,7 +57,15 @@ import { fitMap, isRoomy, isWide, TURN_ALLOWANCE_PX, wideLayout } from './fit.js
 import type { PlacedCard, RoundOutcome, RunPort, RunState, UiCard } from './run/port.js';
 import { MARK_GLYPH, copyText, shareLine, shareText } from './share.js';
 import { TAG_COLOR, css } from './tags.js';
-import { busyFactor, markLabel, missNote, readTipSeen, writeTipSeen } from './info.js';
+import {
+  busyFactor,
+  cutNote,
+  heldLine,
+  markLabel,
+  missNote,
+  readTipSeen,
+  writeTipSeen,
+} from './info.js';
 
 export interface GameEvents {
   /** Go pressed; portal `gameplayStart` (GDD §9). */
@@ -129,6 +137,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
   /** Whole seconds left in the Go phase's 15 (the round timer on the throughput bar). */
   const ROUND_SECONDS = ROUND_TICKS / TICKS_PER_SECOND;
   const [left, setLeft] = useState(ROUND_SECONDS);
+  /** Per-edge waiting counts from the last frame (ADR-035), for the hooks; '' until any. */
+  const [waitingKey, setWaitingKey] = useState('');
   /** Where the last round's gridlock started (the scene's red ring), or null. */
   const [jam, setJam] = useState<JamPoint | null>(null);
   /** The cards placed when Go was pressed: their marks stay up through Go and the result. */
@@ -275,10 +285,16 @@ export function Game(props: GameOptions): preact.JSX.Element {
       made = sc;
       sc.canvas.setAttribute('aria-hidden', 'true');
       const c = new SimClient(props.spawnWorker(), {
-        onFrame: (f, now, controllers) => {
+        onFrame: (f, now, controllers, waiting) => {
           sc.pushSnapshot(f, now);
           // Live signal phases, box occupancy and controller glyphs (ADR-020 point 10).
           if (controllers) sc.pushControllers(controllers);
+          // Trips waiting to enter at each edge: a backlog marker on the map (ADR-035).
+          if (waiting) {
+            sc.pushWaiting(waiting);
+            const k = waiting.join(',');
+            setWaitingKey((prev) => (prev === k ? prev : k));
+          }
           const n = counter.current.push(f);
           // One pluck per burst of exits, pitched by the best vehicle's score value (GDD §7).
           const exits = counter.current.exits;
@@ -357,6 +373,19 @@ export function Game(props: GameOptions): preact.JSX.Element {
             p.target.y === cursorAt.y,
         )?.card.name ?? null)
       : null;
+  // What the cursor's placement would cut off (ADR-035): crossed-out exits and a note (U11's
+  // ghost, for One-Way, Bus Lane and No Heavy; any road card that cuts a route gets it).
+  const cut = useMemo(
+    () =>
+      s.phase === 'place' && selected !== null && cursorAt
+        ? run.cutsAt(
+            selected,
+            selCard?.directional ? withReverse(cursorAt, previewReverse) : cursorAt,
+          )
+        : null,
+    [run, s, selected, cursorAt, selCard, previewReverse],
+  );
+  const cutText = cutNote(cut);
 
   // A quota well above the usual for this round: say so before Go (a busier map, not harder rules).
   const busy = s.phase === 'place' ? busyFactor(s.quota, s.quotaRef) : null;
@@ -389,7 +418,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
     const arrow = seg
       ? { from: seg.from, to: seg.to, color: TAG_COLOR[selCard?.tags[0] ?? 'FLOW'] }
       : null;
-    scene.setTargets(targets, cursor, ghost, arrow);
+    scene.setTargets(targets, cursor, ghost, arrow, cut?.edges ?? []);
     scene.setMarks(
       (s.phase === 'place' ? s.placed : goPlaced.current).map((p) => ({
         target: p.target,
@@ -494,6 +523,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
     counter.current.reset();
     setLive(0);
     setLeft(ROUND_SECONDS);
+    setWaitingKey('');
     setSpeed(1);
     scene?.setSpeed(1);
     client.current.setSpeed(1);
@@ -757,6 +787,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
         selected,
         cursor,
         gridlockOrigin: jam,
+        waiting: waitingKey ? waitingKey.split(',').map(Number) : [],
+        cut: cut?.edges ?? [],
         audio: sound ? (sound.started ? 'started' : 'idle') : 'none',
         muted: sound ? sound.muted : true,
         live: scene?.liveControllers ?? [],
@@ -845,7 +877,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
           <p class="rw-detail" aria-live="polite">
             {selCard
               ? targets.length
-                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}${replaced ? ` ${t('place.replaces', { name: replaced })}` : ''}`
+                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}${replaced ? ` ${t('place.replaces', { name: replaced })}` : ''}${cutText ? ` ${cutText}` : ''}`
                 : `${selCard.text} ${t('place.noTargets')}`
               : busy
                 ? `${t('place.busy', { x: busy, round: s.round })} ${t('place.hint')}`
@@ -1146,6 +1178,7 @@ function Result(p: {
           })}
         </p>
       )}
+      {heldLine(o) && <p class="rw-muted rw-held">{heldLine(o)}</p>}
       {o.pass ? (
         p.showFunds && <p>{t('result.funds', { n: o.fundsEarned })}</p>
       ) : (

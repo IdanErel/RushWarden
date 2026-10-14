@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../src/i18n.js';
-import { busyFactor, markLabel, readTipSeen, writeTipSeen } from '../src/info.js';
+import {
+  busyFactor,
+  cutNote,
+  heldLine,
+  markLabel,
+  readTipSeen,
+  sideList,
+  writeTipSeen,
+} from '../src/info.js';
+
 describe('information layer helpers', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -26,6 +35,27 @@ describe('information layer helpers', () => {
     );
     expect(t('result.trafficJam', { arrived: 2, left: 1 })).toBe(
       '2 vehicles arrived; 1 was still on the road when it locked.',
+    );
+  });
+
+  it('words what a placement cuts off, and what the result held back (ADR-035)', () => {
+    expect(sideList(['n'])).toBe('north');
+    expect(sideList(['n', 'w'])).toBe('north and west');
+    expect(sideList(['n', 'e', 'w'])).toBe('north, east and west');
+    expect(cutNote(null)).toBeNull();
+    const cut = { exits: ['n'], exitCount: 1, entries: [], edges: [0], trucksOnly: false } as const;
+    expect(cutNote(cut)).toBe('Cuts off the north exit: those trips go to another exit.');
+    expect(cutNote({ ...cut, exits: ['n', 's'], exitCount: 3, trucksOnly: true })).toBe(
+      'Cuts off the north and south exits for trucks: they go to another exit.',
+    );
+    expect(cutNote({ ...cut, entries: ['w'] })).toBe(
+      'Cuts off the north exit: those trips go to another exit. Traffic from the west would have no way out and wait at the edge.',
+    );
+    expect(heldLine({})).toBeNull();
+    expect(heldLine({ waiting: 0, diverted: 0 })).toBeNull();
+    expect(heldLine({ waiting: 1 })).toBe('1 vehicle still waiting to enter at the edges.');
+    expect(heldLine({ waiting: 12, diverted: 3 })).toBe(
+      '12 vehicles still waiting to enter at the edges; 3 rerouted to another exit (their way was cut).',
     );
   });
 
