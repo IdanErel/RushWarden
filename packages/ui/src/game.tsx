@@ -387,8 +387,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
   );
   const cutText = cutNote(cut);
 
-  // A quota well above round 1's: say so before Go (the map is busier, not the rules harder).
-  const busy = s.phase === 'place' ? busyFactor(s.quota, s.results) : null;
+  // A quota well above the usual for this round: say so before Go (a busier map, not harder rules).
+  const busy = s.phase === 'place' ? busyFactor(s.quota, s.quotaRef) : null;
 
   const roundInput = useMemo(() => run.roundInput(), [run, s.round, s.phase === 'place']);
 
@@ -880,7 +880,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
                 ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}${replaced ? ` ${t('place.replaces', { name: replaced })}` : ''}${cutText ? ` ${cutText}` : ''}`
                 : `${selCard.text} ${t('place.noTargets')}`
               : busy
-                ? `${t('place.busy', { x: busy })} ${t('place.hint')}`
+                ? `${t('place.busy', { x: busy, round: s.round })} ${t('place.hint')}`
                 : t('place.hint')}
           </p>
           {/* Always there, one row high, so placing or undoing never moves the hand (U1). */}

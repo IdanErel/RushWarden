@@ -15,6 +15,7 @@ import { draw, shuffle } from './deck.js';
 import { buildOffer } from './offers.js';
 import { roundQuota } from '@rushwarden/content';
 import { fundsFor } from './quota.js';
+import { quotaReference } from './quota-ref.js';
 import type {
   CostRule,
   DeckCard,
@@ -233,6 +234,7 @@ function startRound(state: RunState, round: number, env: RunEnv): RunState {
       state.config.quotaPermille,
       state.config.templateDemand === true ? setup.map.id : undefined,
     ),
+    quotaRef: quotaReference(state.config, round),
     hand: dealt.drawn,
     drawPile: dealt.drawPile,
     spent: dealt.spent,
@@ -285,6 +287,7 @@ export function startRun(config: RunConfig, env: RunEnv): { state: RunState; eve
     rush: false,
     boss: null,
     quota: 0,
+    quotaRef: null,
     runEffects: [],
     runCostRules: [],
     roundCostRules: [],

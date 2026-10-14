@@ -59,7 +59,7 @@ test('round timer on the bar; the result counts arrivals; the run end has a tabl
   await holdToEnd(page);
   const sheet = page.getByRole('dialog');
   // The run-ending round's own result first (U2), then the run end.
-  await expect(sheet).toContainText(/vehicles arrived; \d+ were still on the road/);
+  await expect(sheet).toContainText(/vehicles? arrived; \d+ (was|were) still on the road/);
   await page.getByRole('button', { name: 'See the run' }).click();
   const table = page.getByRole('table', { name: 'Round by round' });
   await expect(table.getByRole('row')).toHaveCount(2);
@@ -75,6 +75,6 @@ test('a mid-run result says how many vehicles arrived and how many were left', a
   await expect(state(page)).toHaveAttribute('data-phase', 'go');
   await holdToEnd(page);
   await expect(page.getByRole('dialog')).toContainText(
-    /\d+ vehicles arrived; \d+ were still on the road/,
+    /\d+ vehicles? arrived; \d+ (was|were) still on the road/,
   );
 });

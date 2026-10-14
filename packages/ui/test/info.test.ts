@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { t } from '../src/i18n.js';
 import {
   busyFactor,
   cutNote,
@@ -8,27 +9,33 @@ import {
   sideList,
   writeTipSeen,
 } from '../src/info.js';
-import type { RoundOutcome } from '../src/run/port.js';
-
-const round = (quota: number): RoundOutcome => ({
-  round: 1,
-  pass: true,
-  throughput: quota,
-  quota,
-  gridlocked: false,
-  fundsEarned: 0,
-  approvalLost: 0,
-  hash: '',
-});
 
 describe('information layer helpers', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('notes a busy map from 1.5× round 1’s quota', () => {
-    expect(busyFactor(300, [])).toBeNull();
-    expect(busyFactor(170, [round(120)])).toBeNull();
-    expect(busyFactor(180, [round(120)])).toBe(1.5);
-    expect(busyFactor(426, [round(120), round(130)])).toBe(3.6);
+  it('notes a busy map from 1.3× its round’s usual quota (QA R3)', () => {
+    // Seed 11 opens with Market Day at quota 357, against a usual 194 for round 1.
+    expect(busyFactor(357, 194)).toBe(1.8);
+    expect(busyFactor(194, 194)).toBeNull();
+    expect(busyFactor(197, 151)).toBe(1.3);
+    expect(busyFactor(196, 151)).toBeNull();
+    expect(busyFactor(500, null)).toBeNull();
+    expect(busyFactor(500, 0)).toBeNull();
+  });
+
+  it('pluralises the result’s traffic line (QA N2)', () => {
+    expect(t('result.traffic', { arrived: 124, left: 1 })).toBe(
+      '124 vehicles arrived; 1 was still on the road when time ran out (they don’t count).',
+    );
+    expect(t('result.traffic', { arrived: 1, left: 0 })).toBe(
+      '1 vehicle arrived; 0 were still on the road when time ran out (they don’t count).',
+    );
+    expect(t('result.trafficJam', { arrived: 39, left: 51 })).toBe(
+      '39 vehicles arrived; 51 were still on the road when it locked.',
+    );
+    expect(t('result.trafficJam', { arrived: 2, left: 1 })).toBe(
+      '2 vehicles arrived; 1 was still on the road when it locked.',
+    );
   });
 
   it('words what a placement cuts off, and what the result held back (ADR-035)', () => {
