@@ -3,7 +3,8 @@
  * for the busy-map note, the run-end table's words and the one-time first-round tip.
  */
 import { t } from './i18n.js';
-import type { MissReason, RoundMark, RoundOutcome, UiCard } from './run/port.js';
+import type { Side } from '@rushwarden/sim';
+import type { CutSummary, MissReason, RoundMark, RoundOutcome, UiCard } from './run/port.js';
 
 /** A quota this many times round 1's or more gets the "busy map" note. */
 export const BUSY_FACTOR = 1.5;
@@ -53,4 +54,41 @@ export function missNote(
   if (!card) return t('place.miss.noCard');
   if (!hasTargets) return t('place.miss.noTargets', { name: card.name });
   return t(reason ? `place.miss.${reason}` : 'place.miss', { name: card.name });
+}
+
+/** "north", "north and west", "north, east and west". */
+export function sideList(sides: readonly Side[]): string {
+  const words = sides.map((s) => t(`side.${s}`));
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} ${t('list.and')} ${words[words.length - 1] ?? ''}`;
+}
+
+/**
+ * The ghost's note when a placement cuts routes off (ADR-035): which exits lose a route, for
+ * trucks only when that is all it cuts (No Heavy), and which entries would leave their traffic
+ * waiting at the edge. Null when it cuts nothing.
+ */
+export function cutNote(cut: CutSummary | null): string | null {
+  if (!cut) return null;
+  const parts: string[] = [];
+  if (cut.exits.length > 0)
+    parts.push(
+      t(cut.trucksOnly ? 'place.cutsTrucks' : 'place.cuts', {
+        sides: sideList(cut.exits),
+        n: cut.exitCount,
+      }),
+    );
+  if (cut.entries.length > 0) parts.push(t('place.strands', { sides: sideList(cut.entries) }));
+  return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/** The result's line for traffic held at the edges or sent to another exit (ADR-035), or null. */
+export function heldLine(o: {
+  readonly waiting?: number;
+  readonly diverted?: number;
+}): string | null {
+  const parts: string[] = [];
+  if ((o.waiting ?? 0) > 0) parts.push(t('result.waiting', { n: o.waiting ?? 0 }));
+  if ((o.diverted ?? 0) > 0) parts.push(t('result.rerouted', { n: o.diverted ?? 0 }));
+  return parts.length > 0 ? `${parts.join('; ')}.` : null;
 }

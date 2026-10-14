@@ -25,6 +25,10 @@ export interface UiFlags {
   readonly live?: readonly LiveIntersection[];
   /** Where the last round's gridlock started (the red ring), or null. */
   readonly gridlockOrigin?: { readonly x: number; readonly y: number } | null;
+  /** The scene's last per-edge waiting counts (ADR-035; empty before any arrived). */
+  readonly waiting?: readonly number[];
+  /** Map edge ids the ghost's placement would cut off (ADR-035). */
+  readonly cut?: readonly number[];
 }
 
 const xy = (t: { x: number; y: number }): string => `${t.x},${t.y}`;
@@ -63,6 +67,10 @@ export function stateAttributes(s: RunState, ui: UiFlags): Record<string, string
     'data-muted': String(ui.muted ?? true),
     'data-reduced-motion': String(ui.reducedMotion ?? false),
     'data-gridlock-origin': ui.gridlockOrigin ? xy(ui.gridlockOrigin) : '',
+    // ADR-035: waiting-to-enter counts per map edge (live during Go, last frame after it), and
+    // the edge ids the cursor's placement would cut off.
+    'data-waiting': (ui.waiting ?? []).join(','),
+    'data-cut': (ui.cut ?? []).join(','),
     // Live controllers as `x,y:kind:greenSides:box` per intersection, e.g. `3,4:signal:ns:2`.
     'data-live': (ui.live ?? [])
       .map((l) => `${l.x},${l.y}:${l.kind}:${l.green.join('')}:${l.box}`)

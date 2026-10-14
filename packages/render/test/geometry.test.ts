@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GRID_HEIGHT, GRID_WIDTH, emptyMap, type GridMap, type MapTile } from '@rushwarden/sim';
 import {
+  backlogCentre,
   badgeCentre,
   connections,
   fitGrid,
@@ -133,5 +134,38 @@ describe('badgeCentre (playtest U8: badges off the road)', () => {
     const [hx1] = badgeCentre({ x: 1, y: 4, w: 2, h: 1 }, T, rad, 0, 7 * T, 9 * T);
     const [hx2] = badgeCentre({ x: 1, y: 4, w: 2, h: 1 }, T, rad, 1, 7 * T, 9 * T);
     expect(hx2 - hx1).toBe(rad * 2 + 2);
+  });
+});
+
+describe('backlogCentre (ADR-035: waiting markers off the entry)', () => {
+  const T = 60;
+  const [W, H] = [T * 10, T * 8];
+  it('sits on the block beside the edge road, against the border', () => {
+    expect(backlogCentre({ tile: { x: 4, y: 0 }, side: 'n' }, T, 15, 10, W, H)).toEqual([
+      5 * T + 17,
+      12,
+    ]);
+    expect(backlogCentre({ tile: { x: 4, y: 7 }, side: 's' }, T, 15, 10, W, H)).toEqual([
+      5 * T + 17,
+      H - 12,
+    ]);
+    expect(backlogCentre({ tile: { x: 0, y: 3 }, side: 'w' }, T, 15, 10, W, H)).toEqual([
+      17,
+      4 * T + 12,
+    ]);
+    expect(backlogCentre({ tile: { x: 9, y: 3 }, side: 'e' }, T, 15, 10, W, H)).toEqual([
+      W - 17,
+      4 * T + 12,
+    ]);
+  });
+  it('goes on the tile before when the road is the last on its border', () => {
+    expect(backlogCentre({ tile: { x: 9, y: 0 }, side: 'n' }, T, 15, 10, W, H)).toEqual([
+      9 * T - 17,
+      12,
+    ]);
+    expect(backlogCentre({ tile: { x: 0, y: 7 }, side: 'w' }, T, 15, 10, W, H)).toEqual([
+      17,
+      7 * T - 12,
+    ]);
   });
 });

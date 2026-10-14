@@ -24,7 +24,24 @@ import {
   type ToSimWorker,
 } from './protocol.js';
 
-function fakeResult(s: FakeTrafficState): RoundResult {
+/**
+ * Fake waiting counts in the ADR-035 layout: per map edge, in `GridMap.edges` order, the demand
+ * events that came due but are still held at that edge (a blocked entry cell). Display data only.
+ */
+export function fakeWaitingFrame(
+  s: Pick<FakeTrafficState, 'waiting'>,
+  edges: readonly { readonly id: number }[],
+): Uint16Array {
+  const out = new Uint16Array(edges.length);
+  const index = new Map(edges.map((e, k) => [e.id, k]));
+  for (const ev of s.waiting) {
+    const k = index.get(ev.edge);
+    if (k !== undefined) out[k] = Math.min(0xffff, (out[k] ?? 0) + 1);
+  }
+  return out;
+}
+
+function fakeResult(s: FakeTrafficState, edges: readonly { readonly id: number }[]): RoundResult {
   return {
     throughput: s.throughput,
     spawned: s.spawned,
@@ -33,7 +50,7 @@ function fakeResult(s: FakeTrafficState): RoundResult {
     gridlocked: s.gridlocked,
     fundsDelta: 0,
     diverted: 0,
-    waiting: [],
+    waiting: [...fakeWaitingFrame(s, edges)],
     // Not a sim hash: the fake is not part of the determinism contract.
     finalHash: '0000000000000000',
   };
@@ -100,21 +117,25 @@ export function createFakeWorkerHandler(post: PostFromWorker): (msg: ToSimWorker
     if (!state) return;
     const frames: Uint16Array[] = [];
     const controllers: Uint8Array[] = [];
+    const waiting: Uint16Array[] = [];
+    const edges = input?.map.edges ?? [];
     while (!state.done && frames.length < ticks) {
       state = FakeTraffic.step(state);
       const f = FakeTraffic.snapshot(state);
       frames.push(f);
       if (input) controllers.push(fakeControllerFrame(input, world, f));
+      waiting.push(fakeWaitingFrame(state, edges));
     }
     if (frames.length > 0) {
-      const m: FromSimWorker = { type: 'frames', roundId, frames, controllers };
+      const m: FromSimWorker = { type: 'frames', roundId, frames, controllers, waiting };
       post(m, [
         ...frames.map((f) => f.buffer as ArrayBuffer),
         ...controllers.map((c) => c.buffer as ArrayBuffer),
+        ...waiting.map((w) => w.buffer as ArrayBuffer),
       ]);
     }
     if (state.done) {
-      post({ type: 'done', roundId, result: fakeResult(state) }, []);
+      post({ type: 'done', roundId, result: fakeResult(state, edges) }, []);
       state = null;
     }
   };

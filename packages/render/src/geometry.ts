@@ -214,3 +214,36 @@ export function badgeCentre(
     Math.min(Math.max(cy, rad + 1), height - rad - 1),
   ];
 }
+
+/**
+ * Where an edge's backlog marker goes (ADR-035: trips waiting to enter), in px: just inside the
+ * map on the block beside the edge's road tile, against the map's border, so it never covers the
+ * entry cell or the heat-strip. On the next tile along the border (right or down), or the one
+ * before it when the road tile is the last on that border.
+ */
+export function backlogCentre(
+  edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
+  T: number,
+  halfW: number,
+  halfH: number,
+  width: number,
+  height: number,
+): [number, number] {
+  const { x, y } = edge.tile;
+  const horizontal = edge.side === 'n' || edge.side === 's';
+  let cx: number;
+  let cy: number;
+  if (horizontal) {
+    cx = (x + 1) * T + halfW + 2;
+    if (cx + halfW > width) cx = x * T - halfW - 2;
+    cy = edge.side === 'n' ? halfH + 2 : height - halfH - 2;
+  } else {
+    cy = (y + 1) * T + halfH + 2;
+    if (cy + halfH > height) cy = y * T - halfH - 2;
+    cx = edge.side === 'w' ? halfW + 2 : width - halfW - 2;
+  }
+  return [
+    Math.min(Math.max(cx, halfW + 1), width - halfW - 1),
+    Math.min(Math.max(cy, halfH + 1), height - halfH - 1),
+  ];
+}
