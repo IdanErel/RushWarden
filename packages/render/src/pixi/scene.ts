@@ -171,6 +171,7 @@ export class TrafficScene {
   private targets: readonly TargetMark[] = [];
   private cursor: number | null = null;
   private ghost: ControllerMark | null = null;
+  private ghostArrow: GhostArrow | null = null;
   private marks: readonly PlacedMark[] = [];
   private readonly heatLayer = new Graphics();
   private readonly heatProgress = new Graphics();
@@ -392,14 +393,18 @@ export class TrafficScene {
   /**
    * Highlights the valid targets for the selected card (GDD §8 "tap a card to see a ghost of its
    * effect on valid targets"), with `cursor` as the keyboard cursor. `ghost` previews a controller
-   * glyph at the cursor at half strength. An empty list clears it.
+   * glyph at the cursor at half strength. `arrow` previews a directional card (One-Way) on the
+   * cursor's road: the way traffic will run once it is placed (playtest U11). An empty list
+   * clears it.
    */
   setTargets(
     targets: readonly TargetMark[],
     cursor: number | null = null,
     ghost: Omit<ControllerMark, 'x' | 'y'> | null = null,
+    arrow: GhostArrow | null = null,
   ): void {
     this.targets = targets;
+    this.ghostArrow = arrow;
     this.cursor = cursor !== null && cursor >= 0 && cursor < targets.length ? cursor : null;
     const at = this.cursor !== null ? targets[this.cursor] : undefined;
     this.ghost =
@@ -628,6 +633,11 @@ export class TrafficScene {
         (y + 0.5) * T,
       );
       this.ghostLayer.alpha = 0.55;
+    }
+    if (this.ghostArrow) {
+      const a = this.ghostArrow;
+      this.drawArrow(this.ghostLayer, a.from, a.to, a.color);
+      this.ghostLayer.alpha = 0.8;
     }
   }
 
@@ -931,6 +941,13 @@ export class TrafficScene {
       g.poly(out, true).fill({ color: this.palette.divider, alpha: p.alpha });
     }
   }
+}
+
+/** A previewed travel arrow (One-Way before it is placed): tile to tile, in a tag colour. */
+export interface GhostArrow {
+  readonly from: { readonly x: number; readonly y: number };
+  readonly to: { readonly x: number; readonly y: number };
+  readonly color: number;
 }
 
 function safeWorld(make: () => World): World | null {

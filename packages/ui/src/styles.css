@@ -163,7 +163,7 @@
 }
 .rw-hand {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(var(--hand-n, 5), minmax(0, 1fr));
   gap: 6px;
   /* Room for a selected card's 8 px raise and 3 px ring, so it never meets the hint above. */
   padding-top: 6px;
@@ -509,7 +509,7 @@
   align-self: center;
 }
 .rw-roomy .rw-hand {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(var(--hand-rows-n, 3), minmax(0, 1fr));
   gap: 10px;
 }
 .rw-roomy .rw-hand .rw-card {
@@ -560,6 +560,63 @@
   .rw-hand .rw-tag {
     font-size: 12px;
   }
+}
+
+/*
+ * U10, landscape: a 6- or 7-card hand (Second Shift) in one row: tighter cards, a smaller glyph and the
+ * rules text left to the accessible name, so the hand keeps the 5-card row's height. A tall
+ * landscape column shows it as two rows of 3 or 4 instead (`--hand-rows-n`), text included.
+ */
+.rw-wide .rw-hand-big {
+  gap: 4px;
+}
+.rw-wide .rw-hand-big .rw-card {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.rw-wide .rw-hand-big .rw-glyph {
+  width: 36px;
+  height: 36px;
+}
+.rw-wide .rw-hand-big .rw-name {
+  font-size: 13px;
+}
+.rw-wide .rw-hand-big .rw-tag {
+  font-size: 12px;
+}
+.rw-roomy .rw-hand-big .rw-glyph {
+  width: 56px;
+  height: 56px;
+}
+.rw-roomy .rw-hand-big .rw-name {
+  font-size: 15px;
+}
+
+/*
+ * U10, portrait: 7 cards across would break every name mid-word, so a hand of 6 or 7 keeps the
+ * 5-card size in a row that scrolls sideways, with part of the 6th card showing that there are
+ * more (keys 6 and 7, and selecting a card, scroll it into view). Short landscape does the same
+ * once its column is too narrow for 7 cards of 76 px.
+ */
+.rw-game:not(.rw-wide) .rw-hand.rw-hand-big {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 4 * 6px) / 5.25);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  /* A scrolling row clips: room for the selected card's 8 px raise and 3 px ring, and at each
+     end so the first or 7th card selected or focused never sits flush with the screen edge. */
+  padding-top: 12px;
+  padding-inline: 6px;
+  scroll-padding-inline: 6px;
+}
+.rw-game:not(.rw-wide) .rw-hand-big .rw-card {
+  scroll-snap-align: start;
+}
+.rw-wide:not(.rw-roomy) .rw-hand.rw-hand-big {
+  grid-template-columns: repeat(var(--hand-n), minmax(76px, 1fr));
+  overflow-x: auto;
 }
 
 /* Information layer (playtest 2026-10-13): round timer, rules, legends, run-end table. */

@@ -155,6 +155,26 @@ describe('ControllerRun (RunPort over the P1-BAL-01 run controller)', () => {
       expect(run.state().energy).toBe(3);
     });
 
+    it('previews the run a One-Way would take, either way round, before it is placed (U11)', () => {
+      const [run, i] = withOneWay();
+      const mark = run.targets(i)[0]!;
+      const seg = segmentAt(
+        run.roundInput().map,
+        (mark as { x: number }).x,
+        (mark as { y: number }).y,
+      );
+      if (seg.kind !== 'segment') throw new Error('not a segment');
+      expect(run.segmentOf(mark)).toEqual({ from: seg.from, to: seg.to });
+      expect(run.segmentOf({ ...mark, reverse: true } as typeof mark)).toEqual({
+        from: seg.to,
+        to: seg.from,
+      });
+      expect(run.segmentOf({ kind: 'district' })).toBeNull();
+      // Placed reversed, as previewed.
+      run.place(i, { ...mark, reverse: true } as typeof mark);
+      expect(placement(run, 'one-way')).toEqual({ kind: 'segment', from: seg.to, to: seg.from });
+    });
+
     it('flipping keeps play order and the later plays on their targets', () => {
       const [run, i] = withOneWay();
       run.place(i, run.targets(i)[0]!);

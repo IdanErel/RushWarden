@@ -75,9 +75,11 @@ We do not collect free text, and we do not collect anything you type.
   fingerprinting. The random install ID above is the only identifier.
 - No contacts, photos, microphone, or camera.
 - No data from other apps or websites.
-- No cookies. The game keeps up to three things in your browser's local storage: your saved
-  progress and your yes/no answer about stats, which the game needs, and, only if you said yes,
-  the random install ID, which is used only for the analytics described above.
+- No cookies. The game keeps up to four things in your browser's local storage: your saved
+  progress and your yes/no answer about stats, which the game needs; a "seen" flag so the
+  first-round tip shows only once, which never leaves your device and is not used for analytics;
+  and, only if you said yes, the random install ID, which is used only for the analytics
+  described above.
 
 ## Why we collect it
 

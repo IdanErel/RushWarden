@@ -1,6 +1,7 @@
 /**
- * Keyboard map (GDD §8): 1–5 select cards, arrows move a target cursor, Enter places,
- * Space = Go (and pause/resume in Go), Esc = undo/pause, R = flip the last placed One-Way, M = sound on/off. Pure: maps
+ * Keyboard map (GDD §8): 1–5 (up to 7 with a bigger hand) select cards, arrows move a target
+ * cursor, Enter places, Space = Go (and pause/resume in Go), Esc = undo/pause, R = flip a One-Way
+ * (the selected one before it is placed, else the last placed), M = sound on/off. Pure: maps
  * (phase, key) to an action the screen applies.
  */
 import type { Side } from '@rushwarden/sim';
@@ -31,7 +32,8 @@ const ARROWS: Readonly<Record<string, Side>> = {
 
 export function keyAction(phase: Phase, key: string, overlayOpen = false): KeyAction {
   if (overlayOpen) return key === 'Escape' ? { type: 'pause' } : null;
-  const digit = /^[1-5]$/.test(key) ? Number(key) - 1 : -1;
+  // 1–7: a hand is 5 cards, up to 7 after a draw bonus (Second Shift; playtest U10).
+  const digit = /^[1-7]$/.test(key) ? Number(key) - 1 : -1;
   if (key === 'm' || key === 'M') return { type: 'mute' };
   switch (phase) {
     case 'place':

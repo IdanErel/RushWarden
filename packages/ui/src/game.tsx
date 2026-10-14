@@ -135,6 +135,8 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const goPlaced = useRef<readonly PlacedCard[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
+  /** A directional card (One-Way) turned round before it is placed (playtest U11). */
+  const [previewReverse, setPreviewReverse] = useState(false);
   const [offerCursor, setOfferCursor] = useState(0);
   const [speed, setSpeed] = useState<1 | 2>(1);
   const [paused, setPaused] = useState(false);
@@ -343,6 +345,19 @@ export function Game(props: GameOptions): preact.JSX.Element {
   }
   const slots = slotViews(slotsRef.current, handUids, playedUids);
 
+  // A controller card on a junction that already has one this round replaces it: say so (U11).
+  const cursorAt = cursor !== null ? targets[cursor] : undefined;
+  const replaced =
+    selCard?.controller && cursorAt?.kind === 'intersection'
+      ? (s.placed.find(
+          (p) =>
+            p.card.controller &&
+            p.target.kind === 'intersection' &&
+            p.target.x === cursorAt.x &&
+            p.target.y === cursorAt.y,
+        )?.card.name ?? null)
+      : null;
+
   // A quota well above round 1's: say so before Go (the map is busier, not the rules harder).
   const busy = s.phase === 'place' ? busyFactor(s.quota, s.results) : null;
 
@@ -368,7 +383,13 @@ export function Game(props: GameOptions): preact.JSX.Element {
     const ghost = selCard?.controller
       ? { kind: selCard.controller, direction: 'n' as const }
       : null;
-    scene.setTargets(targets, cursor, ghost);
+    // One-Way before placing: the arrow on the cursor's road, the way it would run (U11).
+    const at = cursor !== null ? targets[cursor] : undefined;
+    const seg = selCard?.directional && at ? run.segmentOf(withReverse(at, previewReverse)) : null;
+    const arrow = seg
+      ? { from: seg.from, to: seg.to, color: TAG_COLOR[selCard?.tags[0] ?? 'FLOW'] }
+      : null;
+    scene.setTargets(targets, cursor, ghost, arrow);
     scene.setMarks(
       (s.phase === 'place' ? s.placed : goPlaced.current).map((p) => ({
         target: p.target,
@@ -401,6 +422,12 @@ export function Game(props: GameOptions): preact.JSX.Element {
       }
       setSelected(i);
       setCursor(run.targets(i).length > 0 ? 0 : null);
+      setPreviewReverse(false);
+      // A 6th or 7th card may sit off the side of a phone's scrolling hand row (U10).
+      const slot = slots.findIndex((v) => v.kind === 'hand' && v.handIndex === i);
+      rootEl.current
+        ?.querySelectorAll<HTMLElement>('.rw-hand .rw-card')
+        [slot]?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
       dismissTip();
     },
     [s, selected, run],
@@ -409,16 +436,18 @@ export function Game(props: GameOptions): preact.JSX.Element {
   const placeAt = useCallback(
     (idx: number) => {
       if (selected === null) return;
-      const target = targets[idx];
-      if (!target) return;
+      const at = targets[idx];
+      if (!at) return;
+      const target = selCard?.directional ? withReverse(at, previewReverse) : at;
       const tag = s.hand[selected]?.tags[0];
       run.place(selected, target);
       sound?.play?.('cardPlace', { pitch: tag ? TAG_PITCH[tag] : 0 });
       setSelected(null);
       setCursor(null);
+      setPreviewReverse(false);
       bump(0);
     },
-    [selected, targets, run, s],
+    [selected, targets, run, s, selCard, previewReverse],
   );
 
   const undo = useCallback(
@@ -590,6 +619,15 @@ export function Game(props: GameOptions): preact.JSX.Element {
       );
     }
   };
+  // A pointer over a highlighted target moves the cursor there, so the ghost (a controller's
+  // glyph, One-Way's arrow) follows the pointer, not just the arrow keys (U11).
+  const onMapMove = (e: PointerEvent): void => {
+    if (s.phase !== 'place' || !scene || targets.length === 0 || e.pointerType === 'touch') return;
+    const r = scene.canvas.getBoundingClientRect();
+    const tile = scene.tileAtPoint(e.clientX - r.left, e.clientY - r.top);
+    const idx = hitTarget(targets, tile, scene.currentMap);
+    if (idx >= 0 && idx !== cursor) setCursor(idx);
+  };
 
   // Hold anywhere for 2× (U6): any press outside a button, link or sheet, not just the map.
   const onRootDown = (e: PointerEvent): void => {
@@ -671,7 +709,9 @@ export function Game(props: GameOptions): preact.JSX.Element {
         go();
         break;
       case 'flip':
-        flip();
+        // A selected One-Way turns round before it is placed; otherwise the last one placed does.
+        if (selCard?.directional && targets.length) setPreviewReverse((v) => !v);
+        else flip();
         break;
       case 'undo':
         if (selected !== null) {
@@ -769,7 +809,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
           ☰
         </button>
       </header>
-      <div class="rw-map" ref={mapEl} onPointerDown={onMapDown}>
+      <div class="rw-map" ref={mapEl} onPointerDown={onMapDown} onPointerMove={onMapMove}>
         {s.phase === 'go' && paused && menu === 'none' && (
           <span class="rw-paused" role="status">
             {t('paused.board')}
@@ -787,6 +827,17 @@ export function Game(props: GameOptions): preact.JSX.Element {
             />
             <span class="rw-muted">{t('place.plays', { n: s.playsLeft })}</span>
             <span class="rw-grow" />
+            {selCard?.directional && targets.length > 0 && (
+              <button
+                class="rw-chip rw-flip"
+                style={{ borderColor: css(TAG_COLOR[selCard.tags[0] ?? 'FLOW']) }}
+                aria-label={t('place.flip', { name: selCard.name })}
+                aria-pressed={previewReverse}
+                onClick={() => setPreviewReverse((v) => !v)}
+              >
+                ⇄
+              </button>
+            )}
             <button class="rw-go" aria-label={t('go.label')} onClick={go} disabled={!scene}>
               {t('go')}
             </button>
@@ -794,7 +845,7 @@ export function Game(props: GameOptions): preact.JSX.Element {
           <p class="rw-detail" aria-live="polite">
             {selCard
               ? targets.length
-                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}`
+                ? `${selCard.text} ${t(selCard.directional ? 'place.hint.direction' : 'place.hint.target')}${replaced ? ` ${t('place.replaces', { name: replaced })}` : ''}`
                 : `${selCard.text} ${t('place.noTargets')}`
               : busy
                 ? `${t('place.busy', { x: busy })} ${t('place.hint')}`
@@ -827,7 +878,17 @@ export function Game(props: GameOptions): preact.JSX.Element {
               </span>
             ))}
           </div>
-          <div class="rw-hand" role="group" aria-label="Hand">
+          {/* A hand of 6 or 7 (Second Shift) stays one row on a phone and two in a tall landscape
+              column, with smaller cards, so it never pushes the board or Go around (U10). */}
+          <div
+            class={`rw-hand${slots.length > 5 ? ' rw-hand-big' : ''}`}
+            role="group"
+            aria-label="Hand"
+            style={{
+              '--hand-n': String(Math.max(5, slots.length)),
+              '--hand-rows-n': String(Math.max(3, Math.ceil(slots.length / 2))),
+            }}
+          >
             {slots.map((v, i) => {
               if (v.kind === 'played') {
                 const p = s.placed.find((q) => q.card.uid === v.uid);
@@ -1386,6 +1447,11 @@ function SpeakerIcon(p: { on: boolean }): preact.JSX.Element {
 export function mountGame(el: HTMLElement, opts: GameOptions): () => void {
   render(<Game {...opts} />, el);
   return () => render(null, el);
+}
+
+/** A segment target turned round when `reverse` is set (One-Way placed against its default). */
+function withReverse(t: TargetMark, reverse: boolean): TargetMark {
+  return reverse && t.kind === 'segment' ? { ...t, reverse: true } : t;
 }
 
 /**
