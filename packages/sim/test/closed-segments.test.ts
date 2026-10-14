@@ -83,13 +83,16 @@ describe('closedSegments (Parade boss)', () => {
     expect(after.finalHash).not.toBe(before.finalHash);
   });
 
-  it('a trip whose origin or destination is cut off never starts', () => {
+  it('a trip cut off from its destination diverts; one that cannot enter waits (ADR-035)', () => {
     // Plus map: closing the north arm cuts edge 0 (n) off entirely.
     const plus = emptyMap();
     const demand = [trip(0, 0, 2), trip(0, 1, 3), trip(1, 3, 0), trip(2, 2, 1)];
     const r = runChecked(input(plus, demand, [seg(3, 1, 3, 2)]));
-    expect(r.spawned).toBe(2);
-    expect(r.exited).toBe(2);
+    // 0 -> 2 cannot enter at all and waits at edge 0; 3 -> 0 diverts to another exit and scores.
+    expect(r.spawned).toBe(3);
+    expect(r.exited).toBe(3);
+    expect(r.diverted).toBe(1);
+    expect(r.waiting).toEqual([1, 0, 0, 0]);
     expect(r.ticks).toBe(ROUND_TICKS);
   });
 

@@ -31,6 +31,7 @@ export { placementError, segmentTiles } from './placements.js';
 export {
   createSimWorkerHandler,
   MAX_TICKS_PER_STEP,
+  SIM_PROTOCOL_VERSION,
   type FromSimWorker,
   type PostFromWorker,
   type ToSimWorker,
@@ -69,7 +70,8 @@ export {
   type VehicleSpec,
 } from './vehicles.js';
 export { TAXI_LOAD_COST } from './traffic.js';
-export { controllerSnapshot, roundWorld } from './sim.js';
+export { controllerSnapshot, roundWorld, waitingSnapshot } from './sim.js';
+export { cutRoutes, type CutReport, type RouteCut } from './reachability.js';
 export { resolvePlacements, unsupportedEffect, type PlacementResolution } from './effects.js';
 export {
   ControllerCode,

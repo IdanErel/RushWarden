@@ -718,6 +718,8 @@ describe('round end, offers and run end', () => {
           ticks: 300,
           gridlocked: false,
           fundsDelta: 0,
+          diverted: 0,
+          waiting: [],
           finalHash: '0000000000000000',
         }),
       };
@@ -968,6 +970,8 @@ describe('RunController (analytics wiring)', () => {
       ticks: 300,
       gridlocked: false,
       fundsDelta: 0,
+      diverted: 0,
+      waiting: [],
       finalHash: 'x',
     });
     expect(r.ok).toBe(true);

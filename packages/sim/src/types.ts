@@ -342,6 +342,13 @@ export interface RoundResult {
   readonly gridlocked: boolean;
   /** Funds earned by in-round effects (Toll Booth, Congestion Charge). */
   readonly fundsDelta: number;
+  /** Trips that had no route to their destination and drove to the nearest reachable exit instead (ADR-035). */
+  readonly diverted: number;
+  /**
+   * Per map edge, in `GridMap.edges` order: trips that came due but never spawned, because the
+   * entry cell stayed occupied or no exit could be reached from that edge (ADR-035).
+   */
+  readonly waiting: readonly number[];
   /** 64-bit hash of the final state as 16 hex characters; the determinism fingerprint. */
   readonly finalHash: string;
   /** Per-tick snapshots (see `Sim.snapshot`), present only when `recordFrames` was set. */

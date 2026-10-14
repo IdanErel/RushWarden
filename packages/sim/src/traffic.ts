@@ -145,9 +145,24 @@ export interface Traffic {
   readonly order: Int32Array;
   readonly keys: Int32Array;
   orderLen: number;
-  /** Per demand event: origin and destination edge indices. */
+  /**
+   * Per demand event: origin and destination edge indices. A trip with no route to its
+   * destination has `demandDest` replaced by the exit it diverts to (ADR-035).
+   */
   readonly demandOrigin: Int32Array;
   readonly demandDest: Int32Array;
+  /** Per demand event: 1 when the trip was diverted to another exit (ADR-035). */
+  readonly demandDiverted: Uint8Array;
+  /** Trips that spawned diverted to another exit this round (ADR-035). */
+  diverted: number;
+  /**
+   * Per edge: trips that came due but can never enter, because no exit is reachable from the edge
+   * for their type (ADR-035). They wait off the map for the rest of the round and do not hold up
+   * the trips behind them.
+   */
+  readonly stuck: Int32Array;
+  /** Per (type, origin): the route to the nearest reachable exit, once looked up (ADR-035). */
+  readonly divertRoutes: Map<number, Route | null>;
   /** Per demand event: its route once looked up (`undefined` before), so a queued head is routed once. */
   readonly demandRoute: (Route | null | undefined)[];
   /** Per edge: demand indices waiting to spawn, FIFO. */
@@ -374,6 +389,10 @@ export function createTraffic(world: World, demand: DemandProfile): Traffic {
     orderLen: 0,
     demandOrigin,
     demandDest,
+    demandDiverted: new Uint8Array(cap),
+    diverted: 0,
+    stuck: new Int32Array(edges),
+    divertRoutes: new Map(),
     demandRoute: new Array<Route | null | undefined>(cap),
     pending: world.edges.map(() => []),
     pendingHead: a.i32(edges),
@@ -674,6 +693,32 @@ function routeFor(t: Traffic, vt: number, origin: number, destination: number): 
   return r;
 }
 
+/**
+ * ADR-035: the route from `origin` to the nearest exit type `vt` can reach this round (fewest
+ * tiles, ties to the lower map edge id), for a trip whose own destination is unreachable. Null
+ * when no exit is reachable, i.e. the trip cannot enter at all.
+ */
+function divertRoute(t: Traffic, vt: number, origin: number): Route | null {
+  const edges = t.world.edges;
+  const key = vt * edges.length + origin;
+  let best = t.divertRoutes.get(key);
+  if (best !== undefined) return best;
+  best = null;
+  for (let e = 0; e < edges.length; e++) {
+    if (e === origin) continue;
+    const r = routeFor(t, vt, origin, e);
+    if (!r) continue;
+    if (
+      !best ||
+      r.tiles < best.tiles ||
+      (r.tiles === best.tiles && edges[e]!.id < edges[best.destination]!.id)
+    )
+      best = r;
+  }
+  t.divertRoutes.set(key, best);
+  return best;
+}
+
 /** Spawns the head of each edge's queue while its spawn link has a free entry cell. */
 function spawn(t: Traffic, tick: number): void {
   const w = t.world;
@@ -688,14 +733,26 @@ function spawn(t: Traffic, tick: number): void {
     while (t.pendingHead[edge]! < queue.length) {
       const d = queue[t.pendingHead[edge]!]!;
       const e = t.demand[d]!;
-      const dest = t.demandDest[d]!;
       let r = t.demandRoute[d];
-      if (r === undefined) r = t.demandRoute[d] = routeFor(t, e.vehicleType, edge, dest);
-      // Unreachable (a one-way, a closed segment or a ban): the trip never starts.
+      if (r === undefined) {
+        r = routeFor(t, e.vehicleType, edge, t.demandDest[d]!);
+        if (!r) {
+          // ADR-035: no route to its destination (a one-way, a closure or a ban). The trip
+          // diverts to the nearest exit it can reach, or, when none is, waits off the map.
+          r = divertRoute(t, e.vehicleType, edge);
+          if (r) {
+            t.demandDest[d] = r.destination;
+            t.demandDiverted[d] = 1;
+          }
+        }
+        t.demandRoute[d] = r;
+      }
       if (!r) {
+        t.stuck[edge]!++;
         t.pendingHead[edge]!++;
         continue;
       }
+      const dest = t.demandDest[d]!;
       let laneIdx = NONE;
       for (let k = 0; k < spawnLink.lanes.length; k++) {
         const l = spawnLink.lanes[k]!;
@@ -723,8 +780,17 @@ function spawn(t: Traffic, tick: number): void {
       if (t.tollOf) countToll(t, spawnLink.id);
       t.order[t.orderLen++] = i;
       t.spawned++;
+      if (t.demandDiverted[d] === 1) t.diverted++;
     }
   }
+}
+
+/**
+ * Per edge (in `world.edges` order, which is the map's edge order): trips that came due but have
+ * not spawned, either queued behind an occupied entry cell or unable to enter at all (ADR-035).
+ */
+export function waitingPerEdge(t: Traffic): number[] {
+  return t.pending.map((q, e) => q.length - t.pendingHead[e]! + t.stuck[e]!);
 }
 
 /** Sorts `order` by (lane, cell) descending, ties by vehicle index; insertion sort (nearly sorted). */
