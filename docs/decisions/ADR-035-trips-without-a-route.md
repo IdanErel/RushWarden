@@ -70,10 +70,33 @@ unplayable on those maps.
 6. **Hash.** A round that diverts or strands a trip mixes `diverted` and the per-edge stranded
    counts into the final hash. Other rounds hash exactly as before.
 
-## Consequences
+## Balance impact
 
-- Same bots and seeds after the change. Each bot plays more rounds because runs last longer.
-  "Cut rounds" now count rounds where trips were diverted or waited:
+Diverting trips instead of dropping them makes runs easier, and on the full-run gate
+configuration (GDD §11, ADR-010) it takes two bots out of their bands. The Lead accepts this
+interim §11 break (2026-10-14): silently dropping trips was a fairness bug, and the numbers
+should be tuned on top of the fixed rule. Content re-tunes before the next release candidate,
+and the RC gate requires §11 back in range.
+
+**Full runs** (12-round District 1, 300 seeds, main ed4f8a7 vs this change), measured by the
+reviewer and reproduced exactly by the Sim Engineer with the balance report
+(`--seeds 300 --preset full`):
+
+| Bot               | Win rate before | Win rate after | §11 band | After in band    |
+| ----------------- | --------------- | -------------- | -------- | ---------------- |
+| random            | 2.7%            | 9.0%           | ≤ 10%    | yes (close)      |
+| greedy-throughput | 60.7%           | 75.7%          | 55–65%   | no               |
+| archetype(FLOW)   | 42.3%           | 61.3%          | 35–65%   | yes              |
+| archetype(MASS)   | 45.0%           | 77.7%          | 35–65%   | no               |
+| archetype(TOLL)   | 55.3%           | 62.0%          | 35–65%   | yes              |
+| archetype(CHAOS)  | 50.3%           | 56.7%          | 35–65%   | yes              |
+| archetype(TEMPO)  | 25.0%           | 31.0%          | 35–65%   | no (also before) |
+
+Every card's drafted win-rate delta stays within +12 / −8 points in both reports.
+
+**Toy runs** (5 rounds, 500 seeds per bot, same commits). Each bot plays more rounds after the
+change because runs last longer. "Cut rounds" are rounds where cards left trips without a route
+(before) or where trips diverted or waited (after):
 
 | Bot               | Round pass rate (before → after) | Run win rate (before → after) | Failed cut rounds (before → after) |
 | ----------------- | -------------------------------- | ----------------------------- | ---------------------------------- |
@@ -84,8 +107,10 @@ unplayable on those maps.
 | archetype(TOLL)   | 64.2% → 71.0%                    | 75.0% → 85.4%                 | 288 → 118                          |
 | archetype(CHAOS)  | 62.4% → 69.1%                    | 71.8% → 83.6%                 | 295 → 165                          |
 
-Toy runs get easier. Content re-runs the toy report and re-tunes after this and ADR-033 land.
+## Consequences
 
+- See Balance impact above. Content re-runs the toy and full reports and re-tunes after this
+  and ADR-033 land.
 - Golden hashes change for the 6 of 200 golden rounds that divert or strand a trip (rounds 7,
   19, 67, 87, 171 and 199, all card rounds). The others are unchanged.
 - The run screen can show stranded and queued trips at each edge, live and on the result
