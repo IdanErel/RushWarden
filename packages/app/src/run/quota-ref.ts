@@ -5,19 +5,23 @@
  * with a segment it can close and at least `TOY_PARADE_MIN_EDGES` edges. Each round index keeps
  * its own reference, events included (Market Day, Parade, Festival).
  */
-import type { RunConfig } from '@rushwarden/app';
 import {
   TOY_PARADE_MIN_EDGES,
   districtMaps,
   paradeCandidates,
   roundQuota,
 } from '@rushwarden/content';
+import type { RunConfig } from './types.js';
 
 /** Null unless quotas depend on the map (`templateDemand`, the toy; District 1 only). */
 export function quotaReference(config: RunConfig, round: number): number | null {
   if (config.templateDemand !== true || config.district !== 1) return null;
   const curveRound = config.curveRounds?.[round - 1] ?? round;
   const rush = config.rushRounds.find((r) => r.round === round) ?? null;
+  // Memoised: the balance runner starts thousands of rounds, and the bank doesn't change.
+  const key = `${curveRound}|${rush?.boss ?? (rush ? 'rush' : '-')}|${config.quotaPermille}`;
+  const hit = cache.get(key);
+  if (hit !== undefined) return hit;
   const bank = districtMaps(1);
   const pool =
     rush?.boss === 'parade'
@@ -26,8 +30,12 @@ export function quotaReference(config: RunConfig, round: number): number | null 
   const quotas = pool
     .map((m) => roundQuota(1, curveRound, rush !== null, config.quotaPermille, m.id))
     .sort((a, b) => a - b);
-  return median(quotas);
+  const ref = median(quotas);
+  cache.set(key, ref);
+  return ref;
 }
+
+const cache = new Map<string, number | null>();
 
 /** The middle value, or the mean of the two middle ones; null for none. */
 export function median(xs: readonly number[]): number | null {

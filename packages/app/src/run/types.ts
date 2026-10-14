@@ -137,6 +137,12 @@ export interface RunState {
   readonly rush: boolean;
   readonly boss: BossCondition | null;
   readonly quota: number;
+  /**
+   * The usual quota for this round of the run (`quotaReference`): the median over the maps the
+   * round can pick, for the UI's "busy map" note (QA re-check R3). Null when quotas don't depend
+   * on the map (full runs).
+   */
+  readonly quotaRef: number | null;
   /** Segments closed for the round (the Parade boss, ADR-021/ADR-022), from `setupRound`. */
   readonly closedSegments: readonly SegmentId[];
   /** The round's NaSch p_slow (GDD §3 rule 3) from the district rules `setupRound` returns. */

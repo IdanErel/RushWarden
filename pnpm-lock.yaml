@@ -198,9 +198,6 @@ importers:
       '@rushwarden/audio':
         specifier: workspace:*
         version: link:../audio
-      '@rushwarden/content':
-        specifier: workspace:*
-        version: link:../content
       '@rushwarden/render':
         specifier: workspace:*
         version: link:../render

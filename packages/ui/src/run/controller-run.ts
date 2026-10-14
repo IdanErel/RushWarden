@@ -22,7 +22,6 @@ import {
   type RunState as CtlState,
 } from '@rushwarden/app';
 import type { RoundInput, RoundResult, Target } from '@rushwarden/sim';
-import { quotaReference } from './quota-ref.js';
 import { intersections, isIntersection, isRoad, type TargetMark } from '@rushwarden/render/core';
 import { GRID_HEIGHT, GRID_WIDTH, type GridMap } from '@rushwarden/sim';
 import type {
@@ -175,13 +174,6 @@ export class ControllerRun implements RunPort {
     };
   }
 
-  /** The round's usual quota (`quotaReference`), worked out once per round index. */
-  private readonly refs = new Map<number, number | null>();
-  private refOf(round: number): number | null {
-    if (!this.refs.has(round)) this.refs.set(round, quotaReference(this.ctl.state.config, round));
-    return this.refs.get(round) ?? null;
-  }
-
   state(): RunState {
     const s = this.ctl.state;
     if (this.cache && this.cache.from === s && this.cache.going === this.going)
@@ -204,7 +196,7 @@ export class ControllerRun implements RunPort {
       rush: s.rush,
       event: s.rush ? s.boss : null,
       quota: s.quota,
-      quotaRef: this.refOf(s.round),
+      quotaRef: s.quotaRef,
       approval: s.approval,
       maxApproval: cfg.approval,
       energy: s.energy,
