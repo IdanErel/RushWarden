@@ -75,8 +75,10 @@ unplayable on those maps.
 Diverting trips instead of dropping them makes runs easier, and on the full-run gate
 configuration (GDD §11, ADR-010) it takes two bots out of their bands. The Lead accepts this
 interim §11 break (2026-10-14): silently dropping trips was a fairness bug, and the numbers
-should be tuned on top of the fixed rule. Content re-tunes before the next release candidate,
-and the RC gate requires §11 back in range.
+should be tuned on top of the fixed rule. Note (2026-10-14): the toy release candidate is gated
+on the toy bands only (ADR-030), which Content re-tunes. The full-run §11 break is tracked under
+ADR-036 (Proposed): the GDD §2 base and growth values cannot bring it back without breaking
+quota slack.
 
 **Full runs** (12-round District 1, 300 seeds, main ed4f8a7 vs this change), measured by the
 reviewer and reproduced exactly by the Sim Engineer with the balance report
