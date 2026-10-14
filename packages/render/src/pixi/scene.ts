@@ -21,9 +21,8 @@ import {
 } from '@rushwarden/sim';
 import {
   LANE_WIDTH,
-  backlogCentre,
   badgeCentre,
-  type Box,
+  entryTab,
   SIDE_VEC,
   connections,
   fitGrid,
@@ -195,8 +194,6 @@ export class TrafficScene {
     readonly label: Text;
   }[] = [];
   private waiting: Uint16Array | null = null;
-  /** The card badges' bounding boxes, in px, for the backlog markers to keep clear of. */
-  private badgeBoxes: Box[] = [];
   private jamOrigin: JamOrigin | null = null;
   private targets: readonly TargetMark[] = [];
   private cursor: number | null = null;
@@ -472,7 +469,6 @@ export class TrafficScene {
   setMarks(marks: readonly PlacedMark[]): void {
     this.marks = marks;
     this.drawMarks();
-    this.drawWaiting();
   }
 
   /** The tile under a point in canvas CSS px, or null outside the grid. */
@@ -719,7 +715,6 @@ export class TrafficScene {
     const T = this.fit.tilePx;
     const outline = this.palette.outline;
     const seen = new Map<string, number>();
-    this.badgeBoxes = [];
     for (const m of this.marks) {
       const r = m.span ? spanRect(m.span) : targetTileRect(m.target, this.map);
       if (!r) continue;
@@ -745,7 +740,6 @@ export class TrafficScene {
       seen.set(k, n + 1);
       const rad = Math.max(7, T * 0.15);
       const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx);
-      this.badgeBoxes.push({ cx, cy, hw: rad + 1, hh: rad + 1 });
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
       g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
@@ -753,9 +747,10 @@ export class TrafficScene {
   }
 
   /**
-   * One backlog marker per edge with trips waiting to enter (ADR-035): a dark pill with a red
-   * rim and the count, on the block beside the edge's road against the map's border (not over
-   * the entry cell, the heat-strip or a card badge on the road itself). Pooled; hidden at zero.
+   * One backlog tab per entry with trips waiting to enter (ADR-035): a dark pill with a red rim
+   * and "+N", attached to its own entry and aligned with that road (`entryTab`): just outside the
+   * heat-strip where the canvas has room, over the strip and the end of the entry tile where it
+   * has not. Pooled; hidden at zero.
    */
   private drawWaiting(): void {
     const T = this.fit.tilePx;
@@ -763,19 +758,25 @@ export class TrafficScene {
     const counts = this.waiting;
     const edges = this.map.edges;
     let used = 0;
-    // Clear of every card badge and of the markers already placed (#107 review).
-    const markers: Box[] = [];
+    // Canvas px beyond the map on each side, heat-strip gutter included.
+    const f = this.fit;
+    const screen = this.app.screen;
+    const margin: Record<string, number> = {
+      n: f.originY,
+      s: screen.height - f.originY - f.heightPx,
+      w: f.originX,
+      e: screen.width - f.originX - f.widthPx,
+    };
     if (counts) {
       for (let k = 0; k < edges.length; k++) {
         const n = counts[k] ?? 0;
         const edge = edges[k];
         if (n <= 0 || !edge) continue;
         const view = this.waitingView(used++);
-        const text = n > 99 ? '99+' : String(n);
+        const text = `+${Math.min(n, 999)}`;
         view.label.text = text;
         view.label.style.fill = p.glyph;
-        // The pill must fit inside one block tile (backlogCentre only uses blocks): shrink the
-        // label until it does.
+        // The tab stays within its entry tile across the road: shrink the label until it does.
         let size = Math.max(11, Math.round(T * 0.3));
         let halfW = 0;
         let halfH = 0;
@@ -786,8 +787,16 @@ export class TrafficScene {
           if ((halfW * 2 <= T - 6 && halfH * 2 <= T - 6) || size <= 7) break;
           size--;
         }
-        const [cx, cy] = backlogCentre(edge, T, halfW, halfH, this.map, this.badgeBoxes, markers);
-        markers.push({ cx, cy, hw: halfW, hh: halfH });
+        const [cx, cy] = entryTab(
+          edge,
+          T,
+          halfW,
+          halfH,
+          GRID_WIDTH,
+          GRID_HEIGHT,
+          Math.max(0, margin[edge.side] ?? 0),
+          HEAT_GUTTER_PX,
+        );
         view.pill
           .clear()
           .roundRect(-halfW, -halfH, halfW * 2, halfH * 2, halfH)

@@ -215,7 +215,7 @@ export function badgeCentre(
   ];
 }
 
-/** An axis-aligned box in px, centre and half sizes: a pill, or a badge's bounding square. */
+/** An axis-aligned box in px, centre and half sizes. */
 export interface Box {
   readonly cx: number;
   readonly cy: number;
@@ -223,65 +223,34 @@ export interface Box {
   readonly hh: number;
 }
 
-const GAP = 2;
-
-function overlaps(a: Box, b: Box): boolean {
-  return Math.abs(a.cx - b.cx) < a.hw + b.hw + GAP && Math.abs(a.cy - b.cy) < a.hh + b.hh + GAP;
-}
-
 /**
- * Where an edge's backlog marker goes (ADR-035: trips waiting to enter), in px. Only ever on a
- * block tile, never on a road, so it can't cover the entry cell, the queue or any other road;
- * the pill must fit inside one tile (the scene shrinks the label until it does). Block tiles are
- * tried nearest first: along the border beside the road (after it, then before it), then one
- * and two rows in. In each tile, the end nearer the border comes first, then the far end. The
- * first spot clear of everything in `avoid` (card badges, markers already placed) wins; with
- * none clear it takes the first spot clear of the markers alone, and then the first block spot
- * (a badge can touch it, a road never does). #107 review: all shipped map variants, see the
- * geometry tests.
+ * Where an entry's backlog tab goes (ADR-035: trips waiting to enter), as its centre in map px:
+ * attached to its own entry and aligned with that road, so the count can only belong to it. It
+ * sits just outside the entry's heat-strip when the canvas has room there (`margin`: canvas px
+ * beyond the map on that side, the strip's `gutter` included); with less room it moves in until
+ * its outer edge meets the canvas edge, over the strip and the end of the entry tile. Across the
+ * road it is centred on the entry tile, so tabs of different entries never meet (the scene keeps
+ * each tab within its tile's width). #107: decided by the Lead over an on-board search.
  */
-export function backlogCentre(
+export function entryTab(
   edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
   T: number,
   halfW: number,
   halfH: number,
-  map: GridMap,
-  avoid: readonly Box[] = [],
-  markers: readonly Box[] = [],
+  gridW: number,
+  gridH: number,
+  margin: number,
+  gutter: number,
 ): [number, number] {
   const { x, y } = edge.tile;
-  const along = edge.side === 'n' || edge.side === 's';
-  const spots: [number, number][] = [];
-  for (let depth = 0; depth < 3; depth++) {
-    for (const d of [1, -1, 2, -2, 3, -3]) {
-      let tx: number;
-      let ty: number;
-      if (along) {
-        tx = x + d;
-        ty = edge.side === 'n' ? depth : GRID_HEIGHT - 1 - depth;
-      } else {
-        ty = y + d;
-        tx = edge.side === 'w' ? depth : GRID_WIDTH - 1 - depth;
-      }
-      if (tx < 0 || ty < 0 || tx >= GRID_WIDTH || ty >= GRID_HEIGHT || isRoad(map, tx, ty))
-        continue;
-      // Near end (toward the border), then far end, centred across.
-      const lo: [number, number] = along
-        ? [(tx + 0.5) * T, ty * T + halfH + GAP]
-        : [tx * T + halfW + GAP, (ty + 0.5) * T];
-      const hi: [number, number] = along
-        ? [(tx + 0.5) * T, (ty + 1) * T - halfH - GAP]
-        : [(tx + 1) * T - halfW - GAP, (ty + 0.5) * T];
-      const nearFirst = edge.side === 'n' || edge.side === 'w';
-      spots.push(...(nearFirst ? [lo, hi] : [hi, lo]));
-    }
+  switch (edge.side) {
+    case 'n':
+      return [(x + 0.5) * T, -Math.min(margin, gutter + 2 * halfH) + halfH];
+    case 's':
+      return [(x + 0.5) * T, gridH * T + Math.min(margin, gutter + 2 * halfH) - halfH];
+    case 'w':
+      return [-Math.min(margin, gutter + 2 * halfW) + halfW, (y + 0.5) * T];
+    default:
+      return [gridW * T + Math.min(margin, gutter + 2 * halfW) - halfW, (y + 0.5) * T];
   }
-  const box = ([cx, cy]: [number, number]): Box => ({ cx, cy, hw: halfW, hh: halfH });
-  const clearOf = (list: readonly Box[]) => (p: [number, number]) =>
-    list.every((b) => !overlaps(box(p), b));
-  return (
-    spots.find(clearOf([...avoid, ...markers])) ??
-    spots.find(clearOf(markers)) ??
-    spots[0] ?? [(x + 0.5) * T, (y + 0.5) * T]
-  );
 }
