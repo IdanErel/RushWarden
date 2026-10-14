@@ -105,6 +105,12 @@ export interface RunPort {
    */
   canUndo(placedIndex: number): boolean;
   /**
+   * The straight run a segment target covers, pointing the way a directional card placed on it
+   * would run (its `reverse` included); null for any other target. For the One-Way preview.
+   */
+  segmentOf(target: TargetMark): { readonly from: TileXY; readonly to: TileXY } | null;
+
+  /**
    * Why hand card `i` cannot go on `tile`, for the note on a tap that places nothing (U5):
    * `block` (a building), `junction` / `road` (the other kind of tile than the card takes),
    * `closed` (a road closed this round, Parade), `short` (a one-tile road a directional card

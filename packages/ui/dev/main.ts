@@ -1,7 +1,7 @@
 /**
  * Run screen dev page: the real run controller (P1-BAL-01) with dev stand-in cards, fake traffic
  * in the worker (or `source=sim`), test hooks on. Query: `seed` (H1-style run seed), `privacy`
- * (policy URL), `share` (share URL), `rounds`, `reduced=1`, `jam=1`, `source=sim`, `portal` (`poki`,
+ * (policy URL), `share` (share URL), `rounds`, `hand`, `reduced=1`, `jam=1`, `source=sim`, `portal` (`poki`,
  * `crazygames`, ...), `analytics=1` (a stand-in consent surface; `consent=yes|no` presets the
  * answer, `deleteFail=1` fails the delete). Sound is the real engine; e2e reads `playCalls`. Not shipped; Platform mounts the game in platform-web.
  */
@@ -96,8 +96,12 @@ const shortRun =
     ? { rounds, rushRounds: [], curveRounds: (toy.curveRounds ?? []).slice(0, rounds) }
     : {};
 
+/** `hand=N`: deal N cards a round (a Second Shift hand of 7 from round 1, for U10's e2e). */
+const handSize = Number(q.get('hand') ?? '0');
+const bigHand = handSize > 0 ? { handSize } : {};
+
 const run = new ControllerRun({
-  config: { ...toy, ...shortRun },
+  config: { ...toy, ...shortRun, ...bigHand },
   env: devEnv,
   catalog: devCatalog,
   analytics,
