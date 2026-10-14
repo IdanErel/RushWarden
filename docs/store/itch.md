@@ -41,15 +41,15 @@
 >
 > If nothing moves for 3 seconds, the junction is gridlocked and the round ends on the spot.
 >
-> **This prototype** is one 5-round run in Old Town (about 3 minutes). Every round is a rush
-> hour with an event: Market Day brings trucks, the Parade closes a street, the Festival floods
-> the district. There are 20 cards in 5 styles:
+> **This prototype** is one 5-round run in Old Town (about 3 minutes). Three rounds bring an
+> event: Market Day brings trucks, the Parade closes a street, the Festival floods the district.
+> There are 18 cards in 5 styles:
 >
 > - **FLOW:** Smart Signal, One-Way, Turn Lane, Speed Limit Up
 > - **MASS:** Bus Priority, Express Stop, Bus Lane, Fare Holiday
 > - **TOLL:** Detour, Toll Booth, Staggered Hours, Delivery Window
 > - **CHAOS:** Roundabout, Yield Culture, No Heavy, Remove Signal
-> - **TEMPO:** Overtime, Second Shift, Pilot Program, Recount
+> - **TEMPO:** Second Shift, Recount
 >
 > At the end of a run you get a share line, like the one above, to paste anywhere.
 >

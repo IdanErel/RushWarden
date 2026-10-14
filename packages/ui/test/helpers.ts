@@ -9,7 +9,12 @@ export function devRun(
   env: RunEnv = devEnv,
 ): ControllerRun {
   return new ControllerRun({
-    config: toyRunConfig({ seed, cards: DEV_CARDS, startingDeck: DEV_STARTING_DECK }),
+    // Pinned past the toy's card exclusions (ADR-032 E1), like the dev page.
+    config: {
+      ...toyRunConfig({ seed, cards: DEV_CARDS }),
+      cards: DEV_CARDS,
+      startingDeck: DEV_STARTING_DECK,
+    },
     env,
     catalog: devCatalog,
     analytics: analytics ?? null,

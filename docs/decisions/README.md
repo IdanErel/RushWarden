@@ -38,5 +38,5 @@ A Proposed ADR that changes the brief needs Idan's answer before work depends on
 | 029 | Toy e2e in CI, E2E-18 tracking, store-asset rules       | Accepted (Lead) |
 | 030 | Toy difficulty curve                                    | Accepted (Lead) |
 | 031 | One-Way targets and direction                           | Accepted (Lead) |
-| 032 | District 1 per-template demand factor                   | Proposed        |
+| 032 | District 1 per-template demand factor                   | Accepted (Lead) |
 | 034 | Space pauses and resumes during the Go phase            | Accepted (Lead) |

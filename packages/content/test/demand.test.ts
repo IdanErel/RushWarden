@@ -15,6 +15,7 @@ import {
   mixCounts,
   ROUND_SECONDS,
   roundQuota,
+  roundScore,
   roundVehicles,
   SECOND_WEIGHTS,
   setupRound,
@@ -26,6 +27,10 @@ import {
   rowsToGridMap,
   SEED_SALTS,
   RUSH_ROUNDS,
+  TEMPLATE_DEMAND_PERMILLE,
+  templateDemandPermille,
+  TOY_PARADE_MIN_EDGES,
+  TOY_QUOTA_SHARE_PERMILLE,
   TOY_ROUNDS,
   toyRushRounds,
 } from '../src/index.js';
@@ -75,15 +80,41 @@ describe('quota (GDD §2)', () => {
     expect(roundQuota(1, 1, false, 1100)).toBe(91);
   });
 
-  it("with a map, scales by its template factor and the toy's quota level (ADR-032)", () => {
-    // d1-12: 1.81 * 1.06 = 1.919, 83 * 1.919 = 159.3; d1-02: 0.53 * 1.06 = 0.562,
-    // 83 * 1.33 * 1.6 * 0.562 = 99.3.
-    expect(roundQuota(1, 1, false, 1000, 'd1-12')).toBe(159);
-    expect(roundQuota(1, 4, true, 1000, 'd1-02-mx')).toBe(99);
-    // d1-01: 0.76 * 1.06 = 0.806, 83 * 1.1 * 0.806 = 73.6.
-    expect(roundQuota(1, 1, false, 1100, 'd1-01')).toBe(74);
-    // An unknown map has a factor of 1 but the toy's level: 83 * 1.06 = 88.0.
-    expect(roundQuota(1, 1, false, 1000, 'not-a-template')).toBe(88);
+  it('with a map, is 86% of the score the toy round spawns, boss traffic included (ADR-032)', () => {
+    // Round 11 on d1-01 (factor 1280): 66 * 2.1 * 1.28 = 177.4 vehicles, mixed 124 cars, 26 buses,
+    // 18 trucks, 9 bikes = 124 + 78 + 36 + 9 = 247 points; 0.86 * 247 = 212.4.
+    expect(roundScore(1, 11, false, null, 'd1-01')).toBe(247);
+    expect(roundQuota(1, 11, false, 1000, 'd1-01')).toBe(212);
+    // Market Day on d1-12 (1880): 264 vehicles make 370 points, plus 30 trucks (60): 430; 369.8.
+    expect(roundScore(1, 4, true, 'market-day', 'd1-12')).toBe(430);
+    expect(roundQuota(1, 4, true, 1000, 'd1-12')).toBe(370);
+    // Festival on d1-11 (290): 108 vehicles with 5 emergency vehicles make 175 points; 150.5.
+    expect(roundScore(1, 12, true, 'festival', 'd1-11')).toBe(175);
+    expect(roundQuota(1, 12, true, 1000, 'd1-11')).toBe(151);
+    // A variant uses its template's factor; the boss follows the round (8 is Parade).
+    expect(roundQuota(1, 8, true, 1000, 'd1-04-mx')).toBe(roundQuota(1, 8, true, 1000, 'd1-04'));
+    expect(roundQuota(1, 8, true, 1000, 'd1-04-mx')).toBe(212);
+    // A mayor modifier multiplies on top: round 10 on d1-07 makes 170 points; 0.86 * 1.1 * 170 = 160.8.
+    expect(roundQuota(1, 10, false, 1100, 'd1-07')).toBe(161);
+    // A map or round with no factor plays at 1: round 1 makes 93 points, 80.0.
+    expect(roundQuota(1, 1, false, 1000, 'd1-01')).toBe(80);
+    expect(roundQuota(1, 11, false, 1000, 'not-a-template')).toBe(168);
+  });
+
+  it('leaves the same slack, at least 10%, on every toy round, whatever the map (ADR-032, playtest B1)', () => {
+    for (const m of maps) {
+      TOY_ROUNDS.forEach((round) => {
+        const rush = RUSH_ROUNDS.includes(round);
+        const k = RUSH_ROUNDS.indexOf(round);
+        const boss = rush ? (DISTRICT_DEMAND[1].bosses[k] ?? null) : null;
+        const score = roundScore(1, round, rush, boss, m.id);
+        const quota = roundQuota(1, round, rush, 1000, m.id);
+        expect(Math.abs(quota - (TOY_QUOTA_SHARE_PERMILLE / 1000) * score)).toBeLessThanOrEqual(
+          0.5,
+        );
+        expect(quota / score).toBeLessThanOrEqual(0.9);
+      });
+    }
   });
 });
 
@@ -98,10 +129,26 @@ describe('demand volume and mix (GDD §5)', () => {
     expect(roundVehicles(1, 4, true, 'market-day')).toBe(140);
   });
 
-  it("scales with the map's demand factor (ADR-032)", () => {
-    // 66 * 0.76 = 50.2; Festival on d1-12: 66 * 2.21 * 1.6 * 1.6 * 1.81 = 675.9.
-    expect(roundVehicles(1, 1, false, null, 'd1-01')).toBe(50);
-    expect(roundVehicles(1, 12, true, 'festival', 'd1-12-r180')).toBe(676);
+  it("scales with the map's demand factor for the round (ADR-032)", () => {
+    // d1-01 at round 11 (1280): 66 * 2.1 * 1.28 = 177.4; Festival on d1-12 (850):
+    // 66 * 2.21 * 1.6 * 1.6 * 0.85 = 317.4. A round with no factor (1 on d1-01) plays at 1.
+    expect(roundVehicles(1, 11, false, null, 'd1-01')).toBe(177);
+    expect(roundVehicles(1, 12, true, 'festival', 'd1-12-r180')).toBe(317);
+    expect(roundVehicles(1, 1, false, null, 'd1-01')).toBe(66);
+    expect(templateDemandPermille('d1-03-mx', 4)).toBe(TEMPLATE_DEMAND_PERMILLE['d1-03']?.[4]);
+    expect(templateDemandPermille('d1-02', 8)).toBe(1000);
+    expect(templateDemandPermille(undefined, 4)).toBe(1000);
+  });
+
+  it('has a factor for every template at every toy round, Parade only on maps a toy Parade picks', () => {
+    for (const m of maps) {
+      const t = /^d1-\d+/.exec(m.id)?.[0] ?? '';
+      for (const round of TOY_ROUNDS) {
+        const picked =
+          round !== 8 || (m.edges.length >= TOY_PARADE_MIN_EDGES && paradeCandidates(m).length > 0);
+        expect(TEMPLATE_DEMAND_PERMILLE[t]?.[round] !== undefined).toBe(picked);
+      }
+    }
   });
 
   it('splits counts exactly by the per-mille mix, leftovers to the largest remainders', () => {
@@ -129,18 +176,18 @@ describe('demand volume and mix (GDD §5)', () => {
     const p = generateDemand({ map, district: 1, round: 1, rush: false, boss: null, seed: 7 });
     expect(p).toHaveLength(66);
     expect(typeCounts(p)).toEqual(Object.fromEntries(mixCounts(66, DISTRICT_DEMAND[1].mix)));
-    // With the toy's template factor (ADR-032), d1-01 is 0.76: 66 * 0.76 = 50.2.
+    // With the toy's template factor (ADR-032), d1-01 at round 11 is 1.28: 66 * 2.1 * 1.28 = 177.4.
     const toy = generateDemand({
       map,
       district: 1,
-      round: 1,
+      round: 11,
       rush: false,
       boss: null,
       seed: 7,
       templateDemand: true,
     });
-    expect(toy).toHaveLength(50);
-    expect(typeCounts(toy)).toEqual(Object.fromEntries(mixCounts(50, DISTRICT_DEMAND[1].mix)));
+    expect(toy).toHaveLength(177);
+    expect(typeCounts(toy)).toEqual(Object.fromEntries(mixCounts(177, DISTRICT_DEMAND[1].mix)));
   });
 
   it('the spawn-time curve covers all 15 seconds', () => {
@@ -267,7 +314,8 @@ describe('setupRound', () => {
   });
 
   it('passes a vehicle on to the next edge when its edge spawns on every tick (ADR-032)', () => {
-    // d1-12 has 4 edges and a 1.81 factor: 676 Festival vehicles overfill a heavy edge's 300 ticks.
+    // d1-12 has 4 edges. Round 11 played as a Festival (not a toy round, but the largest volume the
+    // factors give: 66 * 2.1 * 1.6 * 1.6 * 2.26 = 802) overfills a heavy edge's 300 ticks.
     const m = maps.find((x) => x.id === 'd1-12')!;
     expect(m.edges).toHaveLength(4);
     let full = 0;
@@ -275,13 +323,13 @@ describe('setupRound', () => {
       const args = {
         map: m,
         district: 1 as const,
-        round: 12,
+        round: 11,
         rush: true,
         seed,
         templateDemand: true,
       };
       const p = generateDemand({ ...args, boss: 'festival' });
-      expect(p).toHaveLength(676);
+      expect(p).toHaveLength(802);
       expect(new Set(p.map((e) => e.tick * 1024 + e.edge)).size).toBe(p.length);
       expect(p.every((e) => e.edge !== e.destinationEdge)).toBe(true);
       const perEdge = m.edges.map((e) => p.filter((v) => v.edge === e.id).length);
@@ -495,6 +543,31 @@ describe('toy rounds (ADR-030)', () => {
       const s = setupRound({ round: r, seed: 9, templateDemand: true });
       expect(s.quota).toBe(roundQuota(1, r, RUSH_ROUNDS.includes(r), 1000, s.map.id));
     }
+  });
+
+  it('plays each event once: Market Day, Parade, round 11, round 10, Festival (ADR-032, playtest B2)', () => {
+    expect(TOY_ROUNDS).toEqual([4, 8, 11, 10, 12]);
+    expect(toyRushRounds()).toEqual([
+      { round: 1, boss: 'market-day' },
+      { round: 2, boss: 'parade' },
+      { round: 5, boss: 'festival' },
+    ]);
+  });
+
+  it('a toy Parade picks only maps with at least 5 edges; a full-run Parade keeps the 4-edge maps', () => {
+    const toy = new Set<number>();
+    const full = new Set<number>();
+    for (let seed = 1; seed <= 300; seed++) {
+      toy.add(setupRound({ round: 8, seed, templateDemand: true }).map.edges.length);
+      full.add(setupRound({ round: 8, seed }).map.edges.length);
+    }
+    expect(Math.min(...toy)).toBeGreaterThanOrEqual(TOY_PARADE_MIN_EDGES);
+    expect(full.has(4)).toBe(true);
+    // Other toy rounds still draw from the whole bank.
+    const market = new Set<number>();
+    for (let seed = 1; seed <= 300; seed++)
+      market.add(setupRound({ round: 4, seed, templateDemand: true }).map.edges.length);
+    expect(market.has(4)).toBe(true);
   });
 
   it("lists the toy rounds that play a D1 rush round, with that round's boss", () => {

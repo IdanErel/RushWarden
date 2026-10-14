@@ -89,7 +89,13 @@ const privacy: PrivacyControls = {
 const unlockCalls: number[] = [];
 /** `rounds=N`: a shorter run with no rush round, so e2e reaches the run end quickly. */
 const rounds = Number(q.get('rounds') ?? '0');
-const toy = toyRunConfig({ seed, cards: DEV_CARDS, startingDeck: DEV_STARTING_DECK });
+// The dev page pins its own deck and card pool on top of the toy preset, past the toy's card
+// exclusions (ADR-032 E1), so content's toy deck never moves the dev page's round seeds.
+const toy = {
+  ...toyRunConfig({ seed, cards: DEV_CARDS }),
+  cards: DEV_CARDS,
+  startingDeck: DEV_STARTING_DECK,
+};
 // The toy's rounds sample District 1's curve (ADR-030): keep one curve round per round played.
 const shortRun =
   rounds > 0

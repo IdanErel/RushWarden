@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyMap, type Effect, type SegmentId, type Target } from '@rushwarden/sim';
 import {
   RUSH_ROUNDS,
+  TOY_EXCLUDED_CARDS,
   TOY_ROUNDS,
   roundQuota,
   setupRound,
@@ -32,13 +33,20 @@ import { CARDS, CENTER, DISTRICT, EDGE, SEGMENT, fakeEnv } from './run-fixtures.
 
 /**
  * The mechanics fixture: a 5-round District 1 run on the plain curve (round r plays curve round
- * r; Market Day on round 5; no template factor), so these tests do not move when content retunes the toy's curve.
- * The toy preset itself (ADR-030: content's TOY_ROUNDS) is tested in "the itch toy preset".
+ * r; Market Day on round 5; no template factor; the full Phase 1 deck and card pool), so these tests
+ * do not move when content retunes the toy's curve or its cards. The toy preset itself (ADR-030:
+ * content's TOY_ROUNDS; ADR-032: its card exclusions) is tested in "the itch toy preset".
  */
 const toy = (seed = 1, over: Partial<RunConfig> = {}): RunConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { curveRounds, templateDemand, ...preset } = toyRunConfig({ seed, cards: CARDS });
-  return { ...preset, rushRounds: [{ round: 5, boss: 'market-day' }], ...over };
+  return {
+    ...preset,
+    startingDeck: PHASE1_STARTING_DECK,
+    cards: CARDS,
+    rushRounds: [{ round: 5, boss: 'market-day' }],
+    ...over,
+  };
 };
 
 function must(state: RunState, action: RunAction, env: RunEnv = fakeEnv()): RunState {
@@ -631,7 +639,7 @@ describe('round end, offers and run end', () => {
   });
 
   it('the itch toy preset samples D1 rounds TOY_ROUNDS (ADR-030): quota, demand, rush and boss', () => {
-    expect(TOY_ROUNDS).toEqual([4, 8, 11, 8, 12]);
+    expect(TOY_ROUNDS).toEqual([4, 8, 11, 10, 12]);
     const config = toyRunConfig({ seed: 9, cards: CARDS });
     expect(config.rounds).toBe(5);
     expect(config.curveRounds).toEqual(TOY_ROUNDS);
@@ -646,13 +654,28 @@ describe('round end, offers and run end', () => {
       [4, true, 'market-day'],
       [8, true, 'parade'],
       [11, false, null],
-      [8, true, 'parade'],
+      [10, false, null],
       [12, true, 'festival'],
     ]);
     expect(r.state.history.map((h) => h.round)).toEqual([1, 2, 3, 4, 5]);
     expect(r.state.history.map((h) => h.quota)).toEqual(
       TOY_ROUNDS.map((d1) => roundQuota(1, d1, RUSH_ROUNDS.includes(d1), 1000, emptyMap().id)),
     );
+  });
+
+  it('the toy drops Overtime and Pilot Program from its deck and offers; the full run keeps them (ADR-032)', () => {
+    expect([...TOY_EXCLUDED_CARDS].sort()).toEqual(['overtime', 'pilot-program']);
+    const config = toyRunConfig({ seed: 9, cards: CARDS });
+    expect(config.startingDeck).toEqual(
+      PHASE1_STARTING_DECK.filter((id) => id !== 'overtime' && id !== 'pilot-program'),
+    );
+    expect(config.startingDeck).toHaveLength(10);
+    expect(config.cards.map((c) => c.id)).toEqual(
+      CARDS.map((c) => c.id).filter((id) => id !== 'overtime' && id !== 'pilot-program'),
+    );
+    const full = fullRunConfig({ seed: 9, cards: CARDS });
+    expect(full.startingDeck).toEqual(PHASE1_STARTING_DECK);
+    expect(full.cards).toEqual(CARDS);
   });
 
   it("the sim's district rules carry the sampled curve round; the run keeps its own count", () => {

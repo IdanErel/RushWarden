@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { startRun, toyRunConfig } from '@rushwarden/app';
 import {
+  TOY_EXCLUDED_CARDS,
   TOY_ROUNDS,
   loadCards,
   roundQuota,
@@ -88,10 +89,12 @@ describe('uiConfigFor', () => {
 });
 
 describe('toy run wiring', () => {
-  it("uses content's 12-card starting deck and only content's cards", () => {
+  it("uses content's starting deck without the toy's excluded cards, and only content's cards", () => {
     const config = toyRunConfig({ seed: 1, cards: loadCards(), startingDeck: startingDeck() });
     const ids = new Set(config.cards.map((c) => c.id));
-    expect(config.startingDeck).toHaveLength(12);
+    // 12 cards less Overtime and Pilot Program (ADR-032, playtest E1).
+    expect(config.startingDeck).toHaveLength(10);
+    for (const id of TOY_EXCLUDED_CARDS) expect(ids.has(id)).toBe(false);
     for (const id of config.startingDeck) expect(ids.has(id)).toBe(true);
   });
 
