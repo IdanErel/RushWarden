@@ -314,8 +314,9 @@ describe('setupRound', () => {
   });
 
   it('passes a vehicle on to the next edge when its edge spawns on every tick (ADR-032)', () => {
-    // d1-12 has 4 edges. Round 11 played as a Festival (not a toy round, but about the largest volume
-    // the factors give: 66 * 2.1 * 1.6 * 1.6 * 2.28 = 809) overfills a heavy edge's 300 ticks.
+    // d1-12 has 4 edges. Round 11 played as a Festival (not a toy round) with d1-12's round-11 factor
+    // (2280; the largest factor is d1-12's round 10 at 2420): 66 * 2.1 * 1.6 * 1.6 * 2.28 = 809
+    // vehicles, which overfills a heavy edge's 300 ticks.
     const m = maps.find((x) => x.id === 'd1-12')!;
     expect(m.edges).toHaveLength(4);
     let full = 0;

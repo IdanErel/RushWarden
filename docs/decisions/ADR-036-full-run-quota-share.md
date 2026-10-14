@@ -54,7 +54,7 @@ Win rates (300 seeds per bot):
 | 0.88 share | 9.7      | 4.3    | 59.7     | 45.3    | 62.3     | 45.0    | 46.7    | **15.7** |
 | 0.90 share | 9.3      | 3.7    | 57.0     | 45.0    | 59.7     | 45.0    | 45.7    | **14.7** |
 
-Base 88 already has about 4% slack in plain rounds and still leaves greedy and MASS high.
+Base 88 leaves only 4–6% slack in plain rounds and still leaves greedy and MASS high.
 Between 83 and 93 there is no base where greedy is in 55–65% and every plain round keeps 10%
 slack.
 
@@ -109,10 +109,11 @@ Read each row against 55–65 for greedy and 35–65 for the archetypes. `random
 move by at most 0.4 points under every option. The random bot plays at most 2 cards under B as
 well, so B's effect on a human who plays freely is not in these numbers.
 
-- **A. Card numbers** (Content can do it, no rule change). No measurable effect. Under the 2-play
-  cap, 18 of 20 cards cost 1 and energy is 3, so more energy or cheaper cards buy nothing while
-  the TEMPO card itself still uses one of the two plays. This is the E1 finding (ADR-032
-  Amendment 1) again.
+- **A. Card numbers** (Content can do it, no rule change). Measured: no effect (TEMPO 30.3% vs
+  31.0% at base 83, 15.7% vs 15.7% at 0.88). A likely reason: 16 of 20 cards cost 1 and 4 cost 2,
+  so with energy 3 and 2 plays, extra energy or cheaper cards rarely change what can be played,
+  while the TEMPO card itself still uses one of the two plays (the E1 finding, ADR-032
+  Amendment 1).
 - **B. Relax the cap for TEMPO** (a rule change to GDD §2/§4, Sim/App work). TEMPO roughly doubles
   (15.7% to 32.3% at 0.88), but every bot that drafts TEMPO cards gains too: greedy and MASS leave
   their bands and need a higher share, which pulls TEMPO back under 35%. Allowing one free TEMPO
@@ -126,7 +127,7 @@ well, so B's effect on a human who plays freely is not in these numbers.
   without touching a card. The same change lifts MASS to 78.3% at 0.88, out of band, so C needs a
   MASS look too (MASS has been the highest archetype in every report since ADR-035).
 
-None of A, B or C brings all five archetypes and greedy into band on its own at 0.88. C is the
+**Summary: no option clears §11 on its own.** None of A, B or C brings all five archetypes and greedy into band on its own at 0.88. C is the
 cheapest and the closest; B is the design answer if TEMPO is meant to be a way to win rather than
 a support tag. The two can be combined; that is not measured.
 
