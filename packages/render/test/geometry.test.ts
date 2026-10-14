@@ -3,9 +3,12 @@ import { GRID_HEIGHT, GRID_WIDTH, emptyMap, type GridMap, type MapTile } from '@
 import { loadMapTemplates, templateVariants } from '@rushwarden/content';
 import { HEAT_GUTTER_PX } from '../src/effects.js';
 import {
+  backlogLabel,
   entryTab,
+  entryTabZone,
   badgeCentre,
   connections,
+  isRoad,
   fitGrid,
   intersections,
   isIntersection,
@@ -242,4 +245,126 @@ describe('backlog tabs on every shipped map variant (#107 review)', () => {
         }
         expect(problems).toEqual([]);
       });
+});
+
+/**
+ * #107 review follow-up: a card badge never goes on an entry tile, where the backlog tab would
+ * hide it (d1-04, d1-08, d1-09 and the d1-08/d1-09 mx flips: a junction one tile in from a west
+ * or east entry put its badges on the neighbouring entry). Every shipped variant, three badges
+ * on every road run and junction, at the phone's and the desktop's tile size.
+ */
+describe('card badges stay off entry tiles on every shipped map variant (#107 follow-up)', () => {
+  const maps = loadMapTemplates().flatMap(templateVariants);
+  /** Every road run (both axes) and junction, as badgeCentre's target rects. */
+  function runs(m: GridMap): { x: number; y: number; w: number; h: number }[] {
+    const out = new Map<string, { x: number; y: number; w: number; h: number }>();
+    for (let y = 0; y < GRID_HEIGHT; y++)
+      for (let x = 0; x < GRID_WIDTH; x++) {
+        if (!isRoad(m, x, y)) continue;
+        if (isIntersection(m, x, y)) {
+          out.set(`j${x},${y}`, { x, y, w: 1, h: 1 });
+          continue;
+        }
+        for (const [dx, dy] of [
+          [1, 0],
+          [0, 1],
+        ] as const) {
+          const ok = (i: number) =>
+            isRoad(m, x + dx * i, y + dy * i) && !isIntersection(m, x + dx * i, y + dy * i);
+          let a = 0;
+          let b = 0;
+          while (ok(a - 1)) a--;
+          while (ok(b + 1)) b++;
+          if (a === b && !(isRoad(m, x + dx, y + dy) || isRoad(m, x - dx, y - dy))) continue;
+          const [x0, y0] = [x + dx * a, y + dy * a];
+          out.set(`s${dx}${x0},${y0}-${b - a}`, {
+            x: x0,
+            y: y0,
+            w: dx ? b - a + 1 : 1,
+            h: dy ? b - a + 1 : 1,
+          });
+        }
+      }
+    return [...out.values()];
+  }
+
+  const under = (
+    cx: number,
+    cy: number,
+    rad: number,
+    b: { cx: number; cy: number; hw: number; hh: number },
+  ) => Math.abs(cx - b.cx) < rad + b.hw && Math.abs(cy - b.cy) < rad + b.hh;
+
+  for (const T of [44, 76])
+    it(`T=${T}: badges 1–3 on every run and junction stay out of every tab's zone`, () => {
+      const [W, H] = [GRID_WIDTH * T, GRID_HEIGHT * T];
+      const rad = Math.max(7, T * 0.15);
+      const problems: string[] = [];
+      for (const m of maps) {
+        const zones = m.edges.map((e) => entryTabZone(e, T, GRID_WIDTH, GRID_HEIGHT));
+        for (const r of runs(m))
+          for (const n of [0, 1, 2]) {
+            const [cx, cy] = badgeCentre(r, T, rad, n, W, H, zones);
+            m.edges.forEach((e, k) => {
+              const z = zones[k];
+              if (z && under(cx, cy, rad, z))
+                problems.push(
+                  `${m.id} target ${r.x},${r.y} ${r.w}x${r.h} badge ${n} under ${e.side}${e.tile.x},${e.tile.y}`,
+                );
+            });
+          }
+      }
+      expect(problems).toEqual([]);
+    });
+
+  it('the zone holds every tab entryTab places, whatever the margin', () => {
+    for (const T of [44, 76])
+      for (const m of maps)
+        for (const e of m.edges) {
+          const z = entryTabZone(e, T, GRID_WIDTH, GRID_HEIGHT);
+          for (const margin of [0, HEAT_GUTTER_PX, 40]) {
+            const [hw, hh] = [z.hw, z.hh];
+            const [cx, cy] = entryTab(
+              e,
+              T,
+              hw,
+              hh,
+              GRID_WIDTH,
+              GRID_HEIGHT,
+              margin,
+              HEAT_GUTTER_PX,
+            );
+            // The part of the tab on the map is inside the zone.
+            const [x0, x1] = [Math.max(cx - hw, 0), Math.min(cx + hw, GRID_WIDTH * T)];
+            const [y0, y1] = [Math.max(cy - hh, 0), Math.min(cy + hh, GRID_HEIGHT * T)];
+            if (x0 >= x1 || y0 >= y1) continue;
+            expect(x0).toBeGreaterThanOrEqual(z.cx - z.hw - 1e-9);
+            expect(x1).toBeLessThanOrEqual(z.cx + z.hw + 1e-9);
+            expect(y0).toBeGreaterThanOrEqual(z.cy - z.hh - 1e-9);
+            expect(y1).toBeLessThanOrEqual(z.cy + z.hh + 1e-9);
+          }
+        }
+  });
+
+  it('without the zones, some badge was under a tab (the case this fixes)', () => {
+    const T = 44;
+    const rad = Math.max(7, T * 0.15);
+    const hits = maps.some((m) => {
+      const zones = m.edges.map((e) => entryTabZone(e, T, GRID_WIDTH, GRID_HEIGHT));
+      return runs(m).some((r) => {
+        const [cx, cy] = badgeCentre(r, T, rad, 1, GRID_WIDTH * T, GRID_HEIGHT * T);
+        return zones.some((z) => under(cx, cy, rad, z));
+      });
+    });
+    expect(hits).toBe(true);
+  });
+});
+
+describe('backlogLabel (#107 follow-up)', () => {
+  it('reads "+N", and "999+" past 999 rather than an exact-looking "+999"', () => {
+    expect(backlogLabel(1)).toBe('+1');
+    expect(backlogLabel(999)).toBe('+999');
+    expect(backlogLabel(1000)).toBe('999+');
+    expect(backlogLabel(4321)).toBe('999+');
+  });
 });

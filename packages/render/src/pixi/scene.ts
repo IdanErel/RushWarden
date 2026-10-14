@@ -21,8 +21,10 @@ import {
 } from '@rushwarden/sim';
 import {
   LANE_WIDTH,
+  backlogLabel,
   badgeCentre,
   entryTab,
+  entryTabZone,
   SIDE_VEC,
   connections,
   fitGrid,
@@ -715,6 +717,8 @@ export class TrafficScene {
     const T = this.fit.tilePx;
     const outline = this.palette.outline;
     const seen = new Map<string, number>();
+    // Where a backlog tab could sit (ADR-035): badges keep out, so a tab never hides one.
+    const tabZones = this.map.edges.map((e) => entryTabZone(e, T, GRID_WIDTH, GRID_HEIGHT));
     for (const m of this.marks) {
       const r = m.span ? spanRect(m.span) : targetTileRect(m.target, this.map);
       if (!r) continue;
@@ -739,7 +743,7 @@ export class TrafficScene {
       const n = seen.get(k) ?? 0;
       seen.set(k, n + 1);
       const rad = Math.max(7, T * 0.15);
-      const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx);
+      const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx, tabZones);
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
       g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
@@ -773,7 +777,7 @@ export class TrafficScene {
         const edge = edges[k];
         if (n <= 0 || !edge) continue;
         const view = this.waitingView(used++);
-        const text = `+${Math.min(n, 999)}`;
+        const text = backlogLabel(n);
         view.label.text = text;
         view.label.style.fill = p.glyph;
         // The tab stays within its entry tile across the road: shrink the label until it does.
