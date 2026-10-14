@@ -8,6 +8,7 @@ describe('quotaReference (QA re-check R3)', () => {
     expect(median([3])).toBe(3);
     expect(median([1, 2, 9])).toBe(2);
     expect(median([1, 2, 4, 9])).toBe(3);
+    expect(median([1, 2, 5, 9])).toBe(3);
   });
 
   it('gives each toy round the median quota over the maps it can pick', () => {

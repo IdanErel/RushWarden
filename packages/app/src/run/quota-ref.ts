@@ -11,6 +11,7 @@ import {
   paradeCandidates,
   roundQuota,
 } from '@rushwarden/content';
+import { idiv } from '@rushwarden/sim';
 import type { RunConfig } from './types.js';
 
 /** Null unless quotas depend on the map (`templateDemand`, the toy; District 1 only). */
@@ -37,10 +38,10 @@ export function quotaReference(config: RunConfig, round: number): number | null 
 
 const cache = new Map<string, number | null>();
 
-/** The middle value, or the mean of the two middle ones; null for none. */
+/** The middle value, or the mean of the two middle ones rounded down (integer math); null for none. */
 export function median(xs: readonly number[]): number | null {
   const n = xs.length;
   if (n === 0) return null;
   const hi = xs[n >> 1] ?? 0;
-  return n % 2 === 1 ? hi : ((xs[(n >> 1) - 1] ?? 0) + hi) / 2;
+  return n % 2 === 1 ? hi : idiv((xs[(n >> 1) - 1] ?? 0) + hi, 2);
 }
