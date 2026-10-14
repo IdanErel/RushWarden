@@ -1,6 +1,7 @@
 # ADR-033: Gridlock is no progress, not zero speed
 
-Status: Proposed (Idan) · 2026-10-13 · Sim Engineer (B3). Number assigned by the Lead.
+Status: Accepted (Idan, 2026-10-14) · proposed 2026-10-13 · Sim Engineer (B3). Number assigned by
+the Lead.
 
 ## Context
 
@@ -26,11 +27,22 @@ ending as "Quota missed".
 3. The sim counts junction entries in `Traffic.boxEntries` (incremented in `enterBox`) and keeps
    `exited + boxEntries` from the previous tick in `State.lastProgress`. Both are sim-internal; the
    `RoundResult` and the frame protocol are unchanged.
-4. This supersedes the two gridlock sentences in GDD §3 (Scoring and quotas, Timing). The Lead
-   owns the GDD edit.
+4. **GDD §3 wording.** This changes two sentences in GDD §3. The GDD file is not edited; this
+   ADR records the change and is what the sim follows:
+
+   | GDD §3             | Was                                                                                                                   | Now reads                                                                                                                                                                        |
+   | ------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Scoring and quotas | "Gridlock: if no vehicle moves for 3 consecutive sim seconds, the round ends immediately with the current throughput" | "Gridlock: if, with vehicles on the map, no vehicle exits and none enters an intersection for 3 consecutive sim seconds, the round ends immediately with the current throughput" |
+   | Timing             | "Gridlock detector: if the sum of `v` across all vehicles is 0 for 60 consecutive ticks, the round ends."             | "Gridlock detector: if, with at least one vehicle on the map, no vehicle exits and no vehicle enters a junction box for 60 consecutive ticks, the round ends."                   |
 
 ## Consequences
 
+- Re-measured on main 3eef31c merged with this change (ADR-035 diverting, current toy quotas),
+  same harness, 150 seeds, 565 rounds: frozen but not gridlocked drops from 101 to 19 (all of
+  them Quota missed, before and after); gridlocks rise from 218 to 304, declared a median 3.2 s
+  after the last exit instead of 5.5 s (p90 5.7 s instead of 8.3 s). Rounds missing quota stay
+  at 435. Golden hashes are unchanged on the merged tree. The numbers below are the original
+  measurement on main c9e3806.
 - Same 685 rounds after the change: 235 gridlocks (+46), declared a median 3.3 s after the last
   exit (p90 5.7 s, max 8.9 s). Frozen but not gridlocked drops from 63 to 20 (Quota missed among
   them 58 to 15). The 20 left all had 57 to 95 junction entries after their last exit: vehicles
