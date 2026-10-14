@@ -23,6 +23,7 @@ import {
   LANE_WIDTH,
   backlogCentre,
   badgeCentre,
+  type Box,
   SIDE_VEC,
   connections,
   fitGrid,
@@ -194,6 +195,8 @@ export class TrafficScene {
     readonly label: Text;
   }[] = [];
   private waiting: Uint16Array | null = null;
+  /** The card badges' bounding boxes, in px, for the backlog markers to keep clear of. */
+  private badgeBoxes: Box[] = [];
   private jamOrigin: JamOrigin | null = null;
   private targets: readonly TargetMark[] = [];
   private cursor: number | null = null;
@@ -469,6 +472,7 @@ export class TrafficScene {
   setMarks(marks: readonly PlacedMark[]): void {
     this.marks = marks;
     this.drawMarks();
+    this.drawWaiting();
   }
 
   /** The tile under a point in canvas CSS px, or null outside the grid. */
@@ -715,6 +719,7 @@ export class TrafficScene {
     const T = this.fit.tilePx;
     const outline = this.palette.outline;
     const seen = new Map<string, number>();
+    this.badgeBoxes = [];
     for (const m of this.marks) {
       const r = m.span ? spanRect(m.span) : targetTileRect(m.target, this.map);
       if (!r) continue;
@@ -740,6 +745,7 @@ export class TrafficScene {
       seen.set(k, n + 1);
       const rad = Math.max(7, T * 0.15);
       const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx);
+      this.badgeBoxes.push({ cx, cy, hw: rad + 1, hh: rad + 1 });
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
       g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
@@ -757,6 +763,8 @@ export class TrafficScene {
     const counts = this.waiting;
     const edges = this.map.edges;
     let used = 0;
+    // Clear of every card badge and of the markers already placed (#107 review).
+    const avoid: Box[] = [...this.badgeBoxes];
     if (counts) {
       for (let k = 0; k < edges.length; k++) {
         const n = counts[k] ?? 0;
@@ -770,7 +778,16 @@ export class TrafficScene {
         view.label.style.fill = p.glyph;
         const halfH = Math.max(9, Math.round(size * 0.8));
         const halfW = Math.max(halfH, Math.round(view.label.width / 2) + Math.round(size * 0.45));
-        const [cx, cy] = backlogCentre(edge, T, halfW, halfH, this.fit.widthPx, this.fit.heightPx);
+        const [cx, cy] = backlogCentre(
+          edge,
+          T,
+          halfW,
+          halfH,
+          this.fit.widthPx,
+          this.fit.heightPx,
+          avoid,
+        );
+        avoid.push({ cx, cy, hw: halfW, hh: halfH });
         view.pill
           .clear()
           .roundRect(-halfW, -halfH, halfW * 2, halfH * 2, halfH)

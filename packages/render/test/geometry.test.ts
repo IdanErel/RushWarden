@@ -169,3 +169,54 @@ describe('backlogCentre (ADR-035: waiting markers off the entry)', () => {
     ]);
   });
 });
+
+describe('backlog markers keep clear of card badges (#107 review: d1-05, d1-07, d1-10, d1-11)', () => {
+  // Two edge roads on the north side two tiles apart, n2 and n4, each with two road cards whose
+  // badges sit at the top of the run on its west kerb. The block between them, x = 3, holds n4's
+  // badges, which is exactly where n2's marker would go first.
+  for (const T of [44, 76]) {
+    it(`places "99+" markers for n2 and n4 clear of both roads' badges at T=${T}`, () => {
+      const [W, H] = [GRID_WIDTH * T, GRID_HEIGHT * T];
+      // "99+" at the scene's sizes: font max(11, 0.3T); generous widths for the label.
+      const size = Math.max(11, Math.round(T * 0.3));
+      const halfH = Math.max(9, Math.round(size * 0.8));
+      const halfW = Math.round(size * 1.1) + Math.round(size * 0.45);
+      const rad = Math.max(7, T * 0.15);
+      const badges = [2, 4].flatMap((x) =>
+        [0, 1].map((n) => {
+          const [cx, cy] = badgeCentre({ x, y: 0, w: 1, h: 4 }, T, rad, n, W, H);
+          return { cx, cy, hw: rad + 1, hh: rad + 1 };
+        }),
+      );
+      const avoid = [...badges];
+      const pills = [2, 4].map((x) => {
+        const [cx, cy] = backlogCentre(
+          { tile: { x, y: 0 }, side: 'n' },
+          T,
+          halfW,
+          halfH,
+          W,
+          H,
+          avoid,
+        );
+        const pill = { cx, cy, hw: halfW, hh: halfH };
+        avoid.push(pill);
+        return { x, ...pill };
+      });
+      const apart = (a: { cx: number; cy: number; hw: number; hh: number }, b: typeof a) =>
+        Math.abs(a.cx - b.cx) >= a.hw + b.hw || Math.abs(a.cy - b.cy) >= a.hh + b.hh;
+      for (const p of pills) {
+        for (const b of badges) expect(apart(p, b), `n${p.x} pill vs a badge`).toBe(true);
+        // On the canvas, and never over either road's column (the entry cells).
+        expect(p.cx - p.hw).toBeGreaterThanOrEqual(0);
+        expect(p.cx + p.hw).toBeLessThanOrEqual(W);
+        expect(p.cy - p.hh).toBeGreaterThanOrEqual(0);
+        for (const x of [2, 4]) {
+          const overRoad = p.cx + p.hw > x * T && p.cx - p.hw < (x + 1) * T;
+          expect(overRoad, `n${p.x} pill over road ${x}`).toBe(false);
+        }
+      }
+      expect(apart(pills[0]!, pills[1]!), 'the two pills').toBe(true);
+    });
+  }
+});

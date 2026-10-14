@@ -31,12 +31,12 @@ test('a jammed round shows a backlog at the edges and counts it on the result', 
   if (info.project.name === 'desktop')
     await page.locator('.rw-map').screenshot({ path: `${SHOTS}/adr035-backlog.png` });
   await expect(state(page)).not.toHaveAttribute('data-phase', 'go', { timeout: 40_000 });
-  const waiting = total(await attr(page, 'waiting'));
-  const sheet = page.getByRole('dialog');
-  if (waiting > 0)
-    await expect(sheet).toContainText(
-      new RegExp(`${waiting} vehicles? still waiting to enter at the edges`),
-    );
+  // The fake jam is deterministic: seed 1 ends with 41 trips held at the edges. The board's last
+  // frame and the result line agree on it.
+  expect(total(await attr(page, 'waiting'))).toBe(41);
+  await expect(page.getByRole('dialog')).toContainText(
+    '41 vehicles still waiting to enter at the edges.',
+  );
 });
 
 test('One-Way warns, before it is placed, when it cuts an exit off', async ({ page }, info) => {

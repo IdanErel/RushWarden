@@ -215,11 +215,28 @@ export function badgeCentre(
   ];
 }
 
+/** An axis-aligned box in px, centre and half sizes: a pill, or a badge's bounding square. */
+export interface Box {
+  readonly cx: number;
+  readonly cy: number;
+  readonly hw: number;
+  readonly hh: number;
+}
+
+const GAP = 2;
+
+function overlaps(a: Box, b: Box): boolean {
+  return Math.abs(a.cx - b.cx) < a.hw + b.hw + GAP && Math.abs(a.cy - b.cy) < a.hh + b.hh + GAP;
+}
+
 /**
  * Where an edge's backlog marker goes (ADR-035: trips waiting to enter), in px: just inside the
- * map on the block beside the edge's road tile, against the map's border, so it never covers the
- * entry cell or the heat-strip. On the next tile along the border (right or down), or the one
- * before it when the road tile is the last on that border.
+ * map on a block beside the edge's road tile, against the map's border, so it never covers the
+ * entry cell or the heat-strip. It tries the block after the road (right, or below), then the one
+ * before it, then the same two a step further in from the border, and takes the first that clears
+ * everything in `avoid`: the card badges on the board and markers already placed. Two edge roads
+ * two tiles apart share the block between them with the far road's badge (#107 review), so the
+ * marker moves round it. With no clear spot it keeps the first.
  */
 export function backlogCentre(
   edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
@@ -228,22 +245,33 @@ export function backlogCentre(
   halfH: number,
   width: number,
   height: number,
+  avoid: readonly Box[] = [],
 ): [number, number] {
   const { x, y } = edge.tile;
   const horizontal = edge.side === 'n' || edge.side === 's';
-  let cx: number;
-  let cy: number;
-  if (horizontal) {
-    cx = (x + 1) * T + halfW + 2;
-    if (cx + halfW > width) cx = x * T - halfW - 2;
-    cy = edge.side === 'n' ? halfH + 2 : height - halfH - 2;
-  } else {
-    cy = (y + 1) * T + halfH + 2;
-    if (cy + halfH > height) cy = y * T - halfH - 2;
-    cx = edge.side === 'w' ? halfW + 2 : width - halfW - 2;
+  const clampX = (v: number) => Math.min(Math.max(v, halfW + 1), width - halfW - 1);
+  const clampY = (v: number) => Math.min(Math.max(v, halfH + 1), height - halfH - 1);
+  const candidates: [number, number][] = [];
+  // Along the border: after the road, then before it. Inward: one marker size per step.
+  const steps = 4;
+  for (let k = 0; k < steps; k++) {
+    if (horizontal) {
+      const inward = k * (2 * halfH + 2 * GAP);
+      const cy = edge.side === 'n' ? halfH + GAP + inward : height - halfH - GAP - inward;
+      candidates.push([(x + 1) * T + halfW + GAP, cy], [x * T - halfW - GAP, cy]);
+    } else {
+      const inward = k * (2 * halfW + 2 * GAP);
+      const cx = edge.side === 'w' ? halfW + GAP + inward : width - halfW - GAP - inward;
+      candidates.push([cx, (y + 1) * T + halfH + GAP], [cx, y * T - halfH - GAP]);
+    }
   }
-  return [
-    Math.min(Math.max(cx, halfW + 1), width - halfW - 1),
-    Math.min(Math.max(cy, halfH + 1), height - halfH - 1),
-  ];
+  // Off the canvas (the road is the first or last on its border): not a candidate.
+  const fits = ([cx, cy]: [number, number]) =>
+    cx - halfW >= 0 && cx + halfW <= width && cy - halfH >= 0 && cy + halfH <= height;
+  const onCanvas = candidates.filter(fits);
+  const clear = onCanvas.find(([cx, cy]) =>
+    avoid.every((b) => !overlaps({ cx, cy, hw: halfW, hh: halfH }, b)),
+  );
+  const [cx, cy] = clear ?? onCanvas[0] ?? candidates[0] ?? [halfW, halfH];
+  return [clampX(cx), clampY(cy)];
 }
