@@ -3,7 +3,7 @@
  * Graphics per vehicle that shares a per-type GraphicsContext, positioned every frame from the
  * interpolated snapshot pair. The scene only draws; it never steps the sim.
  */
-import { Application, Container, Graphics, GraphicsContext } from 'pixi.js';
+import { Application, Container, Graphics, GraphicsContext, Text } from 'pixi.js';
 import {
   CELLS_PER_TILE,
   GRID_HEIGHT,
@@ -21,7 +21,10 @@ import {
 } from '@rushwarden/sim';
 import {
   LANE_WIDTH,
+  backlogLabel,
   badgeCentre,
+  entryTab,
+  entryTabZone,
   SIDE_VEC,
   connections,
   fitGrid,
@@ -69,6 +72,24 @@ import {
   type Rect,
   type TargetMark,
 } from '../targets.js';
+
+/** Centre of an edge's cut-off cross, in px: on its road tile, against the map's border. */
+function cutMarkCentre(
+  edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: Side },
+  T: number,
+): [number, number] {
+  const { x, y } = edge.tile;
+  switch (edge.side) {
+    case 'n':
+      return [(x + 0.5) * T, y * T + T * 0.25];
+    case 's':
+      return [(x + 0.5) * T, (y + 1) * T - T * 0.25];
+    case 'w':
+      return [x * T + T * 0.25, (y + 0.5) * T];
+    default:
+      return [(x + 1) * T - T * 0.25, (y + 0.5) * T];
+  }
+}
 
 export interface ControllerMark {
   readonly x: number;
@@ -167,11 +188,21 @@ export class TrafficScene {
   /** The ripple spreading off the ring (redrawn by transform each frame, not re-tessellated). */
   private readonly jamRippleLayer = new Graphics();
   private readonly jam: JamTracer;
+  /** Backlog markers at the map's edges (ADR-035), above the traffic and the card marks. */
+  private readonly waitingLayer = new Container();
+  private readonly waitingViews: {
+    readonly root: Container;
+    readonly pill: Graphics;
+    readonly label: Text;
+  }[] = [];
+  private waiting: Uint16Array | null = null;
   private jamOrigin: JamOrigin | null = null;
   private targets: readonly TargetMark[] = [];
   private cursor: number | null = null;
   private ghost: ControllerMark | null = null;
   private ghostArrow: GhostArrow | null = null;
+  /** Map edge ids the ghost's placement would cut off (ADR-035 `cutRoutes`): crossed out. */
+  private cutEdges: readonly number[] = [];
   private marks: readonly PlacedMark[] = [];
   private readonly heatLayer = new Graphics();
   private readonly heatProgress = new Graphics();
@@ -221,6 +252,7 @@ export class TrafficScene {
       this.trailLayer,
       this.vehicleLayer,
       this.markLayer,
+      this.waitingLayer,
       this.jamRippleLayer,
       this.jamLayer,
     );
@@ -279,6 +311,23 @@ export class TrafficScene {
     }
   }
 
+  /**
+   * Feeds the waiting counts released with a snapshot (`SimClient` `onFrame`'s fourth argument,
+   * ADR-035): per map edge in `GridMap.edges` order, the trips due but not yet on the map. Each
+   * edge with any shows a backlog marker with the count. Redraws only when a count changes.
+   */
+  pushWaiting(frame: Uint16Array): void {
+    const prev = this.waiting;
+    if (prev && prev.length === frame.length && prev.every((n, i) => n === frame[i])) return;
+    this.waiting = frame.slice();
+    this.drawWaiting();
+  }
+
+  /** Last waiting counts per map edge (empty before any came this round), for tests and hooks. */
+  get waitingCounts(): readonly number[] {
+    return this.waiting ? [...this.waiting] : [];
+  }
+
   /** Last decoded controller state, in intersection order (for tests and test hooks). */
   get liveControllers(): readonly LiveIntersection[] {
     return this.live;
@@ -307,6 +356,7 @@ export class TrafficScene {
     this.closed = NO_CLOSURES;
     this.demand = null;
     this.gridlockAt = null;
+    this.waiting = null;
     this.rebuild();
   }
 
@@ -341,6 +391,7 @@ export class TrafficScene {
     this.closed = closed;
     this.demand = input.demandProfile;
     this.gridlockAt = null;
+    this.waiting = null;
     this.rebuild();
   }
 
@@ -402,9 +453,11 @@ export class TrafficScene {
     cursor: number | null = null,
     ghost: Omit<ControllerMark, 'x' | 'y'> | null = null,
     arrow: GhostArrow | null = null,
+    cut: readonly number[] = [],
   ): void {
     this.targets = targets;
     this.ghostArrow = arrow;
+    this.cutEdges = cut;
     this.cursor = cursor !== null && cursor >= 0 && cursor < targets.length ? cursor : null;
     const at = this.cursor !== null ? targets[this.cursor] : undefined;
     this.ghost =
@@ -462,6 +515,7 @@ export class TrafficScene {
     this.drawTargets();
     this.drawMarks();
     this.drawJam();
+    this.drawWaiting();
     this.buildVehicleContexts();
   }
 
@@ -639,6 +693,23 @@ export class TrafficScene {
       this.drawArrow(this.ghostLayer, a.from, a.to, a.color);
       this.ghostLayer.alpha = 0.8;
     }
+    // Exits the placement would cut off: a red cross at the road's end, on the map's border.
+    for (const id of this.cutEdges) {
+      const edge = this.map.edges.find((e) => e.id === id);
+      if (!edge) continue;
+      const [cx, cy] = cutMarkCentre(edge, T);
+      const d = T * 0.16;
+      for (const [color, width] of [
+        [p.outline, Math.max(5, T * 0.11)],
+        [p.signalRed, Math.max(3, T * 0.07)],
+      ] as const) {
+        g.moveTo(cx - d, cy - d)
+          .lineTo(cx + d, cy + d)
+          .moveTo(cx + d, cy - d)
+          .lineTo(cx - d, cy + d)
+          .stroke({ color, width, cap: 'round' });
+      }
+    }
   }
 
   private drawMarks(): void {
@@ -646,6 +717,8 @@ export class TrafficScene {
     const T = this.fit.tilePx;
     const outline = this.palette.outline;
     const seen = new Map<string, number>();
+    // Where a backlog tab could sit (ADR-035): badges keep out, so a tab never hides one.
+    const tabZones = this.map.edges.map((e) => entryTabZone(e, T, GRID_WIDTH, GRID_HEIGHT));
     for (const m of this.marks) {
       const r = m.span ? spanRect(m.span) : targetTileRect(m.target, this.map);
       if (!r) continue;
@@ -670,11 +743,95 @@ export class TrafficScene {
       const n = seen.get(k) ?? 0;
       seen.set(k, n + 1);
       const rad = Math.max(7, T * 0.15);
-      const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx);
+      const [cx, cy] = badgeCentre(r, T, rad, n, this.fit.widthPx, this.fit.heightPx, tabZones);
       g.circle(cx, cy, rad).fill(m.color).stroke({ color: outline, width: 2 });
       g.circle(cx, cy, rad * 0.4).fill(this.palette.glyph);
     }
     for (const m of this.marks) if (m.arrow) this.drawArrow(g, m.arrow.from, m.arrow.to, m.color);
+  }
+
+  /**
+   * One backlog tab per entry with trips waiting to enter (ADR-035): a dark pill with a red rim
+   * and "+N", attached to its own entry and aligned with that road (`entryTab`): just outside the
+   * heat-strip where the canvas has room, over the strip and the end of the entry tile where it
+   * has not. Pooled; hidden at zero.
+   */
+  private drawWaiting(): void {
+    const T = this.fit.tilePx;
+    const p = this.palette;
+    const counts = this.waiting;
+    const edges = this.map.edges;
+    let used = 0;
+    // Canvas px beyond the map on each side, heat-strip gutter included.
+    const f = this.fit;
+    const screen = this.app.screen;
+    const margin: Record<string, number> = {
+      n: f.originY,
+      s: screen.height - f.originY - f.heightPx,
+      w: f.originX,
+      e: screen.width - f.originX - f.widthPx,
+    };
+    if (counts) {
+      for (let k = 0; k < edges.length; k++) {
+        const n = counts[k] ?? 0;
+        const edge = edges[k];
+        if (n <= 0 || !edge) continue;
+        const view = this.waitingView(used++);
+        const text = backlogLabel(n);
+        view.label.text = text;
+        view.label.style.fill = p.glyph;
+        // The tab stays within its entry tile across the road: shrink the label until it does.
+        let size = Math.max(11, Math.round(T * 0.3));
+        let halfW = 0;
+        let halfH = 0;
+        for (;;) {
+          view.label.style.fontSize = size;
+          halfH = Math.max(Math.min(9, T / 2 - 3), Math.round(size * 0.8));
+          halfW = Math.max(halfH, Math.round(view.label.width / 2) + Math.round(size * 0.45));
+          if ((halfW * 2 <= T - 6 && halfH * 2 <= T - 6) || size <= 7) break;
+          size--;
+        }
+        const [cx, cy] = entryTab(
+          edge,
+          T,
+          halfW,
+          halfH,
+          GRID_WIDTH,
+          GRID_HEIGHT,
+          Math.max(0, margin[edge.side] ?? 0),
+          HEAT_GUTTER_PX,
+        );
+        view.pill
+          .clear()
+          .roundRect(-halfW, -halfH, halfW * 2, halfH * 2, halfH)
+          .fill(p.outline)
+          .stroke({ color: p.signalRed, width: Math.max(2, T * 0.05) });
+        view.root.position.set(cx, cy);
+        view.root.visible = true;
+      }
+    }
+    for (let k = used; k < this.waitingViews.length; k++) {
+      const v = this.waitingViews[k];
+      if (v) v.root.visible = false;
+    }
+  }
+
+  private waitingView(k: number): { root: Container; pill: Graphics; label: Text } {
+    let v = this.waitingViews[k];
+    if (!v) {
+      const root = new Container();
+      const pill = new Graphics();
+      const label = new Text({
+        text: '',
+        style: { fontFamily: 'system-ui, sans-serif', fontWeight: '700', fontSize: 12 },
+      });
+      label.anchor.set(0.5);
+      root.addChild(pill, label);
+      this.waitingLayer.addChild(root);
+      v = { root, pill, label };
+      this.waitingViews[k] = v;
+    }
+    return v;
   }
 
   /** A red ring round the junction where the gridlock started, over everything else. */

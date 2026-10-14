@@ -44,8 +44,11 @@ const sound: SoundControl = {
     return real.setSoundOnFromGesture(on);
   },
   play(id, options) {
+    // The time the screen asked for the sound, taken before the engine builds it: synthesising a
+    // pluck can take a few ms on a loaded runner, and timing after it skewed the e2e's gaps.
+    const t = performance.now();
     const played = real.play?.(id, options) ?? false;
-    playCalls.push({ id, played, t: performance.now() });
+    playCalls.push({ id, played, t });
     return played;
   },
 };

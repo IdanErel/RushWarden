@@ -2,7 +2,7 @@
 
 Status: Accepted (Lead, on the toy-only scope) · 2026-10-11 · Content Designer (CON-06). Number
 assigned by the Lead. Items 1, 2, 3, 5 and 6 amended by Amendment 1 (playtest B1, B2, E1),
-2026-10-13: Proposed.
+2026-10-13: Proposed. Amendment 1 item 3's factors re-tuned by Amendment 2 (ADR-035), 2026-10-14.
 
 ## Context
 
@@ -287,3 +287,79 @@ pass rate counts only runs that reached it.
   passes 384 against 357; with no cards it gridlocks at 0:08. The outcomes are the same with and
   without the ADR-033 gridlock rule.
 - **The final report** runs on `main` after ADR-033 (#94) merges, as the Lead asked.
+
+## Amendment 2: re-tune after ADR-035 (2026-10-14)
+
+Status: Proposed · Content Designer · from the Lead's #106 heads-up and the toy-only release
+candidate gate.
+
+### Context
+
+ADR-035 (#106) diverts trips that have no route instead of dropping them, which makes every card
+round easier. On the Amendment 1 factors at share 0.86, with ADR-033 (#94) applied, the toy
+measured `greedy-throughput` 93.2%, archetypes 78.0–88.0%, `random` 14.2% and `no-cards` 17.7%
+(1,000 seeds per bot). Raising the share alone trades badly: at 0.90 greedy is still 85.8% and
+`random` already 7.3%.
+
+### Decision
+
+1. **Share unchanged** at 0.86, so slack stays 14% on every toy round and map.
+2. **Factors.** Amendment 1 item 3's table becomes the one below (old value in brackets where it
+   changed). Most of the change makes the busier 5- and 6-edge maps busier, which is where
+   diverted trips helped the card bots most. FLOW's weakest cells (Festival on d1-03 and d1-06,
+   round 11 on d1-12) were then eased about 2%, and d1-06's Market Day stays at 1810 so the clip
+   seed keeps its outcomes.
+
+   | Template | D1 4 Market Day | D1 8 Parade | D1 11       | D1 10       | D1 12 Festival |
+   | -------- | --------------- | ----------- | ----------- | ----------- | -------------- |
+   | d1-01    | 1080 (1070)     | 730 (670)   | 1300 (1280) | 1450 (1370) | 500 (460)      |
+   | d1-02    | 680 (610)       | –           | 860 (810)   | 950 (840)   | 320 (290)      |
+   | d1-03    | 1740 (1750)     | –           | 2120        | 2210 (2230) | 780 (800)      |
+   | d1-04    | 2100 (1930)     | 1050 (940)  | 2270 (2140) | 2360 (2370) | 870 (820)      |
+   | d1-05    | 970 (840)       | –           | 1240 (1080) | 1280 (1140) | 460 (390)      |
+   | d1-06    | 1810            | –           | 2230 (2180) | 2350 (2290) | 830 (820)      |
+   | d1-07    | 780 (680)       | 780 (670)   | 950 (890)   | 1020 (930)  | 370 (330)      |
+   | d1-08    | 1730 (1680)     | –           | 2080 (2030) | 2180 (2130) | 800 (750)      |
+   | d1-09    | 870 (790)       | –           | 1080 (1020) | 1140 (1080) | 410 (370)      |
+   | d1-10    | 820 (730)       | –           | 1010 (940)  | 1070 (1000) | 360 (350)      |
+   | d1-11    | 690 (600)       | 660 (590)   | 880 (790)   | 920 (830)   | 320 (290)      |
+   | d1-12    | 1910 (1880)     | –           | 2280 (2260) | 2420 (2370) | 880 (850)      |
+
+3. **Calibration.** Same loop as item 4, on fresh seed ranges, followed by a run-level model
+   (per bot and cell, a logistic fit of pass rate against log factor, combined over each seed's
+   five cells) to pick between candidate tables.
+
+### Results
+
+Toy, seeds 1–2,000 per bot, on `main` 01b1265 (ADR-035) with the ADR-033 sim commit (d8a8ef4)
+applied locally. `no-cards` is local to the measurement, as before.
+
+| Bot                 | Toy win | Target (ADR-030 item 3, amended) |
+| ------------------- | ------- | -------------------------------- |
+| `no-cards`          | 7.1%    | at most 20%                      |
+| `random`            | 6.5%    | 5–30% (Lead, #108)               |
+| `greedy-throughput` | 80.7%   | at most 80%, ±2                  |
+| `archetype(FLOW)`   | 56.5%   | 55–75%                           |
+| `archetype(MASS)`   | 73.3%   | 55–75%                           |
+| `archetype(TOLL)`   | 66.8%   | 55–75%                           |
+| `archetype(CHAOS)`  | 62.2%   | 55–75%                           |
+| `archetype(TEMPO)`  | 67.8%   | 55–75%                           |
+
+- **Lowest cell per archetype:** FLOW 40% (round 1, d1-04 and others), TOLL 44%, CHAOS 42%,
+  MASS 43%, TEMPO 46%. Every cell is above the 35% floor; greedy's lowest is 51%.
+- **Second seed range** (2,001–4,000, the table before the three 2% eases): greedy 79.2%,
+  FLOW 54.5%, `random` 5.5%.
+
+### Consequences
+
+- **`random` band moved to 5–30%.** After ADR-035, `random` and `greedy-throughput` can no longer both
+  be met. Every table tried moves them together: the tables with greedy at most 82% put `random`
+  at 5.5–6.5% (2,000 seeds each), and the one table near `random` 8% (8.4%) had greedy at 82.9%
+  on 800 seeds. Raising the share instead is worse (0.90: greedy 85.8%, `random` 7.3%). The
+  release candidate gate is greedy back inside tolerance. The Lead accepted this table on #108
+  and set the toy `random` band to 5–30% (ADR-030 item 3).
+- **Quotas.** Toy quotas rise with the busier maps: a toy Parade now asks 149–236 (d1-11 to
+  d1-04), up from 133–212.
+- **Clip seed.** Unchanged (20); its Market Day keeps both outcomes, with and without ADR-033.
+- **The official report** runs on `main` after ADR-033 (#94) merges.
+- **Full run.** Unchanged: the factor is toy-only. The full-run §11 break from ADR-035 is ADR-036.

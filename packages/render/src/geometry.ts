@@ -179,11 +179,22 @@ export function fitGrid(width: number, height: number, gutterPx = 0): ViewFit {
   };
 }
 
+/** An axis-aligned box in px, centre and half sizes. */
+export interface Box {
+  readonly cx: number;
+  readonly cy: number;
+  readonly hw: number;
+  readonly hh: number;
+}
+
 /**
  * Where badge `n` of a mark goes, in px: above a horizontal run, left of a vertical one, and off
  * the top-left corner of a junction (in the block on its diagonal, clear of all four roads; more
- * badges go on up that diagonal). Kept
- * on the canvas: a target on the map's edge has its badge just inside.
+ * badges go on up that diagonal). Kept on the canvas: a target on the map's edge has its badge
+ * just inside. A badge never goes where an entry's backlog tab (ADR-035) could hide it
+ * (`tabs`, from `entryTabZone`): a run's badge moves to the run's other side, and a junction's to
+ * the next diagonal (top-right, bottom-right, bottom-left). With every spot under a tab it keeps
+ * the usual one.
  */
 export function badgeCentre(
   r: { x: number; y: number; w: number; h: number },
@@ -192,25 +203,87 @@ export function badgeCentre(
   n: number,
   width: number,
   height: number,
+  tabs: readonly Box[] = [],
 ): [number, number] {
   const step = n * (rad * 2 + 2);
-  let cx: number;
-  let cy: number;
+  const spots: [number, number][] = [];
   if (r.h > r.w) {
-    cx = r.x * T - rad - 1;
-    cy = r.y * T + rad + 2 + step;
+    spots.push([r.x * T - rad - 1, r.y * T + rad + 2 + step]);
+    spots.push([(r.x + r.w) * T + rad + 1, r.y * T + rad + 2 + step]);
   } else if (r.w > r.h) {
-    cx = r.x * T + rad + 2 + step;
-    cy = r.y * T - rad - 1;
+    spots.push([r.x * T + rad + 2 + step, r.y * T - rad - 1]);
+    spots.push([r.x * T + rad + 2 + step, (r.y + r.h) * T + rad + 1]);
   } else {
     // Further badges on a junction step on up the diagonal, into the same block: stepping
     // sideways put the second one on the north road, over the queue (#96 review).
     const d = step / Math.SQRT2;
-    cx = r.x * T - rad * 0.8 - d;
-    cy = r.y * T - rad * 0.8 - d;
+    const o = rad * 0.8 + d;
+    const [x0, y0, x1, y1] = [r.x * T, r.y * T, (r.x + r.w) * T, (r.y + r.h) * T];
+    spots.push([x0 - o, y0 - o], [x1 + o, y0 - o], [x1 + o, y1 + o], [x0 - o, y1 + o]);
   }
-  return [
+  const clamp = ([cx, cy]: [number, number]): [number, number] => [
     Math.min(Math.max(cx, rad + 1), width - rad - 1),
     Math.min(Math.max(cy, rad + 1), height - rad - 1),
   ];
+  const underTab = ([cx, cy]: [number, number]) =>
+    tabs.some((b) => Math.abs(cx - b.cx) < rad + b.hw && Math.abs(cy - b.cy) < rad + b.hh);
+  const placed = spots.map(clamp);
+  return placed.find((p) => !underTab(p)) ?? (placed[0] as [number, number]);
+}
+
+/**
+ * The most map an entry's backlog tab can cover (ADR-035): with no canvas margin and the widest
+ * label `entryTab` allows (the tile's width less 6 px across the road). Badges keep out of it.
+ */
+export function entryTabZone(
+  edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
+  T: number,
+  gridW: number,
+  gridH: number,
+): Box {
+  const size = Math.max(11, Math.round(T * 0.3));
+  const hw = (T - 6) / 2;
+  const hh = Math.min(hw, Math.max(9, Math.round(size * 0.8)));
+  const [cx, cy] = entryTab(edge, T, hw, hh, gridW, gridH, 0, 0);
+  return { cx, cy, hw, hh };
+}
+
+/**
+ * Where an entry's backlog tab goes (ADR-035: trips waiting to enter), as its centre in map px:
+ * attached to its own entry and aligned with that road, so the count can only belong to it. It
+ * sits just outside the entry's heat-strip when the canvas has room there (`margin`: canvas px
+ * beyond the map on that side, the strip's `gutter` included); with less room it moves in until
+ * its outer edge meets the canvas edge, over the strip and the end of the entry tile. Across the
+ * road it is centred on the entry tile, so tabs of different entries never meet (the scene keeps
+ * each tab within its tile's width). #107: decided by the Lead over an on-board search.
+ */
+export function entryTab(
+  edge: { readonly tile: { readonly x: number; readonly y: number }; readonly side: string },
+  T: number,
+  halfW: number,
+  halfH: number,
+  gridW: number,
+  gridH: number,
+  margin: number,
+  gutter: number,
+): [number, number] {
+  const { x, y } = edge.tile;
+  switch (edge.side) {
+    case 'n':
+      return [(x + 0.5) * T, -Math.min(margin, gutter + 2 * halfH) + halfH];
+    case 's':
+      return [(x + 0.5) * T, gridH * T + Math.min(margin, gutter + 2 * halfH) - halfH];
+    case 'w':
+      return [-Math.min(margin, gutter + 2 * halfW) + halfW, (y + 0.5) * T];
+    default:
+      return [gridW * T + Math.min(margin, gutter + 2 * halfW) - halfW, (y + 0.5) * T];
+  }
+}
+
+/**
+ * A backlog tab's label (ADR-035): "+N", and "999+" above 999, where "+999" would read as an
+ * exact count (#107 review).
+ */
+export function backlogLabel(n: number): string {
+  return n > 999 ? '999+' : `+${n}`;
 }

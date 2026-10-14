@@ -80,7 +80,9 @@ test('plays card place, Go, throttled vehicle exits and the round-end sound', as
   ]);
   const exits = p.filter((c) => c.id === 'vehicleExit');
   expect(exits.length).toBeGreaterThan(0);
-  // Throttled: at least 120 ms between exit sounds however many vehicles leave.
+  // Throttled: at least 120 ms between exit sounds however many vehicles leave. `t` is when the
+  // screen asked for each sound (the throttle's own clock, `performance.now()`), so the gap is
+  // exact up to the timer's coarsening (≤ 0.1 ms in Chromium); 119 leaves 1 ms for that.
   const times = exits.map((c) => c.t);
   times.slice(1).forEach((t, i) => expect(t - (times[i] ?? 0)).toBeGreaterThanOrEqual(119));
   const end = ids[ids.length - 1];
