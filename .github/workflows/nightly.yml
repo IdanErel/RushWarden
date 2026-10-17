@@ -143,7 +143,7 @@ jobs:
           fetch-depth: 1
           # The token is passed to the push command only, not stored in .git/config.
           persist-credentials: false
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: balance-report-${{ github.run_number }}-${{ github.sha }}
           path: ${{ runner.temp }}/balance
