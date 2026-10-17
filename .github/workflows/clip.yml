@@ -59,7 +59,7 @@ jobs:
             echo '| --- | --- |'
             cd tools/clip/out && for f in *.mp4 *.gif; do echo "| $f | \`$(sha256sum "$f" | cut -d' ' -f1)\` |"; done
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rushwarden-clips-${{ github.sha }}
           path: |

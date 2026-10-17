@@ -57,7 +57,7 @@ jobs:
       - run: pnpm --filter @rushwarden/platform-web exec playwright install --with-deps chromium
       - name: Itch zip smoke test
         run: pnpm --filter @rushwarden/platform-web run e2e:itch
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rushwarden-itch-${{ github.sha }}
           path: packages/platform-web/itch/rushwarden-itch.zip
