@@ -96,7 +96,7 @@ jobs:
       # P1-PLT-01: the zip itself boots from an itch-like subfolder in a 390×844 iframe and plays a round.
       - name: Itch zip smoke test
         run: pnpm --filter @rushwarden/platform-web run e2e:itch
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rushwarden-itch-${{ github.sha }}
           path: packages/platform-web/itch/rushwarden-itch.zip
@@ -110,7 +110,7 @@ jobs:
       # P1-PLT-02: each zip plays a run against a stub SDK that records every call (GDD §9).
       - name: Portal zip SDK test
         run: pnpm --filter @rushwarden/platform-web run e2e:portals
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rushwarden-portals-${{ github.sha }}
           path: packages/platform-web/portals/*.zip

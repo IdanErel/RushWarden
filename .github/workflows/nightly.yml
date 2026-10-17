@@ -118,7 +118,7 @@ jobs:
       - name: Report to the job summary
         if: steps.runner.outputs.present == 'true'
         run: cat "$RUNNER_TEMP/balance/latest.md" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.runner.outputs.present == 'true'
         with:
           name: balance-report-${{ github.run_number }}-${{ github.sha }}
